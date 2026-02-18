@@ -7,8 +7,8 @@ const services = [
     icon: Globe,
     titleFr: "Création de Sites Web",
     titleEn: "Website Creation",
-    descFr: "Responsifs, SEO-optimisés, designs épurés. Des sites qui incarnent l'identité de votre marque.",
-    descEn: "Responsive, SEO-optimized, clean designs. Websites that embody your brand identity.",
+    descFr: "Adaptatifs, designs épurés. Des sites qui incarnent l'identité de votre marque.",
+    descEn: "Adaptive, clean designs. Websites that embody your brand identity.",
   },
   {
     icon: Smartphone,

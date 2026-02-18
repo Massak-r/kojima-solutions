@@ -30,8 +30,8 @@ const HeroSection = () => {
           className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold leading-tight text-gradient-silver mb-8"
         >
           {t(
-            "L'artisanat numérique au service de votre vision.",
-            "Digital Craftsmanship for your vision."
+            "Votre vision, concrétisée avec précision.",
+            "Your vision, brought to life with precision."
           )}
         </motion.h1>
 
@@ -42,8 +42,8 @@ const HeroSection = () => {
           className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12"
         >
           {t(
-            "1ère heure de conseil offerte pour définir votre trajectoire.",
-            "First hour of consulting offered to define your trajectory."
+            "La première séance autour d'un café est offerte — définissons ensemble votre trajectoire.",
+            "The first session over a coffee is on us — let's define your trajectory together."
           )}
         </motion.p>
 
@@ -57,8 +57,8 @@ const HeroSection = () => {
             className="inline-block px-8 py-4 bg-primary text-primary-foreground font-display font-medium rounded-lg btn-primary-glow transition-all duration-300 hover:scale-105"
           >
             {t(
-              "Votre premier café est offert – Discutons de votre projet",
-              "Your first coffee is on us – Let's discuss your project"
+              "Prenons un café – Discutons de votre projet",
+              "Let's have a coffee – Talk about your project"
             )}
           </a>
         </motion.div>

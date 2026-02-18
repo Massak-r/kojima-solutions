@@ -1,16 +1,25 @@
 import { useLanguage } from "@/hooks/useLanguage";
 import { motion } from "framer-motion";
-import { Coffee, Rocket, TrendingUp } from "lucide-react";
+import { Coffee, Rocket, TrendingUp, MousePointerClick } from "lucide-react";
 
 const steps = [
   {
     icon: Coffee,
-    titleFr: "Café & Estimation Gratuits",
-    titleEn: "Free Coffee & Estimate",
-    descFr: "Une heure offerte pour comprendre vos besoins et établir un devis précis en crédits.",
-    descEn: "One free hour to understand your needs and deliver a precise credit estimate.",
+    titleFr: "Séance autour d'un café",
+    titleEn: "Coffee Session",
+    descFr: "Une première heure offerte pour comprendre vos besoins et établir un devis précis en crédits.",
+    descEn: "A first free hour to understand your needs and deliver a precise credit estimate.",
     creditFr: "0 crédit",
     creditEn: "0 credits",
+  },
+  {
+    icon: MousePointerClick,
+    titleFr: "Validation du Design en 1 clic",
+    titleEn: "1-Click Design Validation",
+    descFr: "Notre outil de feedback permet à votre équipe et vos parties prenantes de voter directement sur plusieurs propositions de design. Zéro friction, décision rapide.",
+    descEn: "Our feedback tool lets your team and stakeholders vote directly on multiple design proposals. Zero friction, fast decisions.",
+    creditFr: "Décision collective",
+    creditEn: "Collective decision",
   },
   {
     icon: Rocket,
@@ -57,26 +66,26 @@ const MethodologySection = () => {
           {/* Timeline line */}
           <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-border" />
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {steps.map((step, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-80px" }}
-                transition={{ delay: i * 0.2, duration: 0.6 }}
-                className="glass-card-hover p-8 text-center relative"
+                transition={{ delay: i * 0.15, duration: 0.6 }}
+                className="glass-card-hover p-6 text-center relative"
               >
                 {/* Step number */}
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground font-display">
                   {i + 1}
                 </div>
 
-                <div className="w-12 h-12 mx-auto mb-6 mt-2 rounded-lg bg-secondary flex items-center justify-center">
+                <div className="w-12 h-12 mx-auto mb-4 mt-2 rounded-lg bg-secondary flex items-center justify-center">
                   <step.icon className="w-6 h-6 text-primary" />
                 </div>
 
-                <h3 className="font-display text-lg font-semibold text-foreground mb-3">
+                <h3 className="font-display text-base font-semibold text-foreground mb-3">
                   {t(step.titleFr, step.titleEn)}
                 </h3>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-4">

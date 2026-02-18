@@ -4,49 +4,50 @@
 
 @layer base {
   :root {
-    --background: 222 50% 7%;
-    --foreground: 220 20% 90%;
+    /* Zen japonais — washi clair, encre, indigo doux */
+    --background: 40 25% 96%;
+    --foreground: 220 30% 12%;
 
-    --card: 222 35% 11%;
-    --card-foreground: 220 20% 90%;
+    --card: 38 20% 92%;
+    --card-foreground: 220 30% 12%;
 
-    --popover: 222 35% 11%;
-    --popover-foreground: 220 20% 90%;
+    --popover: 38 20% 92%;
+    --popover-foreground: 220 30% 12%;
 
-    --primary: 215 30% 55%;
-    --primary-foreground: 222 50% 7%;
+    --primary: 215 45% 30%;
+    --primary-foreground: 40 25% 96%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 220 15% 80%;
+    --secondary: 35 12% 88%;
+    --secondary-foreground: 220 20% 25%;
 
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 35 10% 85%;
+    --muted-foreground: 220 12% 48%;
 
-    --accent: 220 12% 70%;
-    --accent-foreground: 222 50% 7%;
+    --accent: 215 25% 55%;
+    --accent-foreground: 40 25% 96%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 40 25% 96%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 215 30% 55%;
+    --border: 35 12% 80%;
+    --input: 35 12% 80%;
+    --ring: 215 45% 30%;
 
     --radius: 0.75rem;
 
-    --silver: 220 10% 72%;
-    --silver-glow: 215 25% 60%;
-    --glass: 222 30% 14%;
-    --glass-border: 220 15% 22%;
+    --silver: 215 15% 55%;
+    --silver-glow: 215 30% 45%;
+    --glass: 38 18% 94%;
+    --glass-border: 35 14% 78%;
 
-    --sidebar-background: 222 50% 7%;
-    --sidebar-foreground: 220 20% 90%;
-    --sidebar-primary: 215 30% 55%;
-    --sidebar-primary-foreground: 222 50% 7%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 220 20% 90%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 215 30% 55%;
+    --sidebar-background: 40 25% 96%;
+    --sidebar-foreground: 220 30% 12%;
+    --sidebar-primary: 215 45% 30%;
+    --sidebar-primary-foreground: 40 25% 96%;
+    --sidebar-accent: 35 12% 88%;
+    --sidebar-accent-foreground: 220 30% 12%;
+    --sidebar-border: 35 12% 80%;
+    --sidebar-ring: 215 45% 30%;
   }
 }
 
@@ -71,7 +72,8 @@
 
 @layer components {
   .glass-card {
-    @apply bg-glass/60 backdrop-blur-xl border border-glass-border rounded-xl;
+    @apply bg-glass/70 backdrop-blur-xl border border-glass-border rounded-xl;
+    box-shadow: 0 2px 16px -4px hsl(215 45% 30% / 0.06);
   }
 
   .glass-card-hover {
@@ -79,8 +81,8 @@
   }
 
   .glass-card-hover:hover {
-    box-shadow: 0 0 30px -5px hsl(var(--silver-glow) / 0.15),
-                0 0 0 1px hsl(var(--silver) / 0.2);
+    box-shadow: 0 8px 32px -8px hsl(var(--primary) / 0.18),
+                0 0 0 1px hsl(var(--primary) / 0.12);
     transform: translateY(-4px);
   }
 
@@ -91,16 +93,16 @@
 
   .text-gradient-primary {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--silver)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
   }
 
   .btn-primary-glow {
     @apply relative overflow-hidden;
-    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.4);
+    box-shadow: 0 4px 20px -6px hsl(var(--primary) / 0.5);
   }
 
   .btn-primary-glow:hover {
-    box-shadow: 0 0 35px -5px hsl(var(--primary) / 0.6);
+    box-shadow: 0 6px 28px -4px hsl(var(--primary) / 0.6);
   }
 
   .section-spacing {
