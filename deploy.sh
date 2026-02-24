@@ -20,5 +20,5 @@ scp -P ${SSH_PORT} dist/.htaccess "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/.htacc
 
 echo ""
 echo "✅  Deployed successfully!"
-echo "    https://${SSH_HOST}"
+echo "    https://kojima-solutions.ch"
 echo ""
