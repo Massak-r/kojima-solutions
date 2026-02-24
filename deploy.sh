@@ -4,7 +4,7 @@ set -e  # stop immediately on any error
 # ── Configure these once ──────────────────────────────────────
 SSH_USER="lhwd_automated"
 SSH_HOST="lhwd.ftp.infomaniak.com"
-REMOTE_PATH="/home/clients/ba8c9a93b5cde03c1f26b6ea1c83c339/web"
+REMOTE_PATH="/home/clients/ba8c9a93b5cde03c1f26b6ea1c83c339/sites/kojima-solutions.ch"
 SSH_PORT=22
 # ─────────────────────────────────────────────────────────────
 
