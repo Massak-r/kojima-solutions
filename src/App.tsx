@@ -5,12 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import { QuotesProvider } from "@/hooks/useQuotes";
+import { ProjectsProvider } from "@/contexts/ProjectsContext";
 import Header from "@/components/Header";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import QuotesList from "./pages/QuotesList";
 import QuoteNew from "./pages/QuoteNew";
 import QuoteEdit from "./pages/QuoteEdit";
+import Dashboard from "./pages/Dashboard";
+import ProjectDetails from "./pages/ProjectDetails";
+import ProjectFeedback from "./pages/ProjectFeedback";
+import ProjectOverview from "./pages/ProjectOverview";
+import ProjectRoadmap from "./pages/ProjectRoadmap";
 
 const queryClient = new QueryClient();
 
@@ -22,15 +28,21 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
           <QuotesProvider>
-            <Header />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/quotes" element={<QuotesList />} />
-              <Route path="/quotes/new" element={<QuoteNew />} />
-              <Route path="/quotes/:id" element={<QuoteEdit />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ProjectsProvider>
+              <Header />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/quotes" element={<QuotesList />} />
+                <Route path="/quotes/new" element={<QuoteNew />} />
+                <Route path="/quotes/:id" element={<QuoteEdit />} />
+                <Route path="/projects" element={<Dashboard />} />
+                <Route path="/project/:id/details" element={<ProjectDetails />} />
+                <Route path="/project/:id/roadmap" element={<ProjectRoadmap />} />
+                <Route path="/project/:id/overview" element={<ProjectOverview />} />
+                <Route path="/project/:id/feedback" element={<ProjectFeedback />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ProjectsProvider>
           </QuotesProvider>
         </LanguageProvider>
       </BrowserRouter>

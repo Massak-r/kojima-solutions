@@ -1,5 +1,5 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "kojima-solutions",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -47,8 +47,8 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
-    "html2canvas": "^1.4.1",
     "framer-motion": "^12.34.1",
+    "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.3",
@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@tailwindcss/typography": "^0.5.16",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^22.16.5",

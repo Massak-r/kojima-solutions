@@ -6,6 +6,7 @@ const Header = () => {
   const { lang, toggle, t } = useLanguage();
   const location = useLocation();
   const isQuoteApp = location.pathname.startsWith("/quotes");
+  const isProjectApp = location.pathname.startsWith("/project");
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -19,7 +20,7 @@ const Header = () => {
       className="fixed top-0 left-0 right-0 z-50 glass-card border-t-0 border-x-0 rounded-none"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-between h-16">
-        {isQuoteApp ? (
+        {isQuoteApp || isProjectApp ? (
           <Link to="/" className="font-display font-semibold text-lg tracking-tight text-foreground">
             Kojima<span className="text-primary">.</span>Solutions
           </Link>
@@ -30,13 +31,16 @@ const Header = () => {
         )}
 
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-          {isQuoteApp ? (
+          {isQuoteApp || isProjectApp ? (
             <>
               <Link to="/" className="hover:text-foreground transition-colors">
                 {t("Accueil", "Home")}
               </Link>
               <Link to="/quotes" className="hover:text-foreground transition-colors">
                 {t("Devis", "Quotes")}
+              </Link>
+              <Link to="/projects" className="hover:text-foreground transition-colors">
+                {t("Projets", "Projects")}
               </Link>
             </>
           ) : (
@@ -55,6 +59,9 @@ const Header = () => {
               </button>
               <Link to="/quotes" className="hover:text-foreground transition-colors">
                 {t("Devis", "Quotes")}
+              </Link>
+              <Link to="/projects" className="hover:text-foreground transition-colors">
+                {t("Projets", "Projects")}
               </Link>
             </>
           )}
