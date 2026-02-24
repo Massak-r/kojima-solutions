@@ -1,4 +1,8 @@
 Options -MultiViews
+
+# Prioritize index.html over any index.php
+DirectoryIndex index.html index.php
+
 RewriteEngine On
 
 # Serve existing files and directories directly
