@@ -17,6 +17,7 @@ import ProjectDetails from "./pages/ProjectDetails";
 import ProjectFeedback from "./pages/ProjectFeedback";
 import ProjectOverview from "./pages/ProjectOverview";
 import ProjectRoadmap from "./pages/ProjectRoadmap";
+import ClientDashboard from "./pages/ClientDashboard";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/project/:id/roadmap" element={<ProjectRoadmap />} />
                 <Route path="/project/:id/overview" element={<ProjectOverview />} />
                 <Route path="/project/:id/feedback" element={<ProjectFeedback />} />
+                <Route path="/client/:id" element={<ClientDashboard />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ProjectsProvider>

@@ -32,17 +32,9 @@ const Header = () => {
 
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
           {isQuoteApp || isProjectApp ? (
-            <>
-              <Link to="/" className="hover:text-foreground transition-colors">
-                {t("Accueil", "Home")}
-              </Link>
-              <Link to="/quotes" className="hover:text-foreground transition-colors">
-                {t("Devis", "Quotes")}
-              </Link>
-              <Link to="/projects" className="hover:text-foreground transition-colors">
-                {t("Projets", "Projects")}
-              </Link>
-            </>
+            <Link to="/" className="hover:text-foreground transition-colors">
+              {t("Accueil", "Home")}
+            </Link>
           ) : (
             <>
               <button onClick={() => scrollTo("methodology")} className="hover:text-foreground transition-colors">
@@ -57,12 +49,6 @@ const Header = () => {
               <button onClick={() => scrollTo("contact")} className="hover:text-foreground transition-colors">
                 Contact
               </button>
-              <Link to="/quotes" className="hover:text-foreground transition-colors">
-                {t("Devis", "Quotes")}
-              </Link>
-              <Link to="/projects" className="hover:text-foreground transition-colors">
-                {t("Projets", "Projects")}
-              </Link>
             </>
           )}
         </nav>

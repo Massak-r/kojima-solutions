@@ -48,7 +48,22 @@
     --sidebar-accent-foreground: 220 30% 12%;
     --sidebar-border: 35 12% 80%;
     --sidebar-ring: 215 45% 30%;
+
+    /* Extended palette for timeline cards */
+    --palette-rose: 348 30% 52%;
+    --palette-rose-foreground: 0 0% 100%;
+    --palette-sage: 145 20% 44%;
+    --palette-sage-foreground: 0 0% 100%;
+    --palette-amber: 36 42% 48%;
+    --palette-amber-foreground: 0 0% 100%;
+    --palette-violet: 258 28% 48%;
+    --palette-violet-foreground: 0 0% 100%;
   }
+}
+
+/* Timeline spine connector */
+.timeline-connector {
+  background-color: hsl(var(--border));
 }
 
 @layer base {

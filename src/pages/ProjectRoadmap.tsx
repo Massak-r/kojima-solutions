@@ -7,7 +7,7 @@ import { HorizontalTimelineView } from "@/components/HorizontalTimelineView";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { SubtaskManager, FeedbackRequestCreator } from "@/components/SubtaskManager";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, AlignVerticalSpaceAround, AlignHorizontalSpaceAround, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, AlignVerticalSpaceAround, AlignHorizontalSpaceAround, X, Download } from "lucide-react";
 import { useState } from "react";
 
 function generateId() {
@@ -79,6 +79,14 @@ export default function ProjectRoadmap() {
           >
             <ArrowLeft size={16} className="mr-2" />
             Project Details
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(`/project/${id}/overview`)}
+            className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 text-xs"
+          >
+            <Download size={14} className="mr-1.5" />
+            Export PDF
           </Button>
         </div>
       </header>
