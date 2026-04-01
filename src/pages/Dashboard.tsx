@@ -41,10 +41,10 @@ export default function Dashboard() {
   });
 
   const filteredProjects = useMemo(() => {
-    let list = projects;
+    let list = projects.filter(p => p && p.id);
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((p) => p.title.toLowerCase().includes(q) || (p.client || "").toLowerCase().includes(q));
+      list = list.filter((p) => (p.title || "").toLowerCase().includes(q) || (p.client || "").toLowerCase().includes(q));
     }
     return list;
   }, [projects, search]);
@@ -97,7 +97,7 @@ export default function Dashboard() {
 
   // Count total pending client responses across all projects (for header badge)
   const totalPending = projects.reduce((sum, p) => {
-    const pending = p.tasks.flatMap((t) => t.feedbackRequests || []).filter((r) => r.resolved && r.response).length;
+    const pending = (p.tasks || []).flatMap((t) => t.feedbackRequests || []).filter((r) => r.resolved && r.response).length;
     return sum + pending;
   }, 0);
 
@@ -322,7 +322,7 @@ function ProjectCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Count client responses (resolved requests that the client has answered)
-  const pendingResponses = project.tasks
+  const pendingResponses = (project.tasks || [])
     .flatMap((t) => t.feedbackRequests || [])
     .filter((r) => r.resolved && r.response).length;
 

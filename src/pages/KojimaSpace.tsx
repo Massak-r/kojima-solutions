@@ -8,12 +8,11 @@ import type { Quote } from "@/types/quote";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { printViaIframe } from "@/lib/printUtils";
 import {
   Plus, LayoutList, Receipt, TrendingUp,
   MessageSquare, ChevronRight,
   Loader2, ListTodo, Sparkles,
-  FileDown, Pencil, Trash2, Search, CheckCircle2, Circle, Target, Sun, X, AlertTriangle,
+  Trash2, CheckCircle2, Circle, Target, Sun, X, AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,12 +33,11 @@ import { ALL_CATEGORIES, sortObjectives, getCategoryColor } from "@/lib/objectiv
 import { QuickActionFAB } from "@/components/QuickActionFAB";
 import { RecentActivity } from "@/components/RecentActivity";
 import { CalendarWidget } from "@/components/calendar/CalendarWidget";
-import { FunnelStatusWidget } from "@/components/funnel/FunnelStatusWidget";
 import { IntakeManager } from "@/components/IntakeManager";
 import { AnalyticsWidget } from "@/components/AnalyticsWidget";
 import { EmailQueue } from "@/components/EmailQueue";
+import { EmailTemplates } from "@/components/EmailTemplates";
 import { useClients } from "@/contexts/ClientsContext";
-import { Users, Mail } from "lucide-react";
 
 // ── Completed section toggle (replaces <details>) ────────────────────────────
 function CompletedToggle({ count, children }: { count: number; children: React.ReactNode }) {
@@ -86,14 +84,6 @@ const PAYMENT_STATUS = {
   paid:    { label: "Paid",    cls: "bg-palette-sage/15 text-palette-sage border-palette-sage/30" },
 } as const;
 
-const INVOICE_STATUS: Record<string, { label: string; cls: string }> = {
-  draft:         { label: "Draft",      cls: "text-muted-foreground border-border" },
-  "to-validate": { label: "To review",  cls: "text-primary border-primary/40 bg-primary/5" },
-  validated:     { label: "Validated",  cls: "text-palette-sage border-palette-sage/40 bg-palette-sage/5" },
-  paid:          { label: "Paid",       cls: "text-palette-sage border-palette-sage/50 bg-palette-sage/10" },
-  "on-hold":     { label: "On Hold",    cls: "text-palette-amber border-palette-amber/40 bg-palette-amber/5" },
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatCHF(value: number): string {
@@ -108,16 +98,13 @@ function formatCHF(value: number): string {
 export default function KojimaSpace() {
   const navigate   = useNavigate();
   const { projects, loading: projectsLoading, createProject } = useProjects();
-  const { quotes, updateQuote, deleteQuote } = useQuotes();
+  const { quotes } = useQuotes();
   const { clients, getClient } = useClients();
   const clientName = (p: { clientId?: string; client: string }) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
 
   // Calendar — now using Google Calendar API via CalendarWidget component
 
   // Invoice list
-  const [invoiceFilter,  setInvoiceFilter]  = useState<"all" | "quote" | "invoice">("all");
-  const [invoiceSearch,  setInvoiceSearch]  = useState("");
-  const [deleteConfirm,  setDeleteConfirm]  = useState<string | null>(null);
 
   // Unified objectives
   const [todos, setTodos] = useState<ObjectiveItem[]>([]);
@@ -221,7 +208,7 @@ export default function KojimaSpace() {
   );
   const pendingResponses = useMemo(
     () => projects.reduce((sum, p) =>
-      sum + p.tasks.flatMap(t => t.feedbackRequests || []).filter(r => r.resolved && r.response).length, 0),
+      sum + (p.tasks || []).flatMap(t => t.feedbackRequests || []).filter(r => r.resolved && r.response).length, 0),
     [projects]
   );
   const invoicesToReview = useMemo(
@@ -281,20 +268,13 @@ export default function KojimaSpace() {
       .sort((a, b) => a.daysUntil - b.daysUntil)
       .slice(0, 5);
   }, [personalCosts]);
-  const filteredQuotes = useMemo(() => {
-    let sorted = [...quotes].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    if (invoiceFilter === "quote")   sorted = sorted.filter(q => q.docType !== "invoice");
-    if (invoiceFilter === "invoice") sorted = sorted.filter(q => q.docType === "invoice");
-    if (invoiceSearch.trim()) {
-      const q = invoiceSearch.toLowerCase();
-      sorted = sorted.filter(item =>
-        (item.quoteNumber || "").toLowerCase().includes(q) ||
-        (item.clientName || "").toLowerCase().includes(q) ||
-        (item.projectTitle || "").toLowerCase().includes(q)
-      );
-    }
-    return sorted;
-  }, [quotes, invoiceFilter, invoiceSearch]);
+  const unpaidInvoices = useMemo(
+    () => quotes
+      .filter(q => q.invoiceStatus && q.invoiceStatus !== "paid" && q.invoiceStatus !== "draft" && q.invoiceStatus !== "on-hold")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8),
+    [quotes]
+  );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -303,9 +283,6 @@ export default function KojimaSpace() {
     navigate(`/project/${p.id}/brief`);
   }
 
-  function handleStatusChange(q: Quote, newStatus: string) {
-    updateQuote(q.id, { ...q, invoiceStatus: newStatus as Quote["invoiceStatus"] });
-  }
 
   // ── Date greeting ──────────────────────────────────────────────────────────
 
@@ -364,60 +341,19 @@ export default function KojimaSpace() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-        {/* ── Stats row ───────────────────────────────────────────────────────── */}
+        {/* ── Compact stats bar ────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="grid grid-cols-2 lg:grid-cols-3 gap-4"
+          className="bg-card border border-border rounded-2xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
         >
-          <StatCard
-            icon={<LayoutList size={19} className="text-primary" />}
-            label="Active Projects"
-            value={activeProjects}
-            bg="bg-primary/10"
-            onClick={() => navigate("/projects")}
-          />
-          <StatCard
-            icon={<MessageSquare size={19} className="text-palette-amber" />}
-            label="Client Responses"
-            value={pendingResponses}
-            bg="bg-palette-amber/10"
-            pulse={pendingResponses > 0}
-            onClick={() => navigate("/projects")}
-          />
-          <StatCard
-            icon={<Receipt size={19} className="text-accent" />}
-            label="To Review"
-            value={invoicesToReview}
-            bg="bg-accent/10"
-            pulse={invoicesToReview > 0}
-            onClick={() => navigate("/quotes")}
-          />
-          <StatCard
-            icon={<TrendingUp size={19} className="text-palette-sage" />}
-            label="Revenue (paid)"
-            value={formatCHF(totalRevenue)}
-            bg="bg-palette-sage/10"
-            wide
-            onClick={() => navigate("/quotes")}
-          />
-          <StatCard
-            icon={<AlertTriangle size={19} className="text-destructive" />}
-            label="En retard"
-            value={overdueInvoices}
-            bg="bg-destructive/10"
-            pulse={overdueInvoices > 0}
-            onClick={() => navigate("/accounting")}
-          />
-          <StatCard
-            icon={<Receipt size={19} className="text-primary" />}
-            label="À recevoir"
-            value={formatCHF(outstandingTotal)}
-            bg="bg-primary/10"
-            wide
-            onClick={() => navigate("/accounting")}
-          />
+          <MiniStat icon={<LayoutList size={13} className="text-primary" />} label="Projets" value={activeProjects} onClick={() => navigate("/projects")} />
+          <MiniStat icon={<MessageSquare size={13} className="text-palette-amber" />} label="Réponses" value={pendingResponses} pulse={pendingResponses > 0} onClick={() => navigate("/projects")} />
+          <MiniStat icon={<Receipt size={13} className="text-accent" />} label="À valider" value={invoicesToReview} pulse={invoicesToReview > 0} onClick={() => navigate("/quotes")} />
+          <MiniStat icon={<TrendingUp size={13} className="text-palette-sage" />} label="Revenu" value={formatCHF(totalRevenue)} onClick={() => navigate("/quotes")} />
+          <MiniStat icon={<AlertTriangle size={13} className="text-destructive" />} label="En retard" value={overdueInvoices} pulse={overdueInvoices > 0} onClick={() => navigate("/accounting")} />
+          <MiniStat icon={<Receipt size={13} className="text-primary" />} label="À recevoir" value={formatCHF(outstandingTotal)} onClick={() => navigate("/accounting")} />
         </motion.div>
 
         {/* ── Main grid ───────────────────────────────────────────────────────── */}
@@ -459,10 +395,11 @@ export default function KojimaSpace() {
               ) : (
                 <div className="divide-y divide-border">
                   {recentProjects.map(project => {
-                    const completedTasks = project.tasks.filter(t => t.completed).length;
-                    const totalTasks     = project.tasks.length;
+                    const tasks = project.tasks || [];
+                    const completedTasks = tasks.filter(t => t.completed).length;
+                    const totalTasks     = tasks.length;
                     const progress       = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                    const responses      = project.tasks.flatMap(t => t.feedbackRequests || []).filter(r => r.resolved && r.response).length;
+                    const responses      = tasks.flatMap(t => t.feedbackRequests || []).filter(r => r.resolved && r.response).length;
                     const pSt  = PROJECT_STATUS[project.status] ?? PROJECT_STATUS.draft;
                     const pay  = PAYMENT_STATUS[project.paymentStatus] ?? PAYMENT_STATUS.unpaid;
 
@@ -511,160 +448,50 @@ export default function KojimaSpace() {
               )}
             </section>
 
-            {/* Invoices & Quotes manager */}
-            <section className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-                <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                  Invoices & Quotes
-                </h2>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none" />
-                    <Input
-                      value={invoiceSearch}
-                      onChange={e => setInvoiceSearch(e.target.value)}
-                      placeholder="Search…"
-                      className="h-7 text-xs pl-7 w-32 bg-secondary border-border"
-                    />
+            {/* Unpaid invoices only */}
+            {unpaidInvoices.length > 0 && (
+              <section className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={14} className="text-amber-500" />
+                    <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                      Factures en attente
+                    </h2>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700">
+                      {unpaidInvoices.length}
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
-                    {(["all", "quote", "invoice"] as const).map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setInvoiceFilter(f)}
-                        className={cn(
-                          "text-[11px] font-body px-2.5 py-1 rounded-md transition-all",
-                          invoiceFilter === f
-                            ? "bg-card text-foreground shadow-sm font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {f === "all" ? "All" : f === "quote" ? "Devis" : "Factures"}
-                      </button>
-                    ))}
-                  </div>
+                  <Link to="/quotes" className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                    Tous les docs <ChevronRight size={11} />
+                  </Link>
                 </div>
-              </div>
-
-              {filteredQuotes.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-sm text-muted-foreground font-body mb-3">No documents yet.</p>
-                  <Button onClick={() => navigate("/quotes/new")} size="sm" variant="outline" className="gap-1.5">
-                    <Plus size={13} /> New Quote
-                  </Button>
+                <div className="divide-y divide-border/30">
+                  {unpaidInvoices.map(q => (
+                    <div
+                      key={q.id}
+                      onClick={() => navigate(`/quotes/${q.id}`)}
+                      className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/20 cursor-pointer transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-mono text-muted-foreground/60">{q.quoteNumber || "-"}</span>
+                          <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0",
+                            q.invoiceStatus === "validated" ? "border-amber-300 text-amber-600" : "border-primary/30 text-primary"
+                          )}>
+                            {q.invoiceStatus === "validated" ? "Validé" : q.invoiceStatus === "to-validate" ? "À valider" : q.invoiceStatus || "draft"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-body font-medium text-foreground/80 truncate">{q.clientName || q.projectTitle || "-"}</p>
+                      </div>
+                      <span className="text-sm font-body font-semibold text-foreground/80 tabular-nums shrink-0">
+                        {formatCHF(totalQuote(q))}
+                      </span>
+                      <ChevronRight size={13} className="text-muted-foreground/20 shrink-0" />
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs font-body">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/50">
-                        <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Document</th>
-                        <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Client</th>
-                        <th className="text-right px-4 py-2.5 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Amount</th>
-                        <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Status</th>
-                        <th className="text-right px-4 py-2.5 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredQuotes.map(q => {
-                        const isInv = q.docType === "invoice";
-                        const st    = q.invoiceStatus ? INVOICE_STATUS[q.invoiceStatus] : null;
-
-                        return (
-                          <tr key={q.id} className="hover:bg-secondary/20 transition-colors">
-                            {/* Doc */}
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1.5 mb-0.5">
-                                <Badge
-                                  variant="outline"
-                                  className={cn("text-[9px] px-1.5 py-0 font-mono", isInv
-                                    ? "border-accent/40 text-accent"
-                                    : "border-primary/40 text-primary")}
-                                >
-                                  {isInv ? "FAC" : "DEV"}
-                                </Badge>
-                                <span className="text-muted-foreground font-mono text-[11px]">{q.quoteNumber || "-"}</span>
-                              </div>
-                              {q.projectTitle && (
-                                <div className="text-[10px] text-muted-foreground/60 break-words">{q.projectTitle}</div>
-                              )}
-                            </td>
-                            {/* Client */}
-                            <td className="px-4 py-3 text-foreground">{q.clientName || "-"}</td>
-                            {/* Amount */}
-                            <td className="px-4 py-3 text-right font-semibold text-foreground tabular-nums">
-                              {formatCHF(totalQuote(q))}
-                            </td>
-                            {/* Status dropdown */}
-                            <td className="px-4 py-3">
-                              <select
-                                value={q.invoiceStatus || ""}
-                                onChange={e => handleStatusChange(q, e.target.value)}
-                                onClick={e => e.stopPropagation()}
-                                className={cn(
-                                  "text-[10px] border rounded-full px-2 py-0.5 bg-transparent cursor-pointer outline-none font-body transition-colors",
-                                  st ? st.cls : "text-muted-foreground border-border"
-                                )}
-                              >
-                                <option value="">- no status -</option>
-                                <option value="draft">Draft</option>
-                                <option value="to-validate">To review</option>
-                                <option value="validated">Validated</option>
-                                <option value="paid">Paid</option>
-                                <option value="on-hold">On Hold</option>
-                              </select>
-                            </td>
-                            {/* Actions */}
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-end gap-0.5">
-                                <button
-                                  onClick={() => navigate(`/quotes/${q.id}`)}
-                                  className="p-1.5 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-all"
-                                  title="Edit"
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                                <button
-                                  onClick={() => printViaIframe(`/quotes/${q.id}/print`)}
-                                  className="p-1.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-all"
-                                  title="Download PDF"
-                                >
-                                  <FileDown size={12} />
-                                </button>
-                                {deleteConfirm === q.id ? (
-                                  <div className="flex items-center gap-1 ml-1">
-                                    <button
-                                      onClick={() => { deleteQuote(q.id); setDeleteConfirm(null); }}
-                                      className="px-2 py-0.5 rounded text-[10px] bg-destructive text-white font-semibold"
-                                    >
-                                      Delete
-                                    </button>
-                                    <button
-                                      onClick={() => setDeleteConfirm(null)}
-                                      className="px-2 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setDeleteConfirm(q.id)}
-                                    className="p-1.5 rounded-md text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all"
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+              </section>
+            )}
 
             {/* Intakes */}
             <IntakeManager />
@@ -682,6 +509,9 @@ export default function KojimaSpace() {
 
             {/* Email Queue */}
             <EmailQueue />
+
+            {/* Email Templates */}
+            <EmailTemplates />
 
             {/* Upcoming deadlines */}
             {upcomingDeadlines.length > 0 && (
@@ -747,68 +577,6 @@ export default function KojimaSpace() {
                 </div>
               </section>
             )}
-
-            {/* Clients summary */}
-            <section className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <Users size={14} className="text-primary" />
-                  <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                    Clients
-                  </h2>
-                </div>
-                <Link
-                  to="/clients"
-                  className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                >
-                  Gérer <ChevronRight size={11} />
-                </Link>
-              </div>
-              {clients.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground font-body">Aucun client.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border max-h-[280px] overflow-y-auto">
-                  {clients.slice(0, 10).map(client => (
-                    <div
-                      key={client.id}
-                      className="flex items-center gap-3 px-5 py-2.5 hover:bg-secondary/30 transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                        {client.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-body font-medium text-foreground truncate">{client.name}</p>
-                        {client.organization && (
-                          <p className="text-[10px] text-muted-foreground font-body truncate">{client.organization}</p>
-                        )}
-                      </div>
-                      {client.email && (
-                        <a
-                          href={`mailto:${client.email}`}
-                          onClick={e => e.stopPropagation()}
-                          className="p-1.5 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-all shrink-0"
-                          title={client.email}
-                        >
-                          <Mail size={12} />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                  {clients.length > 10 && (
-                    <div className="text-center py-2">
-                      <Link to="/clients" className="text-xs font-body text-primary hover:underline">
-                        +{clients.length - 10} autres clients
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {/* Funnel Status */}
-            <FunnelStatusWidget />
 
             {/* Recent Activity */}
             <RecentActivity />
@@ -1077,36 +845,26 @@ export default function KojimaSpace() {
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({
-  icon, label, value, bg, pulse, wide, onClick,
+function MiniStat({
+  icon, label, value, pulse, onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
-  bg: string;
   pulse?: boolean;
-  wide?: boolean;
   onClick?: () => void;
 }) {
   return (
-    <div
+    <button
       onClick={onClick}
-      className={cn(
-        "bg-card border border-border rounded-2xl p-5 relative overflow-hidden transition-all",
-        pulse && "border-palette-amber/40",
-        onClick && "cursor-pointer hover:shadow-card-hover hover:border-primary/20"
-      )}
+      className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-secondary/60 transition-colors relative"
     >
-      <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", bg)}>
-        {icon}
-      </div>
-      <div className={cn("font-display font-bold text-foreground leading-tight", wide ? "text-xl" : "text-2xl")}>
-        {value}
-      </div>
-      <p className="text-[11px] font-body text-muted-foreground mt-0.5">{label}</p>
+      {icon}
+      <span className="font-display text-sm font-bold text-foreground">{value}</span>
+      <span className="text-[10px] font-body text-muted-foreground">{label}</span>
       {pulse && (
-        <div className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-palette-amber animate-pulse" />
+        <span className="w-1.5 h-1.5 rounded-full bg-palette-amber animate-pulse" />
       )}
-    </div>
+    </button>
   );
 }
