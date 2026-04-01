@@ -665,6 +665,16 @@ export default function KojimaSpace() {
                 </div>
               )}
             </section>
+
+            {/* Intakes */}
+            <IntakeManager />
+
+            {/* Analytics */}
+            <AnalyticsWidget />
+
+            {/* Google Calendar */}
+            <CalendarWidget />
+
           </div>
 
           {/* ──── Right column (2 / 5) ─────────────────────────────────────── */}
@@ -672,12 +682,6 @@ export default function KojimaSpace() {
 
             {/* Email Queue */}
             <EmailQueue />
-
-            {/* Analytics */}
-            <AnalyticsWidget />
-
-            {/* Intakes */}
-            <IntakeManager />
 
             {/* Upcoming deadlines */}
             {upcomingDeadlines.length > 0 && (
@@ -805,9 +809,6 @@ export default function KojimaSpace() {
 
             {/* Funnel Status */}
             <FunnelStatusWidget />
-
-            {/* Google Calendar — API-powered widget */}
-            <CalendarWidget />
 
             {/* Recent Activity */}
             <RecentActivity />
