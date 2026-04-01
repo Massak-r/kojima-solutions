@@ -63,11 +63,12 @@ if ($method === 'POST') {
         isset($data['guidedQuestions']) ? json_encode($data['guidedQuestions']) : null,
     ]);
 
-    // Notify client about new feedback request
+    // Queue email for admin review (never auto-send)
     try {
+        require_once __DIR__ . '/_queue_email.php';
         $stmt2 = $pdo->prepare('
             SELECT t.project_id, p.title as project_title, p.client as client_name,
-                   c.email as client_email
+                   c.email as client_email, c.name as client_name_full
             FROM tasks t
             JOIN projects p ON p.id = t.project_id
             LEFT JOIN clients c ON c.id = p.client_id
@@ -77,13 +78,17 @@ if ($method === 'POST') {
         $ctx = $stmt2->fetch();
         if ($ctx && !empty($ctx['client_email'])) {
             $portalUrl = (defined('SITE_URL') ? SITE_URL : 'https://kojima-solutions.ch') . '/client/' . $ctx['project_id'];
-            sendClientEmail(
+            queueEmail(
+                $pdo,
                 $ctx['client_email'],
+                $ctx['client_name_full'] ?? $ctx['client_name'],
                 $ctx['project_title'] . ' — Votre avis est demandé',
                 "Bonjour,\n\nNous avons besoin de votre retour sur le projet « " . $ctx['project_title'] . " » :\n\n"
                 . "→ " . ($data['message'] ?? 'Nouvelle demande de feedback') . "\n\n"
                 . "Rendez-vous sur votre espace projet pour répondre :",
-                $portalUrl
+                $portalUrl,
+                'feedback',
+                $ctx['project_id']
             );
         }
     } catch (Throwable $e) {}

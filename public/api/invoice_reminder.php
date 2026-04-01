@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-require_once __DIR__ . '/_client_email.php';
+require_once __DIR__ . '/_queue_email.php';
 requireAuth();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -31,10 +31,6 @@ $emailBody = "Bonjour $clientName,\n\n"
     . "Si le paiement a déjà été effectué, veuillez ignorer ce message.\n\n"
     . "Cordialement,\nKojima Solutions";
 
-$sent = sendClientEmail($clientEmail, $subject, $emailBody);
+queueEmail($pdo, $clientEmail, $clientName, $subject, $emailBody, '', 'invoice-reminder', $quoteId);
 
-if (!$sent) {
-    fail('Failed to send reminder email', 500);
-}
-
-ok(['sent' => true, 'sentAt' => date('c')]);
+ok(['queued' => true]);

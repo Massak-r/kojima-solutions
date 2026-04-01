@@ -65,7 +65,7 @@ if ($method === 'POST' && !$id) {
         'new',
     ]);
 
-    // Email admin about new intake
+    // Insert notification for bell + push (no auto-email)
     try {
         $responses = $data['responses'] ?? [];
         $projectType = $responses['projectType'] ?? 'Non spécifié';
@@ -75,42 +75,21 @@ if ($method === 'POST' && !$id) {
         $clientName = $data['clientName'] ?? '';
         $clientEmail = $data['clientEmail'] ?? '';
 
-        $adminBody = "Nouvel intake reçu sur kojima-solutions.ch\n\n"
-            . "Nom: $clientName\n"
-            . "Email: $clientEmail\n"
-            . "Type: $projectType\n"
-            . "Objectifs: $goals\n"
-            . "Délai: $timeline\n"
-            . "Forfait suggéré: $tier\n";
-
-        if (!empty($responses['message'])) {
-            $adminBody .= "Message: " . $responses['message'] . "\n";
-        }
-
-        @mail(
-            'massaki@kojima-solutions.ch',
-            "Nouvel intake — $clientName",
-            $adminBody,
-            "From: noreply@kojima-solutions.ch\r\nReply-To: $clientEmail\r\nContent-Type: text/plain; charset=UTF-8"
-        );
-
-        // Also insert notification for bell + push
         $pdo->prepare('INSERT INTO notifications (id, project_id, project_title, task_title, client_name, question, response) VALUES (?,?,?,?,?,?,?)')
             ->execute([uuid(), null, 'Nouvel intake', $projectType, $clientName, "Forfait: $tier · Délai: $timeline", $clientEmail]);
-    } catch (Throwable $e) {}
 
-    // Confirmation email to client
-    try {
-        $clientName = $data['clientName'] ?? '';
-        $clientEmail = $data['clientEmail'] ?? '';
-        $responses = $data['responses'] ?? [];
-        $projectType = $responses['projectType'] ?? '';
-
+        // Queue confirmation email for admin to review and send
+        require_once __DIR__ . '/_queue_email.php';
         if ($clientEmail) {
             $tierLabels = ['essential' => 'Essentiel', 'professional' => 'Professionnel', 'custom' => 'Sur mesure'];
             $tierLabel = $tierLabels[$data['suggestedTier'] ?? ''] ?? 'Essentiel';
 
-            $clientBody = "Bonjour $clientName,\n\n"
+            queueEmail(
+                $pdo,
+                $clientEmail,
+                $clientName,
+                "Kojima Solutions — Votre demande a bien été reçue",
+                "Bonjour $clientName,\n\n"
                 . "Merci pour votre demande de projet. Voici un résumé :\n\n"
                 . "Type de projet : $projectType\n"
                 . "Forfait suggéré : $tierLabel\n\n"
@@ -118,9 +97,11 @@ if ($method === 'POST' && !$id) {
                 . "1) Nous analysons votre brief\n"
                 . "2) Nous vous contactons sous 24h\n"
                 . "3) Séance de cadrage gratuite et sans engagement\n\n"
-                . "À très vite !";
-
-            sendClientEmail($clientEmail, "Kojima Solutions — Votre demande a bien été reçue", $clientBody);
+                . "À très vite !",
+                '',
+                'intake',
+                null
+            );
         }
     } catch (Throwable $e) {}
 

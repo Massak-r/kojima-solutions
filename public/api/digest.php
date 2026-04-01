@@ -74,10 +74,7 @@ $headers .= "Reply-To: noreply@kojima-solutions.ch\r\n";
 $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
 $headers .= "X-Mailer: PHP/" . phpversion();
 
-// ── Send email & push, then mark sent ────────────────────────
-$sent = @mail($adminEmail, $subject, $body, $headers);
-
-// ── Push notifications ─────────────────────────────────────────
+// ── Push notifications only (no auto-email) ───────────────────
 $pushResults = ['sent' => 0, 'failed' => 0, 'expired' => 0];
 if (file_exists(__DIR__ . '/push_send.php')) {
     require_once __DIR__ . '/push_send.php';
@@ -90,21 +87,15 @@ if (file_exists(__DIR__ . '/push_send.php')) {
     $pushResults = sendPushNotifications($pdo, $pushTitle, $pushBody, '/space');
 }
 
-if ($sent || $pushResults['sent'] > 0) {
-    $ids          = array_column($pending, 'id');
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $pdo->prepare("UPDATE notifications SET sent = 1, sent_at = NOW() WHERE id IN ({$placeholders})")
-        ->execute($ids);
+// Mark notifications as sent (push only, no email)
+$ids          = array_column($pending, 'id');
+$placeholders = implode(',', array_fill(0, count($ids), '?'));
+$pdo->prepare("UPDATE notifications SET sent = 1, sent_at = NOW() WHERE id IN ({$placeholders})")
+    ->execute($ids);
 
-    ok([
-        'sent'  => true,
-        'count' => $count,
-        'email' => $sent ? $adminEmail : null,
-        'push'  => $pushResults,
-    ]);
-} else {
-    // Both email and push failed — leave notifications unsent so next cron run retries
-    http_response_code(500);
-    echo json_encode(['error' => 'mail() and push failed', 'pending' => $count]);
-    exit;
-}
+ok([
+    'sent'  => true,
+    'count' => $count,
+    'email' => null,
+    'push'  => $pushResults,
+]);

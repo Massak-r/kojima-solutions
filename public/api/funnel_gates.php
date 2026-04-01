@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-require_once __DIR__ . '/_client_email.php';
+require_once __DIR__ . '/_queue_email.php';
 
 // Auto-migrate: add images_json column to gate_options if missing
 try {
@@ -9,8 +9,8 @@ try {
     $pdo->exec("ALTER TABLE gate_options ADD COLUMN images_json JSON DEFAULT NULL AFTER image_url");
 }
 
-// Notify client when a gate opens
-function notifyGateOpen(PDO $pdo, string $gateId): void {
+// Queue email for admin review when a gate opens (never auto-send)
+function queueGateNotification(PDO $pdo, string $gateId): void {
     try {
         $stmt = $pdo->prepare('
             SELECT g.title as gate_title, g.gate_type,
@@ -30,14 +30,18 @@ function notifyGateOpen(PDO $pdo, string $gateId): void {
         $typeLabel = $typeLabels[$info['gate_type']] ?? 'action';
         $portalUrl = (defined('SITE_URL') ? SITE_URL : 'https://kojima-solutions.ch') . '/client/' . $info['project_id'] . '/decision/' . $gateId;
 
-        sendClientEmail(
+        queueEmail(
+            $pdo,
             $info['decision_maker_email'],
+            null,
             $info['project_title'] . ' — Action requise : ' . $info['gate_title'],
             "Bonjour,\n\n"
             . "Une nouvelle étape nécessite votre $typeLabel sur le projet « " . $info['project_title'] . " » :\n\n"
             . "→ " . $info['gate_title'] . "\n\n"
             . "Rendez-vous sur votre espace projet pour continuer :",
-            $portalUrl
+            $portalUrl,
+            'gate',
+            $info['project_id']
         );
     } catch (Throwable $e) {}
 }
@@ -131,7 +135,7 @@ if ($method === 'PUT' && $id && ($action === 'gate')) {
     }
     // Notify client when gate is opened
     if (($data['status'] ?? '') === 'open') {
-        notifyGateOpen($pdo, $id);
+        queueGateNotification($pdo, $id);
     }
     $stmt = $pdo->prepare('SELECT * FROM funnel_gates WHERE id = ?');
     $stmt->execute([$id]);

@@ -37,6 +37,7 @@ import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { FunnelStatusWidget } from "@/components/funnel/FunnelStatusWidget";
 import { IntakeManager } from "@/components/IntakeManager";
 import { AnalyticsWidget } from "@/components/AnalyticsWidget";
+import { EmailQueue } from "@/components/EmailQueue";
 import { useClients } from "@/contexts/ClientsContext";
 import { Users, Mail } from "lucide-react";
 
@@ -668,6 +669,9 @@ export default function KojimaSpace() {
 
           {/* ──── Right column (2 / 5) ─────────────────────────────────────── */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Email Queue */}
+            <EmailQueue />
 
             {/* Analytics */}
             <AnalyticsWidget />
