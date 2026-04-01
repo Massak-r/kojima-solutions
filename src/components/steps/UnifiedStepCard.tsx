@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   ChevronDown, Lock, CheckCircle2, Circle, MessageSquare,
   Image, Vote, FileUp, Type, CalendarDays, ListChecks, Pencil, Trash2,
-  Unlock, RotateCcw,
+  Unlock, RotateCcw, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +149,13 @@ export function UnifiedStepCard({
                 <span className="flex items-center gap-0.5">
                   <MessageSquare size={10} />
                   {comments.length}
+                </span>
+              )}
+              {(task.estimatedHours != null || task.actualHours != null) && (
+                <span className="flex items-center gap-0.5">
+                  <Clock size={10} />
+                  {task.actualHours != null ? `${task.actualHours}h` : "–"}
+                  {task.estimatedHours != null && ` / ${task.estimatedHours}h`}
                 </span>
               )}
               {deadlineStr && (

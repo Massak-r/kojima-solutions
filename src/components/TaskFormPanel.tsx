@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Bold, List, GitBranch } from "lucide-react";
+import { X, Plus, Bold, List, GitBranch, Clock } from "lucide-react";
 import { TimelineTask } from "@/types/timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,8 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
   const [dateLabel, setDateLabel] = useState("");
   const [color, setColor] = useState<TimelineTask["color"]>("primary");
   const [phaseId, setPhaseId] = useState<string | undefined>(undefined);
+  const [estimatedHours, setEstimatedHours] = useState<string>("");
+  const [actualHours, setActualHours] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -83,6 +85,8 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       setDateLabel(editingTask.dateLabel);
       setColor(editingTask.color ?? "primary");
       setPhaseId(editingTask.phaseId);
+      setEstimatedHours(editingTask.estimatedHours != null ? String(editingTask.estimatedHours) : "");
+      setActualHours(editingTask.actualHours != null ? String(editingTask.actualHours) : "");
     } else {
       setOrder(taskCount + 1);
       setTitle("");
@@ -90,6 +94,8 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       setDateLabel("");
       setColor("primary");
       setPhaseId(undefined);
+      setEstimatedHours("");
+      setActualHours("");
     }
     setErrors({});
   }, [editingTask, taskCount]);
@@ -114,6 +120,8 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       dateLabel: dateLabel.trim(),
       color,
       phaseId,
+      estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
+      actualHours: actualHours ? parseFloat(actualHours) : undefined,
     };
 
     if (editingTask && onEdit) {
@@ -129,6 +137,8 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       setDateLabel("");
       setColor("primary");
       setPhaseId(undefined);
+      setEstimatedHours("");
+      setActualHours("");
     }
     setErrors({});
   }
@@ -227,6 +237,38 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
             rows={3}
             className="bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/40 focus-visible:ring-accent resize-none font-mono text-xs"
           />
+        </div>
+
+        {/* Hours */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-primary-foreground/70 text-xs font-body uppercase tracking-wider flex items-center gap-1">
+              <Clock size={11} /> Heures estimées
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              placeholder="ex. 8"
+              value={estimatedHours}
+              onChange={(e) => setEstimatedHours(e.target.value)}
+              className="bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/40 focus-visible:ring-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-primary-foreground/70 text-xs font-body uppercase tracking-wider flex items-center gap-1">
+              <Clock size={11} /> Heures réelles
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              placeholder="ex. 6"
+              value={actualHours}
+              onChange={(e) => setActualHours(e.target.value)}
+              className="bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/40 focus-visible:ring-accent"
+            />
+          </div>
         </div>
 
         {/* Color */}

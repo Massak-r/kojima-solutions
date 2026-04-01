@@ -52,6 +52,12 @@ const Footer = () => {
                 </button>
               ))}
               <a
+                href="/portfolio"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+              >
+                {t("Réalisations", "Portfolio")}
+              </a>
+              <a
                 href="/intake"
                 className="text-sm text-primary hover:text-primary/80 transition-colors text-left font-medium"
               >

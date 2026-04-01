@@ -49,6 +49,7 @@ import FunnelPrintPage from "./pages/FunnelPrintPage";
 import FunnelStakeholderView from "./pages/FunnelStakeholderView";
 import StakeholderView from "./pages/StakeholderView";
 import ClientLogin from "./pages/ClientLogin";
+import Portfolio from "./pages/Portfolio";
 import GateDecisionPage from "./pages/GateDecisionPage";
 import FeedbackDecisionPage from "./pages/FeedbackDecisionPage";
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ const App = () => (
                       <Route path="/quotes/:id/print" element={<QuotePrintPage />} />
                       <Route path="/salsa/:type" element={<SalsaPublic />} />
                       <Route path="/shared/folder/:token" element={<SharedFolder />} />
+                      <Route path="/portfolio" element={<Portfolio />} />
                       <Route path="/intake" element={<IntakeForm />} />
                       <Route path="/client/:id/proposal" element={<ClientProposal />} />
                       <Route path="/funnel/:id/print" element={<FunnelPrintPage />} />

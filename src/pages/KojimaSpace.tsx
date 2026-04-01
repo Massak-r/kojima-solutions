@@ -108,7 +108,8 @@ export default function KojimaSpace() {
   const navigate   = useNavigate();
   const { projects, loading: projectsLoading, createProject } = useProjects();
   const { quotes, updateQuote, deleteQuote } = useQuotes();
-  const { clients } = useClients();
+  const { clients, getClient } = useClients();
+  const clientName = (p: { clientId?: string; client: string }) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
 
   // Calendar — now using Google Calendar API via CalendarWidget component
 
@@ -482,8 +483,8 @@ export default function KojimaSpace() {
                               </span>
                             )}
                           </div>
-                          {project.client && (
-                            <p className="text-xs text-muted-foreground font-body">{project.client}</p>
+                          {clientName(project) && (
+                            <p className="text-xs text-muted-foreground font-body">{clientName(project)}</p>
                           )}
                           {totalTasks > 0 && (
                             <div className="mt-1.5 flex items-center gap-2">

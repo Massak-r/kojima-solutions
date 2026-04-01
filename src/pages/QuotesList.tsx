@@ -5,7 +5,7 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2 } from "lucide-react";
+import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { fr, enUS } from "date-fns/locale";
 import { totalQuote } from "@/types/quote";
@@ -123,6 +123,40 @@ export default function QuotesList() {
     }
     return list;
   }, [quotes, statusFilter, typeFilter, searchQuery, sortBy, dateFrom, dateTo]);
+
+  function renewInvoice(original: Quote) {
+    const year = new Date().getFullYear();
+    const prefix = "FAC";
+    const existing = quotes
+      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`${prefix}-${year}`))
+      .map((q) => {
+        const parts = q.quoteNumber?.split("-");
+        return parts && parts.length === 3 ? parseInt(parts[2], 10) : 0;
+      });
+    const nextNum = Math.max(0, ...existing) + 1;
+    const newNumber = `${prefix}-${year}-${String(nextNum).padStart(3, "0")}`;
+
+    // Set validity to 30 days from now
+    const validity = new Date();
+    validity.setDate(validity.getDate() + 30);
+
+    const clone: any = {
+      ...original,
+      quoteNumber: newNumber,
+      docType: "invoice",
+      invoiceStatus: "draft",
+      validityDate: validity.toISOString().slice(0, 10),
+    };
+    delete clone.id;
+    delete clone.createdAt;
+    delete clone.updatedAt;
+
+    const newQuote = addQuote(clone);
+    toast({ title: t("Facture renouvelée", "Invoice renewed") });
+    if (newQuote && typeof newQuote === "object" && "id" in newQuote) {
+      navigate(`/quotes/${(newQuote as any).id}`);
+    }
+  }
 
   function duplicateQuote(original: Quote) {
     const year = new Date().getFullYear();
@@ -354,6 +388,17 @@ export default function QuotesList() {
                               Rappel
                             </Button>
                           )
+                        )}
+                        {q.docType === "invoice" && q.invoiceStatus === "paid" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
+                            title={t("Renouveler la facture", "Renew invoice")}
+                            onClick={() => renewInvoice(q)}
+                          >
+                            <RefreshCw size={14} />
+                          </Button>
                         )}
                         <Button
                           variant="ghost"

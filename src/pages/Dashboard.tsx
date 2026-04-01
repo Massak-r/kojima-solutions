@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useProjects, StoredProject } from "@/contexts/ProjectsContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutList, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
+  const { getClient } = useClients();
+  const clientName = (p: StoredProject) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(() => {
@@ -379,10 +382,10 @@ function ProjectCard({
         {project.title}
       </h3>
 
-      {project.client && (
+      {clientName(project) && (
         <div className="flex items-center gap-1.5 text-muted-foreground font-body text-xs mb-2">
           <User size={11} />
-          <span>{project.client}</span>
+          <span>{clientName(project)}</span>
         </div>
       )}
 

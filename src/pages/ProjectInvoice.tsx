@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectsContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { QuoteForm } from "@/components/quotes/QuoteForm";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
@@ -22,6 +23,7 @@ export default function ProjectInvoice() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject } = useProjects();
+  const { getClient } = useClients();
   const { quotes, deleteQuote, updateQuote } = useQuotes();
   const project = getProject(id!);
 
@@ -51,7 +53,7 @@ export default function ProjectInvoice() {
   const newInitial = {
     ...createEmptyQuote(),
     projectTitle: project.title,
-    clientName: project.client || "",
+    clientName: (project.clientId ? getClient(project.clientId)?.name : null) || project.client || "",
     projectId: id!,
   };
 

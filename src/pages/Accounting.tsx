@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download } from "lucide-react";
 import { downloadCSV } from "@/lib/csvExport";
 import {
@@ -106,6 +107,7 @@ export default function Accounting() {
   const [newNotes, setNewNotes] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [expenseSearch, setExpenseSearch] = useState("");
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Expense filters
   const [expYear, setExpYear] = useState(currentYear);
@@ -907,6 +909,69 @@ export default function Accounting() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Floating quick-add button */}
+      <button
+        onClick={() => setShowQuickAdd(true)}
+        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center"
+        title="Ajouter une dépense"
+      >
+        <Plus size={22} />
+      </button>
+
+      {/* Quick-add dialog */}
+      <Dialog open={showQuickAdd} onOpenChange={setShowQuickAdd}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Dépense rapide</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              handleAddExpense(e);
+              setShowQuickAdd(false);
+            }}
+            className="space-y-3"
+          >
+            <Input
+              placeholder="Description"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              className="font-body text-sm"
+              required
+              autoFocus
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="Montant (CHF)"
+                value={newAmount}
+                onChange={(e) => setNewAmount(e.target.value)}
+                className="font-body text-sm"
+                required
+              />
+              <Select value={newCategory} onValueChange={(v) => setNewCategory(v as ExpenseCategory)}>
+                <SelectTrigger className="font-body text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.entries(EXPENSE_CATEGORY_LABELS) as [ExpenseCategory, string][]).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="font-body text-sm"
+            />
+            <Button type="submit" className="w-full gap-1.5">
+              <Plus size={15} />
+              Ajouter
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

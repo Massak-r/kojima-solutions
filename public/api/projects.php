@@ -20,6 +20,12 @@ try {
     if (!in_array('deadline', $cols)) {
         $pdo->exec("ALTER TABLE tasks ADD COLUMN deadline DATE DEFAULT NULL AFTER completed_by");
     }
+    if (!in_array('estimated_hours', $cols)) {
+        $pdo->exec("ALTER TABLE tasks ADD COLUMN estimated_hours DECIMAL(6,1) DEFAULT NULL AFTER deadline");
+    }
+    if (!in_array('actual_hours', $cols)) {
+        $pdo->exec("ALTER TABLE tasks ADD COLUMN actual_hours DECIMAL(6,1) DEFAULT NULL AFTER estimated_hours");
+    }
 } catch (Throwable $e) {}
 
 try {
@@ -94,6 +100,8 @@ function mapTask(array $row): array {
         'completedAt'      => $row['completed_at'] ?? null,
         'completedBy'      => $row['completed_by'] ?? null,
         'deadline'         => $row['deadline'] ?? null,
+        'estimatedHours'   => isset($row['estimated_hours']) ? (float)$row['estimated_hours'] : null,
+        'actualHours'      => isset($row['actual_hours']) ? (float)$row['actual_hours'] : null,
         'subtasks'         => [],
         'feedbackRequests' => [],
         'comments'         => [],
@@ -359,8 +367,8 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
 
         if ($isNew) {
             $pdo->prepare('
-                INSERT INTO tasks (id, project_id, title, description, task_order, date_label, color, status, phase_id, completed_at, completed_by, deadline)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (id, project_id, title, description, task_order, date_label, color, status, phase_id, completed_at, completed_by, deadline, estimated_hours, actual_hours)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ')->execute([
                 $taskId, $projectId,
                 $task['title']       ?? '',
@@ -373,10 +381,12 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
                 $task['completedAt'] ?? null,
                 $task['completedBy'] ?? null,
                 $task['deadline']    ?? null,
+                isset($task['estimatedHours']) ? (float)$task['estimatedHours'] : null,
+                isset($task['actualHours'])    ? (float)$task['actualHours']    : null,
             ]);
         } else {
             $pdo->prepare('
-                UPDATE tasks SET title=?, description=?, task_order=?, date_label=?, color=?, status=?, phase_id=?, completed_at=?, completed_by=?, deadline=?
+                UPDATE tasks SET title=?, description=?, task_order=?, date_label=?, color=?, status=?, phase_id=?, completed_at=?, completed_by=?, deadline=?, estimated_hours=?, actual_hours=?
                 WHERE id=?
             ')->execute([
                 $task['title']       ?? '',
@@ -389,6 +399,8 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
                 $task['completedAt'] ?? null,
                 $task['completedBy'] ?? null,
                 $task['deadline']    ?? null,
+                isset($task['estimatedHours']) ? (float)$task['estimatedHours'] : null,
+                isset($task['actualHours'])    ? (float)$task['actualHours']    : null,
                 $taskId,
             ]);
         }

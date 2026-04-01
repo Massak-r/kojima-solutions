@@ -88,4 +88,6 @@ export interface TimelineTask {
   feedbackRequests?: FeedbackRequest[];
   comments?: StepComment[];
   phaseId?: string;
+  estimatedHours?: number;
+  actualHours?: number;
 }

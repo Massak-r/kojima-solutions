@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectsContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ export default function ProjectQuotes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { projects } = useProjects();
+  const { getClient } = useClients();
   const { quotes, addQuote, updateQuote } = useQuotes();
   const { toast } = useToast();
   const project = projects.find((p) => p.id === id);
@@ -67,7 +69,7 @@ export default function ProjectQuotes() {
       createdAt: new Date().toISOString(),
       projectId: id,
       projectTitle: project.title,
-      clientName: project.client || "",
+      clientName: (project.clientId ? getClient(project.clientId)?.name : null) || project.client || "",
       lineItems: lines,
     };
     addQuote(quote);
