@@ -1,43 +1,45 @@
 import { useLanguage } from "@/hooks/useLanguage";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { motion } from "framer-motion";
-import { Globe, Smartphone, Video, HeadphonesIcon } from "lucide-react";
+import { MousePointer2 } from "lucide-react";
+import { SmartFilterDemo } from "@/components/home/SmartFilterDemo";
+import { SitePreviewDemo } from "@/components/home/SitePreviewDemo";
 
-const services = [
+import { ProcessOptDemo } from "@/components/home/ProcessOptDemo";
+
+const CARDS = [
   {
-    icon: Globe,
-    titleFr: "Création de Sites Web",
-    titleEn: "Website Creation",
-    descFr: "Adaptatifs, designs épurés. Des sites qui incarnent l'identité de votre marque.",
-    descEn: "Adaptive, clean designs. Websites that embody your brand identity.",
+    delay: 0,
+    titleFr: "Outils internes sur mesure",
+    titleEn: "Custom internal tools",
+    descFr: "Applications métier, dashboards, CRM : des interfaces qui rendent vos données exploitables.",
+    descEn: "Business apps, dashboards, CRM: interfaces that make your data actionable.",
+    Demo: SmartFilterDemo,
   },
   {
-    icon: Smartphone,
-    titleFr: "Prototypes d'Apps (MVP)",
-    titleEn: "App Prototypes (MVP)",
-    descFr: "Nous transformons votre idée en une application fonctionnelle en un temps record. Notre approche privilégie l'essentiel : nous construisons d'abord les fonctionnalités critiques pour valider votre projet avant d'utiliser le budget sur les nice-to-have.",
-    descEn: "We turn your idea into a working application in record time. Our approach focuses on the essentials: building critical features first to validate your project before spending the budget on nice-to-haves.",
+    delay: 0.15,
+    titleFr: "Site internet",
+    titleEn: "Websites",
+    descFr: "Vitrine, site avancé ou portail client. Un design soigné et une expérience fluide.",
+    descEn: "Showcase, advanced site or client portal. Polished design and seamless experience.",
+    Demo: SitePreviewDemo,
   },
   {
-    icon: Video,
-    titleFr: "Vidéo IA & Montage",
-    titleEn: "AI Video & Editing",
-    descFr: "Contenu vidéo haute performance généré par IA pour une communication moderne et percutante.",
-    descEn: "High-performance AI-generated video content for modern, impactful communication.",
-  },
-  {
-    icon: HeadphonesIcon,
+    delay: 0.3,
     titleFr: "Conseil & Accompagnement",
     titleEn: "Consulting & Support",
-    descFr: "Stratégie vidéo et optimisation de vos processus internes pour maximiser votre efficacité digitale.",
-    descEn: "Video strategy and internal process optimization to maximize your digital efficiency.",
+    descFr: "Stratégie et optimisation de vos processus internes pour maximiser votre efficacité digitale.",
+    descEn: "Strategy and internal process optimization to maximize your digital efficiency.",
+    Demo: ProcessOptDemo,
   },
 ];
 
 const ServicesSection = () => {
   const { t } = useLanguage();
+  const ref = useScrollReveal<HTMLElement>();
 
   return (
-    <section id="services" className="section-spacing bg-secondary/30">
+    <section ref={ref} data-reveal id="services" className="section-spacing bg-secondary/30">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -47,32 +49,38 @@ const ServicesSection = () => {
           className="text-center mb-20"
         >
           <p className="text-sm uppercase tracking-[0.3em] text-primary mb-4">
-            {t("Ce que nous faisons", "What we do")}
+            {t("Ce que nous construisons", "What we build")}
           </p>
-          <h2 className="font-display text-3xl md:text-5xl font-semibold text-gradient-silver">
-            {t("Nos services", "Our services")}
+          <h2 className="font-display text-3xl md:text-5xl font-semibold text-gradient-silver mb-4">
+            {t("Des outils qui font la différence", "Tools that make a difference")}
           </h2>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/20 bg-primary/5 text-xs font-body font-medium text-primary">
+              <MousePointer2 className="w-3.5 h-3.5" />
+              {t("Interactif", "Interactive")}
+            </span>
+          </div>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 gap-6">
-          {services.map((service, i) => (
+        <div className="grid md:grid-cols-2 gap-6">
+          {CARDS.map((card, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={{ delay: i * 0.15, duration: 0.6 }}
-              className="glass-card-hover p-8 group"
+              transition={{ delay: card.delay, duration: 0.6 }}
+              className="glass-card p-6 sm:p-8 rounded-2xl"
             >
-              <div className="w-12 h-12 mb-6 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-primary/20 transition-colors duration-500">
-                <service.icon className="w-6 h-6 text-primary" />
+              <card.Demo />
+              <div className="mt-5 pt-5 border-t border-border/30">
+                <h3 className="font-display text-lg font-semibold text-foreground mb-1.5">
+                  {t(card.titleFr, card.titleEn)}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed font-body">
+                  {t(card.descFr, card.descEn)}
+                </p>
               </div>
-              <h3 className="font-display text-xl font-semibold text-foreground mb-3">
-                {t(service.titleFr, service.titleEn)}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {t(service.descFr, service.descEn)}
-              </p>
             </motion.div>
           ))}
         </div>

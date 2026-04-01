@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en" data-edition="pasc26">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout 3 – Mega-menu | PASC 26 Conference Mockup</title>
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/layout-3-meridian.css">
+</head>
+<body>
+
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="switcher-live" role="status" aria-live="polite" class="sr-only"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- LAYOUT 3 — MEGA-MENU PANEL                                             -->
+<!-- Single global nav bar (forest green). Clicking "PASC 2026" drops      -->
+<!-- a full-width mega-panel containing all edition navigation links.       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<header class="site-header" role="banner">
+
+  <!-- ① GLOBAL NAV BAR — single coloured bar, always present -->
+  <div class="header-global">
+    <div class="container header-inner">
+      <a href="index.html" class="site-logo" aria-label="PASC – Platform for Advanced Scientific Computing, home"><img src="assets/img/pasc-logo.gif" alt="PASC – Platform for Advanced Scientific Computing" style="height:38px;width:auto; filter:brightness(0) invert(1);"></a>
+
+      <div style="display:flex; align-items:center; gap:1.5rem; flex:1; justify-content:flex-end;">
+        <!-- Global nav — same on every PASC page -->
+        <nav class="nav-primary desktop-only" aria-label="Global site navigation">
+          <ul class="menu" role="menubar">
+            <li class="menu-item" role="none"><a href="#" role="menuitem">Home</a></li>
+            <!-- PASC 2026 triggers the mega-panel edition nav below -->
+            <li class="menu-item" role="none">
+              <a href="#" role="menuitem" data-edition-trigger aria-expanded="false"
+                 class="edition-trigger-link" title="Open PASC 26 conference mega-menu">PASC 2026</a>
+            </li>
+            <li class="menu-item" role="none"><a href="#" role="menuitem">Digital Library</a></li>
+            <li class="menu-item" role="none"><a href="#" role="menuitem">About PASC</a></li>
+          </ul>
+        </nav>
+
+        <button class="nav-mobile-toggle mobile-only" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-nav">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② EDITION MEGA-PANEL — drops below the global bar when PASC 2026 clicked -->
+  <!--    Hidden by default; .is-active reveals it with a smooth slide          -->
+  <!-- Edition mega-panel — full-width drop, hidden by default -->
+  <div class="edition-mega-panel" id="edition-mega-panel" aria-label="PASC 26 edition navigation">
+    <div class="container mega-panel-inner">
+
+      <!-- Panel header -->
+      <div class="mega-panel-header">
+        <div>
+          <span class="mega-panel-badge">PASC 26 — 2026</span>
+          <p class="mega-panel-subtitle">Bern, Switzerland · June 29 – July 1</p>
+        </div>
+        <!-- Tiny palette toggle (edition only) -->
+        <div class="palette-toggle-wrap" title="Toggle edition colour palette (edition content only)">
+          <span class="palette-toggle-label" style="color:rgba(255,255,255,.65);">Ed. Colours</span>
+          <label class="palette-toggle-switch" aria-label="Toggle edition colour palette">
+            <input type="checkbox" id="palette-toggle" class="palette-toggle-input">
+            <span class="palette-toggle-track"><span class="palette-toggle-thumb"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Edition links in columns -->
+      <div class="mega-panel-cols">
+
+        <div class="mega-col">
+          <h4 class="mega-col-heading">About</h4>
+          <ul class="mega-col-list">
+            <li><a href="#">Conference</a></li>
+            <li><a href="#">Conference Format</a></li>
+            <li><a href="#">Organization Committee</a></li>
+            <li><a href="#">Location &amp; Evening Event</a></li>
+            <li><a href="#">Student Volunteer Program</a></li>
+            <li><a href="#">Photo Gallery</a></li>
+          </ul>
+        </div>
+
+        <div class="mega-col">
+          <h4 class="mega-col-heading">Travel &amp; Registration</h4>
+          <ul class="mega-col-list">
+            <li><a href="#">SIGHPC Travel Grants</a></li>
+            <li><a href="#">Student Travel Grants</a></li>
+            <li><a href="#">Early Career Travel Grants</a></li>
+            <li><a href="#">Attendance &amp; Registration Rates</a></li>
+            <li><a href="#">Participants</a></li>
+            <li><a href="#">Sponsorship Packages</a></li>
+          </ul>
+        </div>
+
+        <div class="mega-col">
+          <h4 class="mega-col-heading">Programme</h4>
+          <ul class="mega-col-list">
+            <li><a href="#">Full Programme</a></li>
+            <li><a href="#">Interdisciplinary Dialogue</a></li>
+            <li><a href="#">Keynote Presentations</a></li>
+            <li><a href="#">Minisymposia</a></li>
+            <li><a href="#">Papers</a></li>
+            <li><a href="#">PASC Posters</a></li>
+            <li><a href="#">Student Research Competition</a></li>
+          </ul>
+        </div>
+
+        <div class="mega-col">
+          <h4 class="mega-col-heading">Submission</h4>
+          <ul class="mega-col-list">
+            <li><a href="#">Guidelines for Minisymposia</a></li>
+            <li><a href="#">Guidelines for Papers</a></li>
+            <li><a href="#">Guidelines for PASC Posters</a></li>
+            <li><a href="#">Guidelines for ACM SRC Posters</a></li>
+            <li><a href="#">Information for Presenters</a></li>
+          </ul>
+          <div style="margin-top:1.25rem;">
+            <a href="#" class="mega-panel-cta">Register for PASC 26 →</a>
+          </div>
+        </div>
+
+      </div><!-- /mega-panel-cols -->
+    </div>
+  </div>
+
+</header>
+
+<!-- Mobile drawer -->
+<div id="mobile-nav" class="mobile-nav-drawer" role="dialog" aria-label="Navigation menu" aria-modal="true">
+  <div class="mobile-nav-header">
+    <span style="font-weight:700; font-size:.9rem; letter-spacing:.05em;">PASC MENU</span>
+    <button class="mobile-nav-close" aria-label="Close">✕</button>
+  </div>
+  <nav aria-label="Mobile navigation">
+    <ul class="menu">
+      <li class="menu-item"><a href="#">Home</a></li>
+      <li class="menu-item"><a href="#" data-edition-trigger>PASC 2026 ↓</a></li>
+      <li class="menu-item"><a href="#">Digital Library</a></li>
+      <li class="menu-item"><a href="#">About PASC</a></li>
+      <li class="menu-item" style="border-top:2px solid rgba(255,255,255,.2); margin-top:.5rem;"><a href="#" style="font-weight:700; color:var(--ed-accent); pointer-events:none;">— PASC 26 —</a></li>
+      <li class="menu-item menu-item-has-children"><a href="#">About</a>
+        <ul class="sub-menu"><li><a href="#">Conference</a></li><li><a href="#">Conference Format</a></li><li><a href="#">Organization Committee</a></li><li><a href="#">Location</a></li><li><a href="#">Travel Grants</a></li></ul>
+      </li>
+      <li class="menu-item menu-item-has-children"><a href="#">Programme</a>
+        <ul class="sub-menu"><li><a href="#">Full Programme</a></li><li><a href="#">Plenary Sessions</a></li><li><a href="#">Minisymposia</a></li><li><a href="#">Papers</a></li><li><a href="#">Posters</a></li></ul>
+      </li>
+      <li class="menu-item menu-item-has-children"><a href="#">Submission</a>
+        <ul class="sub-menu"><li><a href="#">Guidelines for Minisymposia</a></li><li><a href="#">Guidelines for Papers</a></li><li><a href="#">Information for Presenters</a></li></ul>
+      </li>
+      <li class="menu-item menu-item-has-children"><a href="#">Registration</a>
+        <ul class="sub-menu"><li><a href="#">Registration Rates</a></li><li><a href="#">Participants</a></li></ul>
+      </li>
+    </ul>
+  </nav>
+</div>
+<div class="mobile-overlay" aria-hidden="true"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- MAIN                                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<main id="main">
+
+  <!-- Hero — editorial two-column layout with pull-quote -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="hero__inner">
+        <div class="hero__layout">
+          <!-- Left: main content -->
+          <div>
+            <p class="hero__eyebrow">13th Edition &nbsp;·&nbsp; PASC 26</p>
+            <h1 class="hero__title" id="hero-title">
+              Building Trust in Science<br>through <em>HPC Co-Design</em>
+            </h1>
+            <p class="hero__desc">
+              An interdisciplinary conference for the exchange of knowledge in scientific computing,
+              with focus on methods, algorithms, and application challenges at the exascale frontier.
+            </p>
+            <div class="hero__meta">
+              <div class="hero__meta-item">
+                <span>Dates</span>
+                <span>June 29 – July 1, 2026</span>
+              </div>
+              <div class="hero__meta-item">
+                <span>Location</span>
+                <span>Bern, Switzerland</span>
+              </div>
+            </div>
+            <div class="hero__actions">
+              <a href="#" class="btn btn-primary">Register Now</a>
+              <a href="#program" class="btn btn-outline">View Programme</a>
+            </div>
+          </div>
+          <!-- Right: editorial pull-quote -->
+          <div class="hero__pullquote" aria-label="Conference theme quote">
+            <blockquote>
+              How do we build confidence that our computations are correct, that our results can be trusted, and that they make a meaningful difference in the world?
+            </blockquote>
+            <cite>PASC 26 Scientific Theme — Building Trust in Science through HPC Co-Design</cite>
+
+            <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,.2);">
+              <p style="font-size:.875rem; color:rgba(255,255,255,.7); line-height:1.6; font-family:'Source Sans 3',sans-serif;">The 2026 edition explores trust across five pillars: AI in Medicine, Extreme Weather Modelling, Energy Assurance, Epidemiological Modelling, and Digital Twins.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats band -->
+  <div class="stats-band" aria-label="Conference at a glance">
+    <div class="stat-item"><span class="stat-number">500+</span><span class="stat-label">Participants</span></div>
+    <div class="stat-item"><span class="stat-number">30+</span><span class="stat-label">Countries</span></div>
+    <div class="stat-item"><span class="stat-number">3</span><span class="stat-label">Days</span></div>
+    <div class="stat-item"><span class="stat-number">7</span><span class="stat-label">Scientific Domains</span></div>
+  </div>
+
+  <!-- Topics -->
+  <section class="topics-section" id="about" aria-labelledby="topics-title">
+    <div class="container">
+      <span class="section-eyebrow">Research Areas</span>
+      <h2 class="section-title" id="topics-title">Key Scientific Domains</h2>
+      <p class="section-lead">PASC 26 spans seven scientific domains, reflecting the breadth of modern computational science.</p>
+      <div class="topics-grid">
+        <article class="topic-card"><h3 class="topic-card__title">AI in Medicine &amp; Healthcare</h3><p class="topic-card__desc">Confidence and reliability in computational diagnoses and medical simulations through rigorous co-design methodologies.</p></article>
+        <article class="topic-card"><h3 class="topic-card__title">Extreme Weather Event Modelling</h3><p class="topic-card__desc">Demonstrating model validity and reproducibility for climate simulation at exascale.</p></article>
+        <article class="topic-card"><h3 class="topic-card__title">Energy Assurance &amp; Security</h3><p class="topic-card__desc">HPC co-design for reliable, resilient energy infrastructure modelling and grid-scale simulation.</p></article>
+        <article class="topic-card"><h3 class="topic-card__title">Epidemiological Modelling</h3><p class="topic-card__desc">Trustworthy simulation for public health decision-making and disease modelling at population scale.</p></article>
+        <article class="topic-card"><h3 class="topic-card__title">Digital Twins &amp; Virtual Environments</h3><p class="topic-card__desc">Verifiable representations of complex physical systems, from cardiovascular engineering to aerospace dynamics.</p></article>
+        <article class="topic-card"><h3 class="topic-card__title">Chemistry &amp; Materials Science</h3><p class="topic-card__desc">Ab initio and molecular dynamics simulations at scale, bridging quantum mechanics and material properties.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Speakers -->
+  <section class="speakers-section" id="speakers" aria-labelledby="speakers-title">
+    <div class="container">
+      <span class="section-eyebrow">Plenary Programme</span>
+      <h2 class="section-title" id="speakers-title">Featured Speakers</h2>
+      <p class="section-lead">Distinguished researchers from across the computational sciences.</p>
+              <div class="speakers-grid">
+          <article class="speaker-card">
+            <div class="speaker-card__photo"><img src="assets/img/speaker1.jpg" alt="Prof. Sally Ellingson" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;"></div>
+            <h3 class="speaker-card__name">Prof. Sally Ellingson</h3>
+            <p class="speaker-card__title">Department of Internal Medicine, College of Medicine</p>
+            <p class="speaker-card__org">University of Kentucky, USA</p>
+          </article>
+          <article class="speaker-card">
+            <div class="speaker-card__photo"><img src="assets/img/speaker2.jpg" alt="Dr. Xiaoye (Sherry) Li" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;"></div>
+            <h3 class="speaker-card__name">Dr. Xiaoye (Sherry) Li</h3>
+            <p class="speaker-card__title">Senior Scientist, Computational Research Division</p>
+            <p class="speaker-card__org">Lawrence Berkeley National Laboratory, USA</p>
+          </article>
+          <article class="speaker-card">
+            <div class="speaker-card__photo"><img src="assets/img/speaker1.jpg" alt="Prof. Dominik Obrist" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;"></div>
+            <h3 class="speaker-card__name">Prof. Dominik Obrist</h3>
+            <p class="speaker-card__title">Professor of Cardiovascular Engineering</p>
+            <p class="speaker-card__org">ARTORG Center, University of Bern, CH</p>
+          </article>
+          <article class="speaker-card">
+            <div class="speaker-card__photo"><img src="assets/img/speaker2.jpg" alt="Prof. Laura Grigori" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;"></div>
+            <h3 class="speaker-card__name">Prof. Laura Grigori</h3>
+            <p class="speaker-card__title">Professor, Applied &amp; Computational Mathematics</p>
+            <p class="speaker-card__org">EPFL &amp; Paul Scherrer Institute, CH</p>
+          </article>
+        </div>
+      </div>
+  </section>
+
+  <!-- Program -->
+  <section class="program-section" id="program" aria-labelledby="program-title">
+    <div class="container">
+      <span class="section-eyebrow">Scientific Programme</span>
+      <h2 class="section-title" id="program-title">Programme Overview</h2>
+      <div class="schedule-tabs" role="tablist">
+        <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="day1">Day 1 — June 29</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="day2">Day 2 — June 30</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="day3">Day 3 — July 1</button>
+      </div>
+      <div id="day1" role="tabpanel">
+        <table class="schedule-table">
+          <thead><tr><th class="time-col">Time</th><th>Session</th><th>Room</th></tr></thead>
+          <tbody>
+            <tr><td class="time-col">09:00</td><td><span class="type-badge type-badge--keynote">Plenary</span> Opening Ceremony</td><td>Main Hall</td></tr>
+            <tr><td class="time-col">09:30</td><td><span class="type-badge type-badge--keynote">Keynote</span> Trust in HPC Co-Design: A Pathway to Exascale</td><td>Main Hall</td></tr>
+            <tr><td class="time-col">10:30</td><td><span class="type-badge type-badge--break">Break</span> Coffee &amp; Networking</td><td>Foyer</td></tr>
+            <tr><td class="time-col">11:00</td><td><span class="type-badge">Minisymposium</span> Parallel Sessions A &amp; B (2-hr format)</td><td>Rooms 1–4</td></tr>
+            <tr><td class="time-col">13:00</td><td><span class="type-badge type-badge--break">Break</span> Lunch</td><td>Restaurant</td></tr>
+            <tr><td class="time-col">14:00</td><td><span class="type-badge">Minisymposium</span> Parallel Sessions C &amp; D</td><td>Rooms 1–4</td></tr>
+            <tr><td class="time-col">16:00</td><td><span class="type-badge type-badge--keynote">Plenary</span> Interdisciplinary Dialogue: HPC and the SDGs</td><td>Main Hall</td></tr>
+            <tr><td class="time-col">17:30</td><td><span class="type-badge">Poster</span> Welcome Reception &amp; Poster Session</td><td>Exhibition Hall</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Venue -->
+  <section class="venue-section" id="venue" aria-labelledby="venue-title">
+    <div class="container">
+      <span class="section-eyebrow">Location</span>
+      <h2 class="section-title" id="venue-title">Bern, Switzerland</h2>
+      <div class="venue-grid">
+        <div>
+          <div class="venue-map" style="background:url('assets/img/bern.jpg') center/cover no-repeat;" role="img" aria-label="University of Bern, Switzerland">
+            <div class="venue-map__label" style="text-align:center;">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--ed-primary)" stroke-width="2.5" aria-hidden="true" style="margin:0 auto 8px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              University of Bern &amp; PHBern<br>
+              <small style="font-weight:400; font-family:'Source Sans 3',sans-serif;">Fabrikstrasse, 3012 Bern</small>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="section-lead">PASC 26 takes place at the University of Bern campus and the adjacent PHBern facilities in the heart of Switzerland's federal capital.</p>
+          <dl class="venue-address">
+            <dt>Venue</dt><dd>University of Bern &amp; PHBern</dd>
+            <dt>Address</dt><dd>Fabrikstrasse 6 and Fabrikstrasse 8<br>3012 Bern, Switzerland</dd>
+            <dt>Getting There</dt><dd>10 min from Bern HB by tram (line 9)<br>Direct rail connections from Zurich, Basel, Geneva</dd>
+          </dl>
+          <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap;">
+            <a href="#" class="btn btn-primary">Travel Information</a>
+            <a href="#" class="btn btn-outline" style="background:rgba(255,255,255,.9); color:var(--ed-primary); border-color:var(--ed-border);">Accommodation</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sponsors -->
+  <section class="sponsors-section" id="sponsors" aria-labelledby="sponsors-title">
+    <div class="container">
+      <span class="section-eyebrow">Partners</span>
+      <h2 class="section-title" id="sponsors-title">Organizers &amp; Sponsors</h2>
+      <div class="sponsors-divider" aria-hidden="true"></div>
+      <p class="sponsor-tier-title">Organised and co-sponsored by</p>
+      <div class="organizer-logos">
+        <div class="organizer-logo"><img src="assets/img/cscs.png" alt="CSCS – Swiss National Supercomputing Centre" style="height:46px;width:auto;object-fit:contain;"></div>
+        <div class="organizer-logo"><img src="assets/img/acm.png" alt="ACM – Association for Computing Machinery" style="height:46px;width:auto;object-fit:contain;"></div>
+        <div class="organizer-logo"><img src="assets/img/sighpc.png" alt="ACM SIGHPC" style="height:46px;width:auto;object-fit:contain;"></div>
+      </div>
+
+      
+      <div class="main-sponsors">
+        <p class="sponsor-tier-title">Principal Sponsors</p>
+                <div class="sponsor-logos" style="display:flex;flex-wrap:wrap;align-items:center;gap:1.5rem;">
+          <a href="#" title="Hewlett Packard Enterprise"><img src="assets/img/hpe.jpg" alt="Hewlett Packard Enterprise" style="height:36px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="NVIDIA"><img src="assets/img/nvidia.jpg" alt="NVIDIA" style="height:36px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="FHNW"><img src="assets/img/fhnw.png" alt="FHNW" style="height:36px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="Paul Scherrer Institute"><img src="assets/img/psi.jpg" alt="Paul Scherrer Institute (PSI)" style="height:36px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="SCITAS"><img src="assets/img/scitas.jpg" alt="SCITAS" style="height:36px;width:auto;object-fit:contain;"></a>
+        </div>
+      </div>
+      <div>
+        <p class="sponsor-tier-title">Supporting Sponsors</p>
+        <div class="sponsor-logos" style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;">
+          <a href="#" title="Do IT Now"><img src="assets/img/doitnow.jpg" alt="Do IT Now" style="height:28px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="EMPA – Swiss Federal Laboratories for Materials Science"><img src="assets/img/empa.jpg" alt="EMPA" style="height:28px;width:auto;object-fit:contain;"></a>
+          <a href="#" title="NCCR MARVEL"><img src="assets/img/marvel.png" alt="NCCR MARVEL" style="height:28px;width:auto;object-fit:contain;"></a>
+        </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section" aria-labelledby="cta-title">
+    <div class="container">
+      <div class="cta-banner">
+        <div class="cta-banner__text">
+          <h2 id="cta-title" style="color:#fff;">Join PASC 2026 in Bern</h2>
+          <p style="color:rgba(255,255,255,.8); margin-top:.75rem;">Connect with 500+ researchers advancing scientific computing across seven domains.</p>
+        </div>
+        <div class="cta-banner__actions">
+          <a href="#" class="btn btn-primary">Register Now</a>
+          <a href="#" class="btn btn-outline">Download Programme</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="site-footer" aria-label="Site footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="site-logo" aria-label="PASC home"><img src="assets/img/pasc-logo.gif" alt="PASC – Platform for Advanced Scientific Computing" style="height:38px;width:auto; filter:brightness(0) invert(1);"></a>
+        <p>An interdisciplinary conference co-sponsored by ACM SIGHPC and CSCS, advancing scientific computing for a sustainable future.</p>
+      </div>
+      <nav class="footer-col" aria-label="About"><h4>About</h4>
+        <ul><li><a href="#">Conference</a></li><li><a href="#">Format</a></li><li><a href="#">Committee</a></li><li><a href="#">Travel Grants</a></li><li><a href="#">Previous Editions</a></li></ul>
+      </nav>
+      <nav class="footer-col" aria-label="Programme"><h4>Programme</h4>
+        <ul><li><a href="#">Full Programme</a></li><li><a href="#">Keynotes</a></li><li><a href="#">Minisymposia</a></li><li><a href="#">Papers</a></li><li><a href="#">ACM SRC</a></li></ul>
+      </nav>
+      <nav class="footer-col" aria-label="Registration"><h4>Registration</h4>
+        <ul><li><a href="#">Registration Rates</a></li><li><a href="#">Participants</a></li><li><a href="#">Digital Library</a></li><li><a href="#">Contact Us</a></li></ul>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 PASC Conference · ACM SIGHPC</span>
+      <div class="footer-social" aria-label="Social"><a href="#" aria-label="X/Twitter">𝕏</a><a href="#" aria-label="LinkedIn">in</a><a href="#" aria-label="YouTube">▶</a></div>
+    </div>
+  </div>
+</footer>
+
+<!-- DEMO BAR -->
+<nav class="demo-bar" aria-label="Demo navigation">
+  <span class="demo-bar__badge">Demo</span>
+  <div class="demo-bar__info">
+    <strong>Layout 3 — Mega-menu Panel.</strong>
+    <span class="demo-bar__view"> View: <b data-demo-view>Global PASC site</b></span>
+  </div>
+  <div class="demo-bar__links">
+    <span style="font-size:.68rem; color:rgba(255,255,255,.5);">Layouts:</span>
+    <div class="demo-bar__nav">
+      <a href="index.html">← Overview</a>
+      <a href="layout-1-precision.html">1 · Dual Bars</a>
+      <a href="layout-2-apex.html">2 · Sidebar</a>
+      <a href="layout-3-meridian.html" class="is-active">3 · Mega-menu</a>
+      <a href="layout-4-luminary.html">4 · Below Hero</a>
+    </div>
+  </div>
+</nav>
+
+<script src="assets/js/nav.js"></script>
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+    document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = true);
+    btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+    const id = btn.getAttribute('aria-controls');
+    const panel = document.getElementById(id);
+    if (panel) panel.hidden = false;
+  });
+});
+</script>
+</body>
+</html>

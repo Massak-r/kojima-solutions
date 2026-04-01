@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,17 +12,18 @@ import {
   TVA_RATE,
 } from "@/types/quote";
 import { QuotePreview } from "./QuotePreview";
-import { generateQuotePdfFromElement } from "@/lib/generateQuotePdf";
 import { Plus, Trash2, Download, Save } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { printViaIframe } from "@/lib/printUtils";
 
 type QuoteFormData = Omit<Quote, "id" | "createdAt">;
 
 interface QuoteFormProps {
   initial?: QuoteFormData | null;
   quoteId?: string | null;
+  onSaved?: (quoteId: string) => void;
 }
 
 // Convert markdown **bold** to HTML
@@ -98,16 +99,13 @@ function RichTextEditor({
         onChange(markdown);
       }}
       className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[70px] break-words"
-      style={{
-        minHeight: "70px",
-      }}
       style={{ minHeight: "70px" }}
       data-placeholder={placeholder}
     />
   );
 }
 
-export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
+export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteFormProps) {
   const { lang: siteLang, t: siteT } = useLanguage();
   const { addQuote, updateQuote } = useQuotes();
   const navigate = useNavigate();
@@ -145,25 +143,16 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
     }));
   }
 
-  const pdfSourceRef = useRef<HTMLDivElement | null>(null);
-
   async function handleDownloadPdf() {
-    const quote: Quote = {
-      ...data,
-      id: quoteId ?? crypto.randomUUID?.() ?? `q-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    const el = pdfSourceRef.current;
-    if (!el) {
-      toast.error(siteT("Aperçu non disponible", "Preview not available"));
+    if (!quoteId) {
+      toast.error(siteT("Sauvegardez d'abord le devis", "Please save the quote first"));
       return;
     }
-    try {
-      await generateQuotePdfFromElement(el, quote);
-      toast.success(siteT("PDF téléchargé", "PDF downloaded"));
-    } catch (e) {
-      toast.error(siteT("Erreur lors de la génération du PDF", "Error generating PDF"));
-    }
+    // Persist current edits, then print silently via hidden iframe
+    const quote: Quote = { ...data, id: quoteId, createdAt: new Date().toISOString() };
+    updateQuote(quoteId, quote);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    printViaIframe(`/quotes/${quoteId}/print`);
   }
 
   function handleSave() {
@@ -174,11 +163,22 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
     };
     if (quoteId) {
       updateQuote(quoteId, quote);
-      toast.success(siteT("Devis mis à jour", "Quote updated"));
+      toast.success(siteT(
+        data.docType === 'invoice' ? "Facture mise à jour" : "Devis mis à jour",
+        data.docType === 'invoice' ? "Invoice updated" : "Quote updated"
+      ));
+      if (onSaved) onSaved(quoteId);
     } else {
       addQuote(quote);
-      toast.success(siteT("Devis enregistré", "Quote saved"));
-      navigate("/quotes");
+      toast.success(siteT(
+        data.docType === 'invoice' ? "Facture enregistrée" : "Devis enregistré",
+        data.docType === 'invoice' ? "Invoice saved" : "Quote saved"
+      ));
+      if (onSaved) {
+        onSaved(quote.id);
+      } else {
+        navigate("/quotes");
+      }
     }
   }
 
@@ -187,24 +187,53 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
   return (
     <div className="grid lg:grid-cols-2 gap-8 items-start">
       {/* Form */}
-      <div className="space-y-8 glass-card p-6 md:p-8">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="font-display text-xl font-semibold text-foreground">
-            {isFr ? "Nouveau devis" : "New quote"}
-          </h2>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="quote-lang" className="text-xs text-muted-foreground whitespace-nowrap">
-              {siteT("Langue du devis", "Quote language")}
-            </Label>
-            <select
-              id="quote-lang"
-              value={data.lang}
-              onChange={(e) => set("lang", e.target.value as "fr" | "en")}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+      <div className="quote-form-panel space-y-8 glass-card p-6 md:p-8">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h2 className="font-display text-xl font-semibold text-foreground">
+              {data.docType === 'invoice'
+                ? (isFr ? "Nouvelle facture" : "New invoice")
+                : (isFr ? "Nouveau devis" : "New quote")}
+            </h2>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="quote-lang" className="text-xs text-muted-foreground whitespace-nowrap">
+                {siteT("Langue", "Language")}
+              </Label>
+              <select
+                id="quote-lang"
+                value={data.lang}
+                onChange={(e) => set("lang", e.target.value as "fr" | "en")}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="fr">FR</option>
+                <option value="en">EN</option>
+              </select>
+            </div>
+          </div>
+          {/* Doc type toggle */}
+          <div className="flex rounded-lg border border-border overflow-hidden w-fit">
+            <button
+              type="button"
+              onClick={() => set("docType", "quote")}
+              className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                (data.docType ?? "quote") === "quote"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              }`}
             >
-              <option value="fr">FR</option>
-              <option value="en">EN</option>
-            </select>
+              {isFr ? "Devis" : "Quote"}
+            </button>
+            <button
+              type="button"
+              onClick={() => set("docType", "invoice")}
+              className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                data.docType === "invoice"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              }`}
+            >
+              {isFr ? "Facture" : "Invoice"}
+            </button>
           </div>
         </div>
 
@@ -259,15 +288,23 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
           </h3>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{isFr ? "N° de devis" : "Quote number"}</Label>
+              <Label>
+                {data.docType === 'invoice'
+                  ? (isFr ? "N° de facture" : "Invoice number")
+                  : (isFr ? "N° de devis" : "Quote number")}
+              </Label>
               <Input
                 value={data.quoteNumber}
                 onChange={(e) => set("quoteNumber", e.target.value)}
-                placeholder="DQ-2025-01XXX"
+                placeholder={data.docType === 'invoice' ? "FAC-2025-001" : "DQ-2025-01XXX"}
               />
             </div>
             <div className="space-y-2">
-              <Label>{isFr ? "Validité" : "Validity date"}</Label>
+              <Label>
+                {data.docType === 'invoice'
+                  ? (isFr ? "Date de facture" : "Invoice date")
+                  : (isFr ? "Validité" : "Validity date")}
+              </Label>
               <Input
                 type="date"
                 value={data.validityDate}
@@ -317,7 +354,7 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
             {data.lineItems.map((line) => (
               <div
                 key={line.id}
-                className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg bg-secondary/30"
+                className="grid grid-cols-4 sm:grid-cols-12 gap-2 items-end p-3 rounded-lg bg-secondary/30"
               >
                 <div className="col-span-12 sm:col-span-6 space-y-1">
                   <div className="flex items-center justify-between gap-2">
@@ -405,8 +442,9 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
                     {new Intl.NumberFormat("fr-CH", {
                       style: "currency",
                       currency: "CHF",
-                      minimumFractionDigits: 2,
-                    }).format(line.quantity * line.unitPrice)}
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    }).format(line.quantity * line.unitPrice).replace(/(?<=\d)[\s\u00A0\u202F](?=\d)/g, "'")}
                   </span>
                 </div>
                 <div className="col-span-12 sm:col-span-1 flex justify-end sm:justify-start pb-1">
@@ -514,40 +552,54 @@ export function QuoteForm({ initial = null, quoteId = null }: QuoteFormProps) {
           />
         </div>
 
+        {/* Payment terms (invoice only) */}
+        {data.docType === "invoice" && (
+          <div className="space-y-2">
+            <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
+            <textarea
+              value={data.paymentTerms ?? ""}
+              onChange={(e) => set("paymentTerms", e.target.value)}
+              rows={3}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+              placeholder={
+                isFr
+                  ? "IBAN: CH00 0000 0000 0000 0000 0\nPaiement à 30 jours net.\nMerci pour votre confiance."
+                  : "IBAN: CH00 0000 0000 0000 0000 0\nNet 30 days.\nThank you for your business."
+              }
+            />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
           <Button onClick={handleSave} className="btn-primary-glow">
             <Save className="w-4 h-4 mr-2" />
             {quoteId
-              ? siteT("Mettre à jour le devis", "Update quote")
-              : siteT("Enregistrer le devis", "Save quote")}
+              ? siteT(
+                  data.docType === 'invoice' ? "Mettre à jour la facture" : "Mettre à jour le devis",
+                  data.docType === 'invoice' ? "Update invoice" : "Update quote"
+                )
+              : siteT(
+                  data.docType === 'invoice' ? "Enregistrer la facture" : "Enregistrer le devis",
+                  data.docType === 'invoice' ? "Save invoice" : "Save quote"
+                )}
           </Button>
           <Button variant="outline" onClick={handleDownloadPdf}>
             <Download className="w-4 h-4 mr-2" />
-            {siteT("Télécharger PDF", "Download PDF")}
+            {siteT("Imprimer / Enregistrer PDF", "Print / Save PDF")}
           </Button>
         </div>
       </div>
 
-      {/* Hidden clone for PDF capture — same content as preview so PDF = preview exactly */}
-      <div
-        ref={pdfSourceRef}
-        className="absolute left-[-9999px] top-0 z-[-1] bg-white"
-        style={{ width: "210mm", minHeight: "297mm" }}
-        aria-hidden
-      >
-        <QuotePreview quote={data} />
-      </div>
-
-      {/* Live preview — this is what gets exported as PDF */}
-      <div className="lg:sticky lg:top-24">
-        <p className="text-xs text-muted-foreground mb-2">
+      {/* Live preview */}
+      <div className="quote-preview-panel lg:sticky lg:top-24">
+        <p className="text-xs text-muted-foreground mb-2" data-print-hide>
           {siteT("Aperçu du devis", "Quote preview")}
           <span className="ml-2 text-muted-foreground/80">
             ({siteT("Le PDF généré sera identique.", "Generated PDF will match this exactly.")})
           </span>
         </p>
-        <div className="overflow-auto max-h-[calc(100vh-10rem)] rounded-xl border border-border bg-muted/30 p-4">
+        <div className="quote-preview-wrapper overflow-auto max-h-[calc(100vh-10rem)] rounded-xl border border-border bg-muted/30 p-4">
           <QuotePreview quote={data} />
         </div>
       </div>

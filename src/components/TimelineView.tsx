@@ -6,10 +6,13 @@ interface TimelineViewProps {
   onEdit: (task: TimelineTask) => void;
   onDelete: (id: string) => void;
   onManageSubtasks?: (task: TimelineTask) => void;
-  onRequestFeedback?: (task: TimelineTask) => void;
+  onToggleComplete?: (id: string) => void;
+  onAddSubtask?: (taskId: string, title: string) => void;
+  phaseMap?: Record<string, string>;
+  onPhaseClick?: () => void;
 }
 
-export function TimelineView({ tasks, onEdit, onDelete, onManageSubtasks, onRequestFeedback }: TimelineViewProps) {
+export function TimelineView({ tasks, onEdit, onDelete, onManageSubtasks, onToggleComplete, onAddSubtask, phaseMap, onPhaseClick }: TimelineViewProps) {
   const sorted = [...tasks].sort((a, b) => a.order - b.order);
 
   if (sorted.length === 0) {
@@ -50,7 +53,10 @@ export function TimelineView({ tasks, onEdit, onDelete, onManageSubtasks, onRequ
             onEdit={onEdit}
             onDelete={onDelete}
             onManageSubtasks={onManageSubtasks}
-            onRequestFeedback={onRequestFeedback}
+            onToggleComplete={onToggleComplete}
+            onAddSubtask={onAddSubtask}
+            phaseName={task.phaseId && phaseMap ? phaseMap[task.phaseId] : undefined}
+            onPhaseClick={onPhaseClick}
           />
         ))}
       </div>

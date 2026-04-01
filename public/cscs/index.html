@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PASC Conference Theme — Navigation Layout Options</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f7f8fa; color: #1a2744; line-height: 1.6; }
+    a { text-decoration: none; color: inherit; }
+    img, svg { display: block; max-width: 100%; }
+
+    /* ── Header ── */
+    .index-header {
+      background: #fff;
+      border-bottom: 1px solid #e2e6f0;
+      padding: 1rem 0;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .index-header .inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 2rem;
+      display: flex; align-items: center; gap: 1.25rem;
+    }
+    .index-header img { height: 36px; width: auto; }
+    .index-header .divider { width: 1px; height: 28px; background: #dde2ec; }
+    .index-header p { font-size: .8125rem; color: #5a6474; }
+    .index-header p strong { color: #1a2744; }
+
+    /* ── Layout cards ── */
+    .layouts-section {
+      max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem 4rem;
+    }
+    .section-eyebrow {
+      font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: #c9a227; margin-bottom: .5rem;
+    }
+    .section-title { font-family: 'Playfair Display', serif; font-size: 1.625rem; font-weight: 700; margin-bottom: 1.75rem; }
+
+    /* Instructions strip */
+    .instructions {
+      background: #fff; border: 1px solid #e2e6f0; border-radius: 10px;
+      padding: 1.25rem 1.5rem; margin-bottom: 1.75rem;
+      display: flex; flex-wrap: wrap; gap: 1.25rem;
+    }
+    .instruction-step { display: flex; gap: .65rem; align-items: flex-start; flex: 1; min-width: 180px; }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #c9a227; color: #1a2744;
+      font-size: .7rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .instruction-step p { font-size: .8125rem; color: #3a4460; line-height: 1.5; }
+    .instruction-step strong { color: #1a2744; }
+
+    /* Layout grid */
+    .layouts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .layout-card {
+      background: #fff; border: 1.5px solid #e2e6f0; border-radius: 12px;
+      overflow: hidden; transition: box-shadow .2s, border-color .2s;
+      display: flex; flex-direction: column;
+    }
+    .layout-card:hover { box-shadow: 0 8px 30px rgba(26,39,68,.12); border-color: #c9a227; }
+
+    /* Preview diagrams */
+    .layout-card__preview {
+      background: #f0f3f9; border-bottom: 1px solid #e2e6f0;
+      padding: 1.25rem 1.5rem; min-height: 130px;
+      display: flex; flex-direction: column; gap: .5rem; position: relative;
+    }
+    .preview-bar {
+      border-radius: 4px; height: 22px;
+      display: flex; align-items: center; padding: 0 .6rem; gap: .4rem;
+    }
+    .preview-bar--global   { background: #fff; border: 1px solid #dde2ec; }
+    .preview-bar--edition  { background: #1a2744; color: #fff; }
+    .preview-bar--edition-green { background: #2d5016; }
+    .preview-bar--edition-blue  { background: #003b8e; }
+    .preview-label {
+      font-size: .55rem; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; border-radius: 2px; padding: .1em .4em;
+    }
+    .preview-label--global  { background: rgba(0,0,0,.08); color: #1a2744; }
+    .preview-label--edition { background: rgba(255,255,255,.2); color: #fff; }
+    .preview-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .4; }
+
+    /* Sidebar preview */
+    .preview-sidebar { display: flex; gap: .5rem; height: 80px; }
+    .preview-sidebar__nav {
+      width: 48px; background: #1a2744; border-radius: 4px; flex-shrink: 0;
+      display: flex; flex-direction: column; padding: .4rem .3rem; gap: .25rem;
+    }
+    .preview-sidebar__content { flex: 1; background: #fff; border: 1px solid #e2e6f0; border-radius: 4px; }
+    .preview-sidebar__line { height: 4px; background: rgba(255,255,255,.3); border-radius: 2px; margin: .1rem 0; }
+
+    /* Mega-menu preview */
+    .preview-mega { position: relative; }
+    .preview-mega__panel {
+      background: #1a2744; border-radius: 4px; padding: .4rem .5rem;
+      display: grid; grid-template-columns: repeat(3,1fr); gap: .3rem;
+    }
+    .preview-mega__col-line { height: 3px; background: rgba(255,255,255,.25); border-radius: 1px; }
+
+    /* Inline/below-hero preview */
+    .preview-inline { display: flex; flex-direction: column; gap: .4rem; }
+    .preview-inline__hero { background: linear-gradient(135deg, #1a2744, #253661); border-radius: 4px; height: 38px; }
+    .preview-inline__nav  { background: #003b8e; border-radius: 4px; height: 18px; }
+
+    .layout-card__number {
+      position: absolute; top: .75rem; right: .75rem;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #1a2744; color: #fff;
+      font-size: .75rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .layout-card__body { padding: 1.25rem 1.5rem; flex: 1; display: flex; flex-direction: column; }
+    .layout-card__tag {
+      display: inline-flex; align-items: center;
+      font-size: .6rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #5a6474; margin-bottom: .4rem;
+    }
+    .layout-card__name { font-size: 1.0625rem; font-weight: 700; color: #1a2744; margin-bottom: .5rem; }
+    .layout-card__desc { font-size: .8125rem; color: #5a6474; line-height: 1.55; flex: 1; }
+    .layout-card__footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #f0f3f9;
+    }
+    .layout-card__palette { display: flex; gap: .3rem; }
+    .palette-swatch { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,.1); }
+    .layout-card__cta {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: #1a2744; color: #fff; padding: .5rem 1.1rem;
+      border-radius: 6px; font-size: .8125rem; font-weight: 600;
+      transition: background .15s;
+    }
+    .layout-card__cta:hover { background: #253661; }
+    .layout-card__cta svg { width: 12px; height: 12px; }
+
+    /* ── Footer ── */
+    .index-footer {
+      text-align: center; padding: 2rem;
+      font-size: .8125rem; color: #8a94a8;
+      border-top: 1px solid #e2e6f0; background: #fff;
+    }
+
+    @media (max-width: 700px) { .layouts-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<header class="index-header">
+  <div class="inner">
+    <img src="assets/img/pasc-logo.gif" alt="PASC – Platform for Advanced Scientific Computing">
+    <div class="divider"></div>
+    <p><strong>Navigation Layout Options</strong> — Client Mockups · 2026</p>
+  </div>
+</header>
+
+<section class="layouts-section">
+  <p class="section-eyebrow">4 Layout options</p>
+  <h2 class="section-title">Choose your navigation placement</h2>
+
+  <div class="instructions">
+    <div class="instruction-step">
+      <div class="step-num">1</div>
+      <p><strong>Open any layout</strong> below and scroll to see the full page design.</p>
+    </div>
+    <div class="instruction-step">
+      <div class="step-num">2</div>
+      <p><strong>Click "PASC 2026"</strong> in the global menu to reveal the edition navigation.</p>
+    </div>
+    <div class="instruction-step">
+      <div class="step-num">3</div>
+      <p>Find the <strong>tiny palette switch</strong> in the edition nav to preview alternate colours.</p>
+    </div>
+    <div class="instruction-step">
+      <div class="step-num">4</div>
+      <p>Use the <strong>bottom demo bar</strong> to jump between layouts at any time.</p>
+    </div>
+  </div>
+
+  <div class="layouts-grid">
+
+    <!-- Layout 1 -->
+    <div class="layout-card">
+      <div class="layout-card__preview">
+        <div class="preview-bar preview-bar--global">
+          <span class="preview-label preview-label--global">GLOBAL</span>
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+        </div>
+        <div class="preview-bar preview-bar--edition">
+          <span class="preview-label preview-label--edition">EDITION</span>
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+        </div>
+        <div style="background:#fff; border-radius:4px; height:60px; border:1px solid #e2e6f0; margin-top:.25rem;"></div>
+        <div class="layout-card__number">1</div>
+      </div>
+      <div class="layout-card__body">
+        <span class="layout-card__tag">Most familiar</span>
+        <div class="layout-card__name">Dual Horizontal Bars</div>
+        <p class="layout-card__desc">Two stacked bars at the top: a white global nav bar above, and a coloured edition nav bar that slides in below it when entering a PASC26 page. Both bars stay sticky on scroll.</p>
+        <div class="layout-card__footer">
+          <div class="layout-card__palette">
+            <span class="palette-swatch" style="background:#1a2744"></span>
+            <span class="palette-swatch" style="background:#c9a227"></span>
+            <span class="palette-swatch" style="background:#fff"></span>
+          </div>
+          <a href="layout-1-precision.html" class="layout-card__cta">
+            Open Layout 1
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6h10M6 1l5 5-5 5"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout 2 -->
+    <div class="layout-card">
+      <div class="layout-card__preview">
+        <div class="preview-bar preview-bar--global" style="margin-bottom:.5rem;">
+          <span class="preview-label preview-label--global">GLOBAL</span>
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+        </div>
+        <div class="preview-sidebar">
+          <div class="preview-sidebar__nav">
+            <span class="preview-label preview-label--edition" style="font-size:.4rem; padding:.1em .3em; margin-bottom:.2rem;">ED.</span>
+            <div class="preview-sidebar__line"></div>
+            <div class="preview-sidebar__line"></div>
+            <div class="preview-sidebar__line"></div>
+            <div class="preview-sidebar__line"></div>
+          </div>
+          <div class="preview-sidebar__content"></div>
+        </div>
+        <div class="layout-card__number">2</div>
+      </div>
+      <div class="layout-card__body">
+        <span class="layout-card__tag">Desktop-focused</span>
+        <div class="layout-card__name">Left Sidebar Edition Nav</div>
+        <p class="layout-card__desc">Global nav remains a horizontal top bar. When entering PASC26, a vertical sidebar slides in from the left carrying all edition links. Content area shifts right to accommodate it.</p>
+        <div class="layout-card__footer">
+          <div class="layout-card__palette">
+            <span class="palette-swatch" style="background:#1a4a7a"></span>
+            <span class="palette-swatch" style="background:#38bdf8"></span>
+            <span class="palette-swatch" style="background:#f8faff"></span>
+          </div>
+          <a href="layout-2-apex.html" class="layout-card__cta">
+            Open Layout 2
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6h10M6 1l5 5-5 5"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout 3 -->
+    <div class="layout-card">
+      <div class="layout-card__preview">
+        <div class="preview-bar preview-bar--edition-green" style="margin-bottom:.3rem;">
+          <span class="preview-label preview-label--global" style="background:rgba(255,255,255,.2); color:#fff;">GLOBAL</span>
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+        </div>
+        <div class="preview-mega">
+          <div class="preview-mega__panel">
+            <div>
+              <div class="preview-mega__col-line" style="margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4; margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4;"></div>
+            </div>
+            <div>
+              <div class="preview-mega__col-line" style="margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4; margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4;"></div>
+            </div>
+            <div>
+              <div class="preview-mega__col-line" style="margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4; margin-bottom:.25rem;"></div>
+              <div class="preview-mega__col-line" style="opacity:.4;"></div>
+            </div>
+          </div>
+          <div style="position:absolute; top:-1.2rem; right:.5rem; background:#fff; border-radius:2px; padding:.1em .4em; font-size:.5rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#2d5016;">EDITION PANEL</div>
+        </div>
+        <div style="background:#fff; border-radius:4px; height:28px; border:1px solid #e2e6f0; margin-top:.35rem;"></div>
+        <div class="layout-card__number">3</div>
+      </div>
+      <div class="layout-card__body">
+        <span class="layout-card__tag">Single-bar approach</span>
+        <div class="layout-card__name">Mega-menu Panel</div>
+        <p class="layout-card__desc">Just one navigation bar (global). Clicking "PASC 2026" drops a full-width mega-panel containing all edition links in organised columns. No second persistent bar — cleaner for casual visitors.</p>
+        <div class="layout-card__footer">
+          <div class="layout-card__palette">
+            <span class="palette-swatch" style="background:#2d5016"></span>
+            <span class="palette-swatch" style="background:#e8a020"></span>
+            <span class="palette-swatch" style="background:#f8f5f0"></span>
+          </div>
+          <a href="layout-3-meridian.html" class="layout-card__cta">
+            Open Layout 3
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6h10M6 1l5 5-5 5"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout 4 -->
+    <div class="layout-card">
+      <div class="layout-card__preview">
+        <div class="preview-bar preview-bar--global" style="margin-bottom:.4rem;">
+          <span class="preview-label preview-label--global">GLOBAL</span>
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+        </div>
+        <div class="preview-inline">
+          <div class="preview-inline__hero"></div>
+          <div class="preview-inline__nav" style="display:flex; align-items:center; padding:0 .5rem; gap:.3rem;">
+            <span class="preview-label preview-label--edition" style="font-size:.4rem;">EDITION</span>
+            <span class="preview-dot"></span><span class="preview-dot"></span>
+          </div>
+        </div>
+        <div class="layout-card__number">4</div>
+      </div>
+      <div class="layout-card__body">
+        <span class="layout-card__tag">In-page context</span>
+        <div class="layout-card__name">Below-Hero Sticky Nav</div>
+        <p class="layout-card__desc">Global nav at top, edition nav appears as a coloured band directly below the hero section. As visitors scroll, the edition nav sticks just beneath the global bar — contextual navigation without cluttering the top.</p>
+        <div class="layout-card__footer">
+          <div class="layout-card__palette">
+            <span class="palette-swatch" style="background:#003b8e"></span>
+            <span class="palette-swatch" style="background:#ff4b3a"></span>
+            <span class="palette-swatch" style="background:#fff"></span>
+          </div>
+          <a href="layout-4-luminary.html" class="layout-card__cta">
+            Open Layout 4
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6h10M6 1l5 5-5 5"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="index-footer">
+  <p>PASC Conference Theme · Navigation mockups · Prepared by Kojima Solutions</p>
+</footer>
+
+</body>
+</html>

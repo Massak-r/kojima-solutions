@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2b4c72" />
+  <title>Kojima Space — Hors ligne</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600&family=Inter:wght@400;500&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f5f0eb;
+      color: #1a2133;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: rgba(244, 239, 232, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(200, 190, 178, 0.5);
+      border-radius: 1.25rem;
+      padding: 2.5rem 2rem;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 4px 24px -6px rgba(43, 76, 114, 0.08);
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.5rem;
+      border-radius: 1rem;
+      background: rgba(43, 76, 114, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: #2b4c72;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    h1 {
+      font-family: 'Sora', system-ui, sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #2b4c72;
+      margin-bottom: 0.75rem;
+    }
+    p {
+      font-size: 0.875rem;
+      color: #6b7a8d;
+      line-height: 1.6;
+      margin-bottom: 1.75rem;
+    }
+    button {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.875rem;
+      font-weight: 500;
+      background: #2b4c72;
+      color: #f5f0eb;
+      border: none;
+      border-radius: 0.625rem;
+      padding: 0.625rem 1.75rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    button:hover { background: #3a6090; }
+    button:active { transform: scale(0.97); }
+    .brand {
+      margin-top: 1.5rem;
+      font-size: 0.625rem;
+      color: rgba(107, 122, 141, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: 'Sora', system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg viewBox="0 0 24 24">
+        <line x1="2" y1="2" x2="22" y2="22" />
+        <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+        <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
+        <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
+        <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
+        <path d="M5 13a10 10 0 0 1 5.24-2.76" />
+        <line x1="12" y1="20" x2="12.01" y2="20" stroke-width="2" />
+      </svg>
+    </div>
+    <h1>Hors ligne</h1>
+    <p>Impossible de se connecter au serveur. Vérifiez votre connexion internet et réessayez.</p>
+    <button onclick="window.location.reload()">Réessayer</button>
+    <div class="brand">Kojima Solutions</div>
+  </div>
+</body>
+</html>

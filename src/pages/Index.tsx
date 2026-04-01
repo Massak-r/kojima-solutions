@@ -1,20 +1,30 @@
-import HeroSection from "@/components/HeroSection";
+import HeroSectionV3 from "@/components/v3/HeroSectionV3";
 import MethodologySection from "@/components/MethodologySection";
-import ServicesSection from "@/components/ServicesSection";
-import CreditsSection from "@/components/CreditsSection";
-import ContactSection from "@/components/ContactSection";
+import ServicesSectionV3 from "@/components/v3/ServicesSectionV3";
+import CreditsSectionV3 from "@/components/v3/CreditsSectionV3";
+import FAQSection from "@/components/FAQSection";
+import ContactSectionV3 from "@/components/v3/ContactSectionV3";
 import Footer from "@/components/Footer";
+import FloatingCTA from "@/components/FloatingCTA";
+import SectionDivider from "@/components/SectionDivider";
 
 const Index = () => (
   <>
     <main>
-      <HeroSection />
+      <HeroSectionV3 />
+      <SectionDivider />
       <MethodologySection />
-      <ServicesSection />
-      <CreditsSection />
-      <ContactSection />
+      <SectionDivider />
+      <ServicesSectionV3 />
+      <SectionDivider />
+      <CreditsSectionV3 />
+      <SectionDivider />
+      <FAQSection />
+      <SectionDivider />
+      <ContactSectionV3 />
     </main>
     <Footer />
+    <FloatingCTA />
   </>
 );
 

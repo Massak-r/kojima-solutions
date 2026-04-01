@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, ArrowRight, Pencil, Check } from "lucide-react";
 import { useState } from "react";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProjectDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject, updateProject } = useProjects();
+  const { toast } = useToast();
   const project = getProject(id!);
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -34,6 +36,7 @@ export default function ProjectDetails() {
     const newTitle = draftTitle.trim() || "Untitled Project";
     updateProject(id!, { title: newTitle });
     setEditingTitle(false);
+    toast({ title: "Title saved" });
   }
 
   return (
@@ -52,7 +55,7 @@ export default function ProjectDetails() {
         </div>
       </header>
 
-      <ProjectStepNav projectId={id!} currentStep="details" />
+      <ProjectStepNav projectId={id!} currentStep="brief" />
 
       <main className="max-w-2xl mx-auto px-6 py-8">
         {/* Title */}

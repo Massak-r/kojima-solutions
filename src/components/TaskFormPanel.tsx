@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Bold, List } from "lucide-react";
+import { X, Plus, Bold, List, GitBranch } from "lucide-react";
 import { TimelineTask } from "@/types/timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+
+export interface FunnelPhaseOption {
+  id: string;
+  title: string;
+}
 
 interface TaskFormPanelProps {
   onAdd: (task: Omit<TimelineTask, "id">) => void;
@@ -12,6 +17,7 @@ interface TaskFormPanelProps {
   editingTask?: TimelineTask | null;
   onCancelEdit?: () => void;
   taskCount: number;
+  funnelPhases?: FunnelPhaseOption[];
 }
 
 const COLOR_OPTIONS: Array<TimelineTask["color"]> = ["primary", "accent", "secondary", "rose", "sage", "amber", "violet"];
@@ -34,12 +40,13 @@ const COLOR_DOTS: Record<NonNullable<TimelineTask["color"]>, string> = {
   violet:    "bg-palette-violet",
 };
 
-export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCount }: TaskFormPanelProps) {
+export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCount, funnelPhases }: TaskFormPanelProps) {
   const [order, setOrder] = useState<number>(taskCount + 1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dateLabel, setDateLabel] = useState("");
   const [color, setColor] = useState<TimelineTask["color"]>("primary");
+  const [phaseId, setPhaseId] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -75,12 +82,14 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       setDescription(editingTask.description);
       setDateLabel(editingTask.dateLabel);
       setColor(editingTask.color ?? "primary");
+      setPhaseId(editingTask.phaseId);
     } else {
       setOrder(taskCount + 1);
       setTitle("");
       setDescription("");
       setDateLabel("");
       setColor("primary");
+      setPhaseId(undefined);
     }
     setErrors({});
   }, [editingTask, taskCount]);
@@ -104,6 +113,7 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       date: dateLabel.trim(),
       dateLabel: dateLabel.trim(),
       color,
+      phaseId,
     };
 
     if (editingTask && onEdit) {
@@ -118,6 +128,7 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
       setDescription("");
       setDateLabel("");
       setColor("primary");
+      setPhaseId(undefined);
     }
     setErrors({});
   }
@@ -242,6 +253,25 @@ export function TaskFormPanel({ onAdd, onEdit, editingTask, onCancelEdit, taskCo
             ))}
           </div>
         </div>
+
+        {/* Phase link */}
+        {funnelPhases && funnelPhases.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-primary-foreground/70 text-xs font-body uppercase tracking-wider flex items-center gap-1">
+              <GitBranch size={11} /> Phase liée
+            </Label>
+            <select
+              value={phaseId ?? ""}
+              onChange={(e) => setPhaseId(e.target.value || undefined)}
+              className="bg-primary-foreground/10 border border-primary-foreground/20 text-primary-foreground text-xs font-body rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="" className="text-foreground bg-background">Aucune</option>
+              {funnelPhases.map((p) => (
+                <option key={p.id} value={p.id} className="text-foreground bg-background">{p.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <Button
           type="submit"

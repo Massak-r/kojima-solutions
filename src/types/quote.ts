@@ -10,6 +10,7 @@ export interface QuoteLineItem {
 export interface Quote {
   id: string;
   createdAt: string; // ISO
+  projectId?: string;
   lang: QuoteLang;
 
   // Client
@@ -36,6 +37,9 @@ export interface Quote {
   discountType?: "amount" | "percent";
   discountValue?: number;
   discountLabel?: string;
+  docType?: "quote" | "invoice";
+  invoiceStatus?: "draft" | "to-validate" | "validated" | "paid" | "on-hold";
+  paymentTerms?: string;
 }
 
 export const TVA_RATE = 8.1;
@@ -70,6 +74,8 @@ export function createEmptyQuote(lang: QuoteLang = "fr"): Omit<Quote, "id" | "cr
     discountType: "amount",
     discountValue: 0,
     discountLabel: "",
+    docType: "quote",
+    invoiceStatus: "draft",
   };
 }
 

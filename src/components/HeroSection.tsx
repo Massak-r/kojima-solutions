@@ -1,26 +1,64 @@
 import { useLanguage } from "@/hooks/useLanguage";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import { LiveStatusCard } from "@/components/home/LiveStatusCard";
+
+// Always French cycling words (brand identity)
+const CYCLING_WORDS = ['sites web', 'web apps', 'outils internes'];
+
+function CyclingText({ words }: { words: string[] }) {
+  const [idx,     setIdx]     = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const fadeOut = setTimeout(() => setVisible(false), 2600);
+    return () => clearTimeout(fadeOut);
+  }, [idx]);
+
+  useEffect(() => {
+    if (!visible) {
+      const next = setTimeout(() => {
+        setIdx(i => (i + 1) % words.length);
+        setVisible(true);
+      }, 350);
+      return () => clearTimeout(next);
+    }
+  }, [visible, words.length]);
+
+  return (
+    <span
+      className={cn(
+        'inline-block transition-all duration-300 text-primary font-semibold',
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2',
+      )}
+    >
+      {words[idx]}
+    </span>
+  );
+}
 
 const HeroSection = () => {
   const { t } = useLanguage();
 
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0">
-        <img src={heroBg} alt="" className="w-full h-full object-cover opacity-40" />
+      {/* Background with float animation */}
+      <div className="absolute inset-0 overflow-hidden">
+        <img src={heroBg} alt="" className="w-full h-full object-cover opacity-40 hero-bg-float" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        {/* Cycling text */}
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.7 }}
-          className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-6"
+          className="text-base md:text-lg text-muted-foreground mb-4 font-body"
         >
-          Kojima Solutions · Suisse
+          {t('Nous créons des ', 'We build ')}<CyclingText words={CYCLING_WORDS} />
         </motion.p>
 
         <motion.h1
@@ -30,8 +68,8 @@ const HeroSection = () => {
           className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold leading-tight text-gradient-silver mb-8"
         >
           {t(
-            "Votre vision, concrétisée avec précision.",
-            "Your vision, brought to life with precision."
+            "La première étape de votre vision.",
+            "The first step of your vision."
           )}
         </motion.h1>
 
@@ -42,27 +80,30 @@ const HeroSection = () => {
           className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12"
         >
           {t(
-            "La première séance autour d'un café est offerte — définissons ensemble votre trajectoire.",
-            "The first session over a coffee is on us — let's define your trajectory together."
+            "La première séance est offerte.",
+            "The first session is on us."
           )}
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1, duration: 0.7 }}
+          transition={{ delay: 1.0, duration: 0.7 }}
         >
           <a
             href="#contact"
             className="inline-block px-8 py-4 bg-primary text-primary-foreground font-display font-medium rounded-lg btn-primary-glow transition-all duration-300 hover:scale-105"
           >
             {t(
-              "Prenons un café – Discutons de votre projet",
-              "Let's have a coffee – Talk about your project"
+              "Évaluer mon projet",
+              "Evaluate my project"
             )}
           </a>
         </motion.div>
       </div>
+
+      {/* Live Status Card */}
+      <LiveStatusCard />
 
       {/* Scroll indicator */}
       <motion.div

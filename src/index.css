@@ -59,6 +59,7 @@
     --palette-violet: 258 28% 48%;
     --palette-violet-foreground: 0 0% 100%;
   }
+
 }
 
 /* Timeline spine connector */
@@ -104,11 +105,13 @@
   .text-gradient-silver {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, hsl(var(--foreground)), hsl(var(--silver)));
+    padding-bottom: 0.12em; /* prevent bg-clip-text from clipping descenders (g, p, y…) */
   }
 
   .text-gradient-primary {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    padding-bottom: 0.12em;
   }
 
   .btn-primary-glow {
@@ -130,4 +133,293 @@
     color: hsl(var(--muted-foreground));
     pointer-events: none;
   }
+
+  /* ── Hero background float ── */
+  .hero-bg-float {
+    animation: heroFloat 20s ease-in-out infinite;
+    transform-origin: center center;
+  }
+
+  /* ── Scroll reveal ── */
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [data-reveal].reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  [data-reveal-delay="1"] { transition-delay: 0.1s; }
+  [data-reveal-delay="2"] { transition-delay: 0.2s; }
+  [data-reveal-delay="3"] { transition-delay: 0.3s; }
+  [data-reveal-delay="4"] { transition-delay: 0.4s; }
+}
+
+/* ── CSS custom properties for animated gradients ── */
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ── Keyframe animations (outside @layer to ensure browser support) ── */
+
+@keyframes rotate-gradient {
+  to { --angle: 360deg; }
+}
+
+/* Animated gradient text */
+.text-gradient-animated {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--foreground)),
+    hsl(var(--primary)),
+    hsl(258 28% 48%),
+    hsl(145 20% 44%),
+    hsl(var(--foreground))
+  );
+  background-size: 300% 100%;
+  animation: gradient-shift 8s ease-in-out infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  padding-bottom: 0.12em;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Gradient slider for pricing */
+.gradient-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, hsl(215 45% 30%), hsl(258 28% 48%), hsl(145 20% 44%));
+  outline: none;
+  cursor: pointer;
+}
+.gradient-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid hsl(215 45% 30%);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.gradient-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.gradient-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid hsl(215 45% 30%);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  cursor: pointer;
+}
+
+@keyframes heroFloat {
+  0%   { transform: scale(1.06) translateY(0px) translateX(0px); }
+  33%  { transform: scale(1.09) translateY(-10px) translateX(4px); }
+  66%  { transform: scale(1.07) translateY(6px) translateX(-3px); }
+  100% { transform: scale(1.06) translateY(0px) translateX(0px); }
+}
+
+/* ── Print / PDF export ──────────────────────────────────── */
+
+@media print {
+  /* Hide all non-content elements */
+  .no-print,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Reset background and text for clean output */
+  body {
+    background: white !important;
+    color: #111827 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove card shadows */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Roadmap: hide sidebar, let timeline fill the full width */
+  .roadmap-sidebar {
+    display: none !important;
+  }
+  .roadmap-timeline {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  /* Page breaks */
+  .print-page-break {
+    page-break-before: always;
+  }
+
+  /* Hide interactive edit/delete controls */
+  [data-edit-controls] {
+    display: none !important;
+  }
+
+  /* Prevent blank second page caused by viewport/body height */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* ── Quote / Invoice print ── */
+
+  /* When printing a quote: show only the preview, hide everything else */
+  body.printing-quote .no-print,
+  body.printing-quote header,
+  body.printing-quote nav,
+  body.printing-quote [data-print-hide] {
+    display: none !important;
+  }
+
+  /* The quote preview document fills the page */
+  .quote-preview-document {
+    max-width: 100% !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Quote form panel — hide when printing */
+  .quote-form-panel {
+    display: none !important;
+  }
+
+  /* Show only the preview panel when printing */
+  .quote-preview-panel {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Strip the wrapper div chrome so the document prints cleanly */
+  .quote-preview-wrapper {
+    background: white !important;
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Hide Sonner toasts and Radix portals when printing */
+  [data-sonner-toaster],
+  [data-radix-portal] {
+    display: none !important;
+  }
+
+  /* ── Quote print page (clean PDF, no nav) ── */
+  body.quote-print-mode header,
+  body.quote-print-mode nav {
+    display: none !important;
+  }
+  body.quote-print-mode {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body.quote-print-mode .quote-preview-document {
+    max-width: 100% !important;
+    width: 210mm !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+}
+
+/* ── PWA / Standalone mode ── */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: contain;
+  }
+  /* Account for notch / status bar in standalone */
+  header.fixed {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Touch improvements for mobile app feel */
+nav a,
+nav button {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Hide scrollbar on mobile tab bars */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe-area bottom padding for mobile nav */
+.pb-safe-bottom {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .pb-safe-bottom {
+    padding-bottom: 0;
+  }
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Bottom nav active indicator pulse */
+@keyframes nav-tap {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+nav.fixed a:active {
+  animation: nav-tap 0.15s ease-out;
+}
+
+/* Page content fade-in on mount */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: page-fade-in 0.2s ease-out;
+}
+
+/* Progress bar glow for intake estimator */
+.progress-glow {
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)));
+  background-size: 200% 100%;
+  animation: gradient-shift 3s ease-in-out infinite;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.35), 0 0 20px hsl(var(--primary) / 0.12);
 }
