@@ -89,7 +89,7 @@ export default function ProjectDetails() {
                   setDraftTitle(project.title);
                   setEditingTitle(true);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
               >
                 <Pencil size={14} />
               </button>

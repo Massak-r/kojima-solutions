@@ -429,6 +429,40 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   UNIQUE INDEX idx_endpoint (endpoint(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Payment Plans (Trésorerie) ────────────────────────────────
+CREATE TABLE IF NOT EXISTS payment_plans (
+  id             VARCHAR(36)   NOT NULL,
+  name           VARCHAR(255)  NOT NULL,
+  type           VARCHAR(30)   NOT NULL DEFAULT 'installment',
+  monthly_amount DECIMAL(10,2) NOT NULL,
+  total_months   INT           NOT NULL DEFAULT 12,
+  start_date     DATE          NOT NULL,
+  total_owed     DECIMAL(10,2) NULL,
+  adjustment     DECIMAL(10,2) NULL,
+  category       VARCHAR(50)   NULL,
+  notes          TEXT          NULL,
+  paid_months    JSON          NOT NULL DEFAULT '[]',
+  created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Admin Deadlines (Échéances) ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS admin_deadlines (
+  id              VARCHAR(36)   NOT NULL,
+  title           VARCHAR(255)  NOT NULL,
+  description     TEXT          NULL,
+  due_date        DATE          NOT NULL,
+  category        VARCHAR(50)   NOT NULL DEFAULT 'Général',
+  recurring       VARCHAR(20)   NULL,
+  remind_days     INT           NOT NULL DEFAULT 7,
+  completed       TINYINT(1)    NOT NULL DEFAULT 0,
+  completed_at    DATETIME      NULL,
+  notified        TINYINT(1)    NOT NULL DEFAULT 0,
+  created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Migrations for notifications read tracking ────────────────
 -- ALTER TABLE notifications ADD COLUMN `read` TINYINT(1) NOT NULL DEFAULT 0;
 -- ALTER TABLE notifications ADD COLUMN read_at DATETIME NULL;

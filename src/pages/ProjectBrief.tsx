@@ -4,8 +4,10 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { ProjectDetailsPanel } from "@/components/ProjectDetailsPanel";
 import { getIntakeByProject, type IntakeResponse, type Tier } from "@/api/funnels";
-import { FileText, Inbox, User, Mail, Star, Loader2 } from "lucide-react";
+import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 const TIER_LABELS: Record<Tier, { label: string; color: string }> = {
   essential: { label: "Essentiel", color: "bg-muted text-muted-foreground" },
@@ -27,10 +29,13 @@ const QUESTION_LABELS: Record<string, string> = {
 export default function ProjectBrief() {
   const { id } = useParams<{ id: string }>();
   const { projects, updateProject } = useProjects();
+  const { toast } = useToast();
   const project = projects.find((p) => p.id === id);
 
   const [intake, setIntake] = useState<IntakeResponse | null>(null);
   const [intakeLoading, setIntakeLoading] = useState(true);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -53,6 +58,44 @@ export default function ProjectBrief() {
       <ProjectStepNav projectId={project.id} currentStep="brief" />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* Title */}
+        <div>
+          {editingTitle ? (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const t = draftTitle.trim();
+                    if (t) { updateProject(project.id, { title: t }); toast({ title: "Titre sauvegardé" }); }
+                    setEditingTitle(false);
+                  }
+                  if (e.key === "Escape") setEditingTitle(false);
+                }}
+                className="text-lg font-heading font-semibold h-9 w-72"
+              />
+              <button onClick={() => { const t = draftTitle.trim(); if (t) { updateProject(project.id, { title: t }); toast({ title: "Titre sauvegardé" }); } setEditingTitle(false); }} className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors">
+                <Check size={15} />
+              </button>
+              <button onClick={() => setEditingTitle(false)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <h1 className="text-lg font-heading font-semibold">{project.title}</h1>
+              <button
+                onClick={() => { setDraftTitle(project.title); setEditingTitle(true); }}
+                className="md:opacity-0 md:group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+              >
+                <PenLine size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Section 1: Project metadata */}
         <section>
           <ProjectDetailsPanel project={project} onChange={(updates) => updateProject(project.id, updates)} />

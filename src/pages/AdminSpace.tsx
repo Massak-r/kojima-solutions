@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -12,6 +13,7 @@ import {
   CheckCircle2, Circle, Trash2, Plus, FileText, Upload, ExternalLink,
   Loader2, FolderOpen, Calendar, X, Pencil, Check, Target, Sun,
   Search, FolderPlus, ChevronRight, Home, Link2, Link2Off, Folder, GripVertical,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +45,7 @@ import type { SubtaskItem } from "@/api/todoSubtasks";
 import { ADMIN_CATEGORIES, sortObjectives } from "@/lib/objectiveCategories";
 import { ObjectiveRow } from "@/components/todos/ObjectiveRow";
 import { CategorySection } from "@/components/todos/CategorySection";
+import { EcheancesTab } from "@/components/admin/EcheancesTab";
 // DailyFocus replaced with inline focus bar
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -1222,11 +1225,29 @@ export default function AdminSpace() {
             Espace<span className="text-primary">.</span>Administratif
           </h1>
           <p className="text-muted-foreground text-sm font-body mt-1">
-            Documents administratifs.
+            Documents, tâches et échéances.
           </p>
         </div>
 
-        <DocumentsTab />
+        <Tabs defaultValue="tasks" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="tasks" className="font-body gap-1.5">
+              <Target size={14} /> Tâches & Échéances
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="font-body gap-1.5">
+              <FileText size={14} /> Documents
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="tasks">
+            <div className="space-y-10">
+              <EcheancesTab />
+              <div className="border-t border-border/40 pt-6">
+                <AdminTodosTab />
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="documents"><DocumentsTab /></TabsContent>
+        </Tabs>
       </div>
     </div>
   );

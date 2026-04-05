@@ -181,7 +181,7 @@ export function StakeholderManager({ projectId }: Props) {
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="truncate">{sh.email}</span>
+                  <span className="truncate">{sh.email || "Via lien de partage"}</span>
                   <span className="shrink-0">
                     · {sh.lastAccessedAt ? `Vu il y a ${timeAgo(sh.lastAccessedAt)}` : "Jamais connecté"}
                   </span>
@@ -229,7 +229,7 @@ export function StakeholderManager({ projectId }: Props) {
                 ) : (
                   <button
                     onClick={() => setConfirmDelete(sh.id)}
-                    className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors opacity-0 group-hover:opacity-100"
+                    className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors md:opacity-0 md:group-hover:opacity-100"
                     title="Supprimer"
                   >
                     <Trash2 size={13} />

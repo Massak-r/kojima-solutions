@@ -257,6 +257,7 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
   // Video file upload
   const [videoFile,  setVideoFile]  = useState<File | null>(null);
   const [uploading,  setUploading]  = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   // User-selectable type (figures/solo)
   const [moveType, setMoveType]    = useState<SalsaType>(type);
   useEffect(() => { setMoveType(type); }, [type]);
@@ -266,6 +267,7 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
     if (open) {
       setSaving(false);
       setUploading(false);
+      setUploadStatus('');
     }
   }, [open]);
 
@@ -317,14 +319,20 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
           let fileToUpload: File = videoFile;
           const { needsCompression, compressVideo } = await import('@/lib/videoCompress');
           if (needsCompression(videoFile)) {
-            fileToUpload = await compressVideo(videoFile);
+            setUploadStatus('Compression...');
+            fileToUpload = await compressVideo(videoFile, (p) => {
+              if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
+              else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
+            });
           }
+          setUploadStatus('Upload...');
           const vid = await uploadVideo(move.id, fileToUpload);
           onVideoUploaded(move.id, vid);
         } catch (e: any) {
           toast({ title: 'Erreur upload', description: e.message, variant: 'destructive' });
         }
         setUploading(false);
+        setUploadStatus('');
       }
 
       toast({ title: 'Ajouté ✓', description: `"${move.title}" a été ajouté.` });
@@ -467,7 +475,7 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Annuler</Button>
           <Button onClick={handleSubmit} disabled={!title.trim() || saving || uploading}>
-            {uploading ? 'Upload...' : saving ? 'Envoi...' : 'Ajouter'}
+            {uploading ? (uploadStatus || 'Upload...') : saving ? 'Envoi...' : 'Ajouter'}
           </Button>
         </div>
       </DialogContent>
@@ -498,6 +506,7 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
   // Video file upload
   const [videoFile,  setVideoFile]  = useState<File | null>(null);
   const [uploading,  setUploading]  = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   // User-selectable type (figures/solo)
   const [moveType, setMoveType]    = useState<SalsaType>('figures');
   const canChooseType = move ? (move.type === 'figures' || move.type === 'solo') : false;
@@ -514,6 +523,7 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
       setMoveType(move.type);
       setSaving(false);
       setUploading(false);
+      setUploadStatus('');
     }
   }, [move]);
 
@@ -554,14 +564,20 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
           let fileToUpload: File = videoFile;
           const { needsCompression, compressVideo } = await import('@/lib/videoCompress');
           if (needsCompression(videoFile)) {
-            fileToUpload = await compressVideo(videoFile);
+            setUploadStatus('Compression...');
+            fileToUpload = await compressVideo(videoFile, (p) => {
+              if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
+              else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
+            });
           }
+          setUploadStatus('Upload...');
           const vid = await uploadVideo(move.id, fileToUpload);
           onVideoUploaded(move.id, vid);
         } catch (e: any) {
           toast({ title: 'Erreur upload', description: e.message, variant: 'destructive' });
         }
         setUploading(false);
+        setUploadStatus('');
       }
 
       toast({ title: 'Modifié ✓' });
@@ -718,7 +734,7 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Annuler</Button>
           <Button onClick={handleSave} disabled={!title.trim() || saving || uploading}>
-            {uploading ? 'Upload...' : saving ? 'Enregistrement...' : 'Enregistrer'}
+            {uploading ? (uploadStatus || 'Upload...') : saving ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
         </div>
       </DialogContent>

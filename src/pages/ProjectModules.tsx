@@ -13,7 +13,7 @@ import {
   getModulePrice,
   getModuleYearlyFee,
 } from "@/data/moduleCatalog";
-import type { SelectedModule, ModuleComplexity, MaintenanceTier } from "@/types/module";
+import type { SelectedModule, ModuleComplexity, MaintenanceTier, CustomModuleData } from "@/types/module";
 import { useToast } from "@/hooks/use-toast";
 import {
   DndContext,
@@ -29,9 +29,17 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, GripVertical, X, Plus, ChevronRight, Save } from "lucide-react";
+import { Loader2, GripVertical, X, Plus, ChevronRight, Save, PenLine, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { ModuleIcon } from "@/components/modules/moduleIcons";
+
+const COMPLEXITY_TIPS: Record<string, string> = {
+  simple: "Fonctionnalités essentielles, configuration standard",
+  advanced: "Options avancées, personnalisation poussée",
+  custom: "Développement sur mesure, intégrations spécifiques",
+};
 
 // ── Catalog draggable card ─────────────────────────────
 function CatalogCard({ moduleId, disabled, onAdd }: { moduleId: string; disabled: boolean; onAdd: () => void }) {
@@ -42,7 +50,10 @@ function CatalogCard({ moduleId, disabled, onAdd }: { moduleId: string; disabled
     disabled,
   });
 
-  const priceRange = `${mod.tiers[0].price.toLocaleString("fr-CH")} - ${mod.tiers[2].price.toLocaleString("fr-CH")} CHF`;
+  const lastTier = mod.tiers[mod.tiers.length - 1];
+  const priceRange = mod.tiers.length === 1
+    ? `${lastTier.price ? lastTier.price.toLocaleString("fr-CH") + " CHF" : "Sur devis"}`
+    : `${mod.tiers[0].price.toLocaleString("fr-CH")} - ${lastTier.price.toLocaleString("fr-CH")} CHF`;
 
   return (
     <div
@@ -78,8 +89,6 @@ function SelectedCard({
   onChangeComplexity: (c: ModuleComplexity) => void;
   onRemove: () => void;
 }) {
-  const mod = getModuleById(sel.moduleId)!;
-  const tier = mod.tiers.find((t) => t.complexity === sel.complexity) ?? mod.tiers[0];
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sel.moduleId,
   });
@@ -89,6 +98,47 @@ function SelectedCard({
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 50 : undefined,
   };
+
+  // Custom module rendering
+  if (sel.moduleId.startsWith("custom-") && sel.customData) {
+    const cd = sel.customData;
+    return (
+      <motion.div
+        ref={setNodeRef}
+        style={style}
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.2 }}
+        className="rounded-lg border border-dashed border-primary/40 bg-primary/5 overflow-hidden"
+      >
+        <div className="flex items-start gap-2 p-3">
+          <button {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
+            <GripVertical size={14} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium truncate">{cd.name}</span>
+              <button onClick={onRemove} className="text-muted-foreground hover:text-destructive shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+            {cd.description && (
+              <div className="text-[10px] text-muted-foreground mt-0.5">{cd.description}</div>
+            )}
+            <div className="text-xs font-semibold text-primary mt-1">
+              {cd.price.toLocaleString("fr-CH")} CHF
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 italic">Module personnalisé</div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Catalog module rendering
+  const mod = getModuleById(sel.moduleId)!;
+  const tier = mod.tiers.find((t) => t.complexity === sel.complexity) ?? mod.tiers[0];
 
   return (
     <motion.div
@@ -116,17 +166,23 @@ function SelectedCard({
           {/* Complexity toggle */}
           <div className="flex gap-0.5 mt-1.5 mb-1.5">
             {(["simple", "advanced", "custom"] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => onChangeComplexity(c)}
-                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                  sel.complexity === c
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                {COMPLEXITY_LABELS[c]}
-              </button>
+              <Tooltip key={c}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => onChangeComplexity(c)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                      sel.complexity === c
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {COMPLEXITY_LABELS[c]}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                  {COMPLEXITY_TIPS[c]}
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
 
@@ -184,7 +240,7 @@ function DropZone({ children, isEmpty }: { children: React.ReactNode; isEmpty: b
 export default function ProjectModules() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { projects } = useProjects();
+  const { projects, updateProject } = useProjects();
   const { toast } = useToast();
 
   const [modules, setModules] = useState<SelectedModule[]>([]);
@@ -194,6 +250,16 @@ export default function ProjectModules() {
   const [dirty, setDirty] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+
+  // Title editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+
+  // Custom module form
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customPrice, setCustomPrice] = useState("");
+  const [customDesc, setCustomDesc] = useState("");
 
   const project = projects.find((p) => p.id === id);
 
@@ -244,8 +310,12 @@ export default function ProjectModules() {
     let oneTime = 0;
     let yearly = 0;
     for (const sel of modules ?? []) {
-      oneTime += getModulePrice(sel.moduleId, sel.complexity);
-      yearly += getModuleYearlyFee(sel.moduleId, sel.complexity);
+      if (sel.moduleId.startsWith("custom-") && sel.customData) {
+        oneTime += sel.customData.price;
+      } else {
+        oneTime += getModulePrice(sel.moduleId, sel.complexity);
+        yearly += getModuleYearlyFee(sel.moduleId, sel.complexity);
+      }
     }
     const maint = MAINTENANCE_OPTIONS.find((o) => o.tier === maintenance);
     yearly += maint?.price ?? 0;
@@ -301,6 +371,34 @@ export default function ProjectModules() {
     }
   }
 
+  // Title edit handlers
+  function handleConfirmTitle() {
+    const newTitle = draftTitle.trim();
+    if (newTitle && id) {
+      updateProject(id, { title: newTitle });
+      toast({ title: "Titre sauvegardé" });
+    }
+    setEditingTitle(false);
+  }
+
+  // Custom module add handler
+  function handleAddCustomModule(e: React.FormEvent) {
+    e.preventDefault();
+    const price = parseFloat(customPrice);
+    if (!customName.trim() || isNaN(price)) return;
+    const moduleId = `custom-${crypto.randomUUID()}`;
+    const customData: CustomModuleData = {
+      name: customName.trim(),
+      price,
+      description: customDesc.trim() || undefined,
+    };
+    setModules((prev) => [...prev, { moduleId, complexity: "simple", customData }]);
+    setDirty(true);
+    setCustomName(""); setCustomPrice(""); setCustomDesc("");
+    setShowCustomForm(false);
+    toast({ title: "Module personnalisé ajouté" });
+  }
+
   // Save
   async function handleSave() {
     if (!id) return;
@@ -353,7 +451,36 @@ export default function ProjectModules() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-lg font-heading font-semibold">{project.title}</h1>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    autoFocus
+                    value={draftTitle}
+                    onChange={(e) => setDraftTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleConfirmTitle();
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="text-lg font-heading font-semibold h-9 w-64"
+                  />
+                  <button onClick={handleConfirmTitle} className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors">
+                    <Check size={15} />
+                  </button>
+                  <button onClick={() => setEditingTitle(false)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                    <X size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <h1 className="text-lg font-heading font-semibold">{project.title}</h1>
+                  <button
+                    onClick={() => { setDraftTitle(project.title); setEditingTitle(true); }}
+                    className="md:opacity-0 md:group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                  >
+                    <PenLine size={13} />
+                  </button>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">Sélectionnez les modules fonctionnels du projet</p>
             </div>
             <Button onClick={handleSave} disabled={saving || !dirty} size="sm" className="gap-1.5">
@@ -387,9 +514,66 @@ export default function ProjectModules() {
 
               {/* Module cards */}
               <div className="space-y-1.5">
-                {filteredCatalog.map((mod) => (
-                  <CatalogCard key={mod.id} moduleId={mod.id} disabled={selectedIds.has(mod.id)} onAdd={() => addModule(mod.id)} />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {filteredCatalog.map((mod, i) => (
+                    <motion.div
+                      key={mod.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.2, delay: i * 0.03 }}
+                    >
+                      <CatalogCard moduleId={mod.id} disabled={selectedIds.has(mod.id)} onAdd={() => addModule(mod.id)} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+
+              {/* Custom module button + form */}
+              <div className="pt-1">
+                {showCustomForm ? (
+                  <form onSubmit={handleAddCustomModule} className="rounded-lg border border-dashed border-primary/40 bg-secondary/20 p-3 space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Module personnalisé</div>
+                    <Input
+                      placeholder="Nom du module"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      className="text-xs h-8"
+                      required
+                      autoFocus
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Prix CHF"
+                      value={customPrice}
+                      onChange={(e) => setCustomPrice(e.target.value)}
+                      className="text-xs h-8"
+                      min="0"
+                      step="1"
+                      required
+                    />
+                    <Input
+                      placeholder="Description (optionnel)"
+                      value={customDesc}
+                      onChange={(e) => setCustomDesc(e.target.value)}
+                      className="text-xs h-8"
+                    />
+                    <div className="flex gap-2">
+                      <Button type="submit" size="sm" className="h-7 text-xs flex-1">Ajouter</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setShowCustomForm(false); setCustomName(""); setCustomPrice(""); setCustomDesc(""); }}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setShowCustomForm(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors text-xs"
+                  >
+                    <Plus size={14} />
+                    Module personnalisé
+                  </button>
+                )}
               </div>
             </div>
 

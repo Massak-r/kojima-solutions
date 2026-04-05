@@ -14,7 +14,7 @@ import {
   CheckCircle2, Circle, Trash2, Plus, Pencil, ExternalLink, ChevronRight,
   Search, ChevronDown, ChevronUp, Music2, Loader2, Sun,
   ArrowUp, ArrowDown, Link2, X, Copy, Check, Zap, RefreshCw, Calendar,
-  Upload, Video, Play, Target, ShoppingCart, Package,
+  Upload, Video, Play, Target, ShoppingCart, Package, Wallet,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,6 +33,7 @@ import type { SubtaskItem } from "@/api/todoSubtasks";
 import { PERSONAL_CATEGORIES, sortObjectives } from "@/lib/objectiveCategories";
 import { ObjectiveRow } from "@/components/todos/ObjectiveRow";
 import { CategorySection } from "@/components/todos/CategorySection";
+import { TresorerieTab } from "@/components/personal/TresorerieTab";
 // DailyFocus replaced with inline focus bar
 
 import {
@@ -2682,19 +2683,23 @@ export default function Personal() {
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
             Espace<span className="text-primary">.</span>Personnel
           </h1>
-          <p className="text-muted-foreground text-sm font-body mt-1">Budget récurrent et salsa.</p>
+          <p className="text-muted-foreground text-sm font-body mt-1">Budget, trésorerie et salsa.</p>
         </div>
 
         <Tabs defaultValue="budget">
           <div className="overflow-x-auto mb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
             <TabsList className="font-body w-max">
               <TabsTrigger value="budget" className="text-xs sm:text-sm">Budget</TabsTrigger>
+              <TabsTrigger value="tresorerie" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <Wallet size={13} /> Trésorerie
+              </TabsTrigger>
               <TabsTrigger value="salsa"  className="text-xs sm:text-sm flex items-center gap-1.5">
                 <Music2 size={13} /> Salsa
               </TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="budget"><BudgetTab /></TabsContent>
+          <TabsContent value="tresorerie"><TresorerieTab /></TabsContent>
           <TabsContent value="salsa"><SalsaTab /></TabsContent>
         </Tabs>
       </div>

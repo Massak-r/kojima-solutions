@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { submitIntake } from "@/api/funnels";
 import {
@@ -70,6 +71,12 @@ const COMPLEXITY_LABELS: Record<ModuleComplexity, string> = {
   simple: "Simple",
   advanced: "Avancé",
   custom: "Sur mesure",
+};
+
+const INTAKE_COMPLEXITY_TIPS: Record<ModuleComplexity, string> = {
+  simple: "L'essentiel, fonctionnel et efficace",
+  advanced: "Plus de fonctionnalités et de personnalisation",
+  custom: "Solution 100% adaptée à vos besoins",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -597,56 +604,6 @@ export default function IntakeForm() {
                   </div>
                 </div>
 
-                {/* Collapsible complexity legend */}
-                <div className="bg-primary/5 border border-primary/20 rounded-xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={toggleLegend}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left"
-                  >
-                    <span className="text-xs font-display font-bold text-foreground">
-                      Comment ça marche ?
-                    </span>
-                    <motion.div
-                      animate={{ rotate: legendOpen ? 180 : 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <ChevronDown size={14} className="text-muted-foreground" />
-                    </motion.div>
-                  </button>
-                  <AnimatePresence>
-                    {legendOpen && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-4 pb-4 space-y-2.5">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm font-body">
-                            <div className="bg-background/80 rounded-lg p-2.5">
-                              <span className="font-semibold text-foreground block mb-0.5">Simple</span>
-                              <span className="text-muted-foreground text-xs">L'essentiel, fonctionnel et efficace.</span>
-                            </div>
-                            <div className="bg-background/80 rounded-lg p-2.5">
-                              <span className="font-semibold text-foreground block mb-0.5">Avancé</span>
-                              <span className="text-muted-foreground text-xs">Plus de fonctionnalités et de personnalisation.</span>
-                            </div>
-                            <div className="bg-background/80 rounded-lg p-2.5">
-                              <span className="font-semibold text-foreground block mb-0.5">Sur mesure</span>
-                              <span className="text-muted-foreground text-xs">Solution 100% adaptée à vos besoins.</span>
-                            </div>
-                          </div>
-                          <p className="text-xs text-foreground/70 font-body">
-                            Activez ou désactivez chaque module avec le bouton à droite. Le niveau de complexité se règle en dessous.
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
                 {/* Modules by category */}
                 {(["content", "interaction", "commerce", "system"] as const).map(cat => {
                   const catModules = MODULE_CATALOG.filter(m => m.category === cat);
@@ -744,19 +701,25 @@ export default function IntakeForm() {
                                   >
                                     <div className="px-3 pb-3 flex gap-1.5">
                                       {mod.tiers.map(tier => (
-                                        <button
-                                          key={tier.complexity}
-                                          onClick={() => setModuleComplexity(mod.id, tier.complexity)}
-                                          className={cn(
-                                            "flex-1 px-2 py-1.5 rounded-lg text-xs font-body font-medium transition-all text-center",
-                                            sel!.complexity === tier.complexity
-                                              ? "bg-primary text-primary-foreground shadow-sm"
-                                              : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
-                                          )}
-                                        >
-                                          <span className="block">{COMPLEXITY_LABELS[tier.complexity]}</span>
-                                          <span className="block font-mono opacity-70">{formatCHF(tier.price)}</span>
-                                        </button>
+                                        <Tooltip key={tier.complexity}>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => setModuleComplexity(mod.id, tier.complexity)}
+                                              className={cn(
+                                                "flex-1 px-2 py-1.5 rounded-lg text-xs font-body font-medium transition-all text-center",
+                                                sel!.complexity === tier.complexity
+                                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                                              )}
+                                            >
+                                              <span className="block">{COMPLEXITY_LABELS[tier.complexity]}</span>
+                                              <span className="block font-mono opacity-70">{formatCHF(tier.price)}</span>
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                                            {INTAKE_COMPLEXITY_TIPS[tier.complexity]}
+                                          </TooltipContent>
+                                        </Tooltip>
                                       ))}
                                     </div>
                                   </motion.div>

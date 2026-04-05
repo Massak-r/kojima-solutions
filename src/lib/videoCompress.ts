@@ -1,8 +1,9 @@
 /**
  * Browser-side video compression.
  *
- * Fast path (WebCodecs + webm-muxer): plays video at max speed via
+ * Fast path (WebCodecs + mp4-muxer): plays video at max speed via
  * requestVideoFrameCallback, encodes frames with VideoEncoder at 1080p / 3 Mbps.
+ * Outputs MP4 (H.264/AAC) for universal compatibility (iOS Safari, Android, desktop).
  *
  * Fallback (MediaRecorder): real-time encoding for older browsers.
  *
@@ -10,7 +11,7 @@
  * entirely — just upload directly.
  */
 
-import { Muxer, ArrayBufferTarget } from 'webm-muxer';
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 
 const TARGET_HEIGHT = 1080;
 const TARGET_FPS = 30;
@@ -19,6 +20,9 @@ const TARGET_AUDIO_BITRATE = 128_000;
 
 /** Files below this size in a web-friendly format skip compression */
 const SKIP_THRESHOLD = 50 * 1024 * 1024; // 50 MB
+
+/** Minimum frames required for a valid output — avoids empty files from very short videos */
+const MIN_FRAMES = 2;
 
 const WEB_FRIENDLY_TYPES = [
   'video/mp4', 'video/webm', 'video/x-m4v',
@@ -57,7 +61,7 @@ function hasWebCodecs(): boolean {
     && typeof AudioData !== 'undefined';
 }
 
-// ── Fast path: WebCodecs + webm-muxer ──────────────────────────────────────
+// ── Fast path: WebCodecs + mp4-muxer ──────────────────────────────────────
 
 async function compressFast(
   file: File,
@@ -106,26 +110,26 @@ async function compressFast(
 
   onProgress?.({ phase: 'loading', percent: 60 });
 
-  // Set up muxer
+  // Set up MP4 muxer (H.264 + AAC — universal compatibility incl. iOS Safari)
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: 'V_VP9', width: w, height: h },
+    video: { codec: 'avc', width: w, height: h },
     audio: audioBuffer ? {
-      codec: 'A_OPUS',
+      codec: 'aac',
       sampleRate: audioBuffer.sampleRate,
       numberOfChannels: Math.min(audioBuffer.numberOfChannels, 2),
     } : undefined,
-    type: 'webm',
+    fastStart: 'in-memory',
   });
 
-  // Set up video encoder
+  // Set up video encoder (H.264 Baseline for broadest device support)
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta ?? undefined),
     error: (e) => console.error('VideoEncoder error:', e),
   });
 
   videoEncoder.configure({
-    codec: 'vp09.00.10.08',
+    codec: 'avc1.42001f',
     width: w,
     height: h,
     bitrate: TARGET_VIDEO_BITRATE,
@@ -142,7 +146,7 @@ async function compressFast(
     });
 
     audioEncoder.configure({
-      codec: 'opus',
+      codec: 'mp4a.40.2',
       sampleRate: audioBuffer.sampleRate,
       numberOfChannels: Math.min(audioBuffer.numberOfChannels, 2),
       bitrate: TARGET_AUDIO_BITRATE,
@@ -192,8 +196,11 @@ async function compressFast(
     // ── Fast path: play at max speed, capture decoded frames ──
     await new Promise<void>((resolve) => {
       let lastCapturedTime = -1;
+      let resolved = false;
+      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
 
       const onFrame = () => {
+        if (resolved) return;
         const t = video.currentTime;
         // Only capture at ~TARGET_FPS intervals to avoid duplicates
         if (t - lastCapturedTime >= frameInterval * 0.5) {
@@ -221,15 +228,29 @@ async function compressFast(
         }
       };
 
-      video.onended = () => resolve();
-      // Also resolve on pause/error to avoid hanging
-      video.onerror = () => resolve();
-      setTimeout(() => resolve(), duration * 1000 + 5000); // safety timeout
+      video.onended = () => {
+        // For very short videos, ensure at least MIN_FRAMES are captured
+        if (frameIndex < MIN_FRAMES) {
+          ctx.drawImage(video, 0, 0, w, h);
+          const frame = new VideoFrame(canvas, {
+            timestamp: Math.round(video.duration * 1_000_000),
+            duration: Math.round(frameInterval * 1_000_000),
+          });
+          videoEncoder.encode(frame, { keyFrame: true });
+          frame.close();
+          frameIndex++;
+        }
+        finish();
+      };
+      video.onerror = () => finish();
+      // Safety timeout scaled to actual playback time at 16x speed
+      const safetyMs = Math.max(5000, (duration / 16) * 1000 + 5000);
+      setTimeout(finish, safetyMs);
 
       video.playbackRate = 16; // 16x speed — browser will decode as fast as possible
       video.muted = true;
       (video as any).requestVideoFrameCallback(onFrame);
-      video.play().catch(() => resolve());
+      video.play().catch(() => finish());
     });
   } else {
     // ── Fallback: seek frame-by-frame (slower) ──
@@ -268,6 +289,13 @@ async function compressFast(
     }
   }
 
+  // If no frames were captured at all, return original file
+  if (frameIndex === 0) {
+    videoEncoder.close();
+    URL.revokeObjectURL(url);
+    return file;
+  }
+
   await videoEncoder.flush();
   videoEncoder.close();
 
@@ -277,10 +305,10 @@ async function compressFast(
   const { buffer } = muxer.target as ArrayBufferTarget;
   if (!buffer) throw new Error('Muxer produced no output');
 
-  const blob = new Blob([buffer], { type: 'video/webm' });
+  const blob = new Blob([buffer], { type: 'video/mp4' });
 
   const baseName = file.name.replace(/\.[^.]+$/, '');
-  const result = new File([blob], `${baseName}.webm`, { type: 'video/webm' });
+  const result = new File([blob], `${baseName}.mp4`, { type: 'video/mp4' });
   onProgress?.({ phase: 'done', percent: 100 });
   return result;
 }
@@ -322,19 +350,36 @@ async function compressFallback(
   onProgress?.({ phase: 'loading', percent: 50 });
 
   const canvasStream = canvas.captureStream(TARGET_FPS);
-  const videoStream = (video as any).captureStream() as MediaStream;
+
+  // Capture audio from the video element — keep video muted to satisfy autoplay
+  // policy, but use AudioContext to route audio into the MediaRecorder stream.
+  let audioDestination: MediaStreamAudioDestinationNode | null = null;
+  let audioSource: MediaElementAudioSourceNode | null = null;
+  let audioCtx: AudioContext | null = null;
+  try {
+    audioCtx = new AudioContext();
+    audioSource = audioCtx.createMediaElementSource(video);
+    audioDestination = audioCtx.createMediaStreamDestination();
+    audioSource.connect(audioDestination);
+    // Don't connect to audioCtx.destination — keeps video silent for autoplay
+  } catch {
+    // No audio routing available, continue without audio
+  }
 
   const combinedStream = new MediaStream();
   canvasStream.getVideoTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
-  videoStream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
+  if (audioDestination) {
+    audioDestination.stream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
+  }
 
+  // Prefer MP4 for iOS/Safari compatibility, fall back to WebM
   const mimeOptions = [
+    'video/mp4',
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
-    'video/mp4',
   ];
-  const mimeType = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  const mimeType = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || 'video/mp4';
 
   const chunks: Blob[] = [];
   const recorder = new MediaRecorder(combinedStream, {
@@ -352,9 +397,15 @@ async function compressFallback(
   return new Promise<File>((resolve, reject) => {
     let stopped = false;
 
+    const cleanup = () => {
+      try { audioSource?.disconnect(); } catch {}
+      try { audioCtx?.close(); } catch {}
+      URL.revokeObjectURL(url);
+    };
+
     recorder.onstop = () => {
       stopped = true;
-      URL.revokeObjectURL(url);
+      cleanup();
       const blob = new Blob(chunks, { type: mimeType });
       const baseName = file.name.replace(/\.[^.]+$/, '');
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
@@ -364,7 +415,7 @@ async function compressFallback(
     };
 
     recorder.onerror = () => {
-      URL.revokeObjectURL(url);
+      cleanup();
       reject(new Error('Erreur de compression'));
     };
 
@@ -385,8 +436,11 @@ async function compressFallback(
     };
 
     recorder.start(1000);
-    video.muted = false;
-    video.play().then(drawFrame).catch(reject);
+    // Keep video muted — autoplay policy requires it. Audio is routed via AudioContext.
+    video.play().then(drawFrame).catch((err) => {
+      cleanup();
+      reject(err);
+    });
   });
 }
 

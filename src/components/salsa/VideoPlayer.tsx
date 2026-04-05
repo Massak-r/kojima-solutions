@@ -66,6 +66,11 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
     if (videoRef.current) videoRef.current.playbackRate = rounded;
   }, []);
 
+  const resetSpeed = useCallback(() => {
+    setSpeed(1);
+    if (videoRef.current) videoRef.current.playbackRate = 1;
+  }, []);
+
   // ── Fullscreen ──────────────────────────────────────────────────────────
 
   const toggleFullscreen = useCallback(async () => {
@@ -117,8 +122,16 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
   }, []);
 
   const setB = useCallback(() => {
-    if (videoRef.current) setPointB(videoRef.current.currentTime);
-  }, []);
+    if (!videoRef.current) return;
+    const bTime = videoRef.current.currentTime;
+    // If B <= A, swap so A is always before B
+    if (pointA !== null && bTime <= pointA) {
+      setPointB(pointA);
+      setPointA(bTime);
+    } else {
+      setPointB(bTime);
+    }
+  }, [pointA]);
 
   const clearAB = useCallback(() => {
     setPointA(null);
@@ -132,10 +145,52 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !effectiveTrimStart) return;
+
+    // If metadata is already loaded, seek immediately
+    if (v.readyState >= 1) {
+      v.currentTime = effectiveTrimStart;
+      return;
+    }
+
     function onLoaded() { if (v && effectiveTrimStart) v.currentTime = effectiveTrimStart; }
     v.addEventListener('loadedmetadata', onLoaded);
     return () => v.removeEventListener('loadedmetadata', onLoaded);
   }, [src, effectiveTrimStart]);
+
+  // ── Keyboard controls ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      const v = videoRef.current;
+      if (!v) return;
+
+      switch (e.key) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          v.currentTime = Math.max(effectiveTrimStart ?? 0, v.currentTime - 5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          v.currentTime = Math.min(effectiveTrimEnd ?? v.duration, v.currentTime + 5);
+          break;
+        case 'f':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+      }
+    }
+
+    container.addEventListener('keydown', onKeyDown);
+    return () => container.removeEventListener('keydown', onKeyDown);
+  }, [togglePlay, toggleFullscreen, effectiveTrimStart, effectiveTrimEnd]);
 
   // ── Time update & A/B loop enforcement ─────────────────────────────────
 
@@ -197,7 +252,7 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
     };
   }, [loopFull, pointA, pointB, effectiveTrimStart, effectiveTrimEnd]);
 
-  // ── Seek via progress bar ──────────────────────────────────────────────
+  // ── Seek via progress bar (clamped to trim region) ────────────────────
 
   function seekTo(e: React.MouseEvent<HTMLDivElement>) {
     const v = videoRef.current;
@@ -205,7 +260,14 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
     if (!v || !bar || !duration) return;
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    v.currentTime = ratio * duration;
+    let target = ratio * duration;
+
+    // Clamp seek to trim/AB region
+    const minTime = pointA ?? effectiveTrimStart ?? 0;
+    const maxTime = pointB ?? effectiveTrimEnd ?? duration;
+    target = Math.max(minTime, Math.min(maxTime, target));
+
+    v.currentTime = target;
   }
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -214,8 +276,9 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
   return (
     <div
       ref={containerRef}
+      tabIndex={0}
       className={cn(
-        'rounded-xl overflow-hidden bg-black',
+        'rounded-xl overflow-hidden bg-black outline-none',
         isFullscreen && 'flex flex-col h-screen w-screen',
         isFullscreen && !controlsVisible && 'cursor-none',
       )}
@@ -301,14 +364,21 @@ export function VideoPlayer({ src, title, trimStart, trimEnd }: VideoPlayerProps
 
           <div className="flex-1" />
 
-          {/* Speed slider */}
+          {/* Speed slider with reset */}
           <div className="flex items-center gap-2">
-            <span className={cn(
-              'font-mono text-white/80 tabular-nums min-w-[3ch] text-right',
-              isFullscreen ? 'text-sm' : 'text-xs',
-            )}>
+            <button
+              onClick={resetSpeed}
+              className={cn(
+                'font-mono tabular-nums min-w-[3ch] text-right px-1 rounded transition-colors',
+                isFullscreen ? 'text-sm' : 'text-xs',
+                speed !== 1
+                  ? 'text-amber-400 hover:bg-white/10 cursor-pointer'
+                  : 'text-white/80',
+              )}
+              title="Réinitialiser à 1x"
+            >
               {speed.toFixed(2)}x
-            </span>
+            </button>
             <input
               type="range"
               min="0.1"

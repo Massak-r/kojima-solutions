@@ -165,13 +165,18 @@ if (!empty($taskIds)) {
     }
 }
 
-// ── Track stakeholder access ──
+// ── Track stakeholder access (auto-register if new) ──
 $stName = $_GET['name'] ?? '';
 if ($stName) {
     try {
-        $pdo->prepare("UPDATE project_stakeholders SET last_accessed_at = NOW() WHERE project_id = ? AND LOWER(name) = LOWER(?)")
-            ->execute([$projectId, $stName]);
-    } catch (Throwable $e) {} // best-effort, don't block response
+        $stmt = $pdo->prepare("UPDATE project_stakeholders SET last_accessed_at = NOW() WHERE project_id = ? AND LOWER(name) = LOWER(?)");
+        $stmt->execute([$projectId, $stName]);
+
+        if ($stmt->rowCount() === 0) {
+            $pdo->prepare("INSERT IGNORE INTO project_stakeholders (id, project_id, name, email, role, added_at, last_accessed_at) VALUES (?, ?, ?, '', NULL, NOW(), NOW())")
+                ->execute([uuid(), $projectId, $stName]);
+        }
+    } catch (Throwable $e) {}
 }
 
 ok([

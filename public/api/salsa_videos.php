@@ -82,10 +82,10 @@ if ($method === 'GET' && $id && $stream) {
 if ($method === 'GET' && $moveId) {
     $stmt = $pdo->prepare('SELECT * FROM salsa_videos WHERE move_id = ? ORDER BY created_at DESC');
     $stmt->execute([$moveId]);
-    ok(array_map('mapVideo', $stmt->fetchAll()));
+    ok(array_map('mapVideo', $stmt->fetchAll())); // ok() calls exit
 }
 
-if ($method === 'GET') {
+if ($method === 'GET' && !$id) {
     // List all videos
     $rows = $pdo->query('SELECT * FROM salsa_videos ORDER BY created_at DESC')->fetchAll();
     ok(array_map('mapVideo', $rows));

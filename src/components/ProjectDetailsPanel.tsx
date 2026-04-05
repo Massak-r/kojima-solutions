@@ -26,21 +26,21 @@ export function ProjectDetailsPanel({ project, onChange }: ProjectDetailsPanelPr
   return (
     <div className="bg-card rounded-xl border border-border p-5 flex flex-col gap-4">
       <h3 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">
-        Project Details
+        Détails du projet
       </h3>
 
       {/* Basic Info */}
       <SectionHeader
-        label="General"
+        label="Général"
         expanded={expandedSections.basic}
         onToggle={() => toggle("basic")}
       />
       {expandedSections.basic && (
         <div className="flex flex-col gap-3">
           <ClientSelector project={project} onChange={onChange} />
-          <Field label="Project Description">
+          <Field label="Description du projet">
             <Textarea
-              placeholder="Brief project description..."
+              placeholder="Brève description du projet..."
               value={project.description}
               onChange={(e) => onChange({ description: e.target.value })}
               rows={2}
@@ -48,7 +48,7 @@ export function ProjectDetailsPanel({ project, onChange }: ProjectDetailsPanelPr
             />
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Field label="Start Date">
+            <Field label="Date de début">
               <Input
                 type="date"
                 value={project.startDate}
@@ -56,7 +56,7 @@ export function ProjectDetailsPanel({ project, onChange }: ProjectDetailsPanelPr
                 className="text-sm"
               />
             </Field>
-            <Field label="End Date">
+            <Field label="Date de fin">
               <Input
                 type="date"
                 value={project.endDate}
@@ -91,7 +91,7 @@ export function ProjectDetailsPanel({ project, onChange }: ProjectDetailsPanelPr
         <div className="flex flex-col gap-3">
           <Field label="Notes">
             <Textarea
-              placeholder="Additional project notes, links, or references..."
+              placeholder="Notes, liens ou références supplémentaires..."
               value={project.notes}
               onChange={(e) => onChange({ notes: e.target.value })}
               rows={4}
@@ -161,7 +161,7 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
           <span className={selectedClient ? "text-foreground" : "text-muted-foreground"}>
             {selectedClient
               ? `${selectedClient.name}${selectedClient.organization ? ` - ${selectedClient.organization}` : ""}`
-              : "Select or create a client…"}
+              : "Sélectionner ou créer un client…"}
           </span>
           <ChevronDown size={14} className="text-muted-foreground shrink-0" />
         </button>
@@ -181,7 +181,7 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
           <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
             <div className="max-h-52 overflow-y-auto">
               {clients.length === 0 && !showNewForm && (
-                <p className="px-3 py-2 text-xs text-muted-foreground">No clients yet.</p>
+                <p className="px-3 py-2 text-xs text-muted-foreground">Aucun client pour l'instant.</p>
               )}
               {clients.map((c) => (
                 <button
@@ -208,13 +208,13 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                 onClick={() => setShowNewForm(true)}
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-primary hover:bg-primary/5 border-t border-border transition-colors"
               >
-                <Plus size={13} /> Create new client…
+                <Plus size={13} /> Créer un nouveau client…
               </button>
             ) : (
               <div className="p-3 border-t border-border space-y-2">
-                <p className="text-xs font-medium text-foreground">Quick add client</p>
+                <p className="text-xs font-medium text-foreground">Ajout rapide client</p>
                 <Input
-                  placeholder="Name *"
+                  placeholder="Nom *"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   className="h-8 text-xs"
@@ -234,14 +234,14 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                   className="h-8 text-xs"
                 />
                 <div className="flex gap-1.5 justify-end">
-                  <button type="button" onClick={() => setShowNewForm(false)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">Cancel</button>
+                  <button type="button" onClick={() => setShowNewForm(false)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">Annuler</button>
                   <button
                     type="button"
                     disabled={!newName.trim()}
                     onClick={handleCreateAndSelect}
                     className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-md disabled:opacity-50"
                   >
-                    Add & Select
+                    Ajouter
                   </button>
                 </div>
               </div>

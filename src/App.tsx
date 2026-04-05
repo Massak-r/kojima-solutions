@@ -10,7 +10,7 @@ import { ProjectsProvider } from "@/contexts/ProjectsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Header from "@/components/Header";
-import BottomNav from "@/components/BottomNav";
+import BottomNav, { useIsAdminPage } from "@/components/BottomNav";
 import InstallPrompt from "@/components/InstallPrompt";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import PageTransition from "@/components/PageTransition";
@@ -35,6 +35,7 @@ import ClientsManager from "./pages/ClientsManager";
 import Accounting from "./pages/Accounting";
 import Personal from "./pages/Personal";
 import AdminSpace from "./pages/AdminSpace";
+import SettingsPage from "./pages/SettingsPage";
 import SalsaPublic from "./pages/SalsaPublic";
 import SharedFolder from "./pages/SharedFolder";
 import ProjectFunnel from "./pages/ProjectFunnel";
@@ -54,6 +55,15 @@ import GateDecisionPage from "./pages/GateDecisionPage";
 import FeedbackDecisionPage from "./pages/FeedbackDecisionPage";
 const queryClient = new QueryClient();
 
+function AdminContentWrapper({ children }: { children: React.ReactNode }) {
+  const isAdmin = useIsAdminPage();
+  return (
+    <div className={`pt-16 pb-safe-bottom ${isAdmin ? "md:pl-16" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -72,8 +82,7 @@ const App = () => (
                   <ScrollToTop />
                   <CommandPalette />
                   <ProjectMeetingNotes />
-                  {/* pt-16 offsets below fixed header, pb-safe-bottom offsets above mobile bottom nav + safe area */}
-                  <div className="pt-16 pb-safe-bottom">
+                  <AdminContentWrapper>
                     <PageTransition>
                     <Routes>
                       {/* Public routes */}
@@ -122,11 +131,12 @@ const App = () => (
                       <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
                       <Route path="/personal"   element={<ProtectedRoute><Personal /></ProtectedRoute>} />
                       <Route path="/admin"      element={<ProtectedRoute><AdminSpace /></ProtectedRoute>} />
+                      <Route path="/settings"   element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                     </PageTransition>
-                  </div>
+                  </AdminContentWrapper>
                 </ProjectsProvider>
               </ClientsProvider>
             </QuotesProvider>

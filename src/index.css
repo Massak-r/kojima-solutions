@@ -178,8 +178,8 @@
     90deg,
     hsl(var(--foreground)),
     hsl(var(--primary)),
-    hsl(258 28% 48%),
-    hsl(145 20% 44%),
+    hsl(258 28% 42%),
+    hsl(var(--primary)),
     hsl(var(--foreground))
   );
   background-size: 300% 100%;

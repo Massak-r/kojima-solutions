@@ -31,10 +31,17 @@ export interface ModuleDefinition {
   previewType: string;
 }
 
+export interface CustomModuleData {
+  name: string;
+  price: number;
+  description?: string;
+}
+
 export interface SelectedModule {
-  moduleId: string;
+  moduleId: string;           // "custom-<uuid>" for custom modules, catalog ID otherwise
   complexity: ModuleComplexity;
   customNotes?: string;
+  customData?: CustomModuleData;  // only set when moduleId starts with "custom-"
 }
 
 export interface ProjectModules {

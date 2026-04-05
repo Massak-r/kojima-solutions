@@ -21,10 +21,10 @@ import { ProjectData } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 
 const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
-  { status: "draft",       label: "Draft",       accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
-  { status: "in-progress", label: "In Progress", accent: "border-primary/40",          emptyColor: "border-primary/10" },
-  { status: "completed",   label: "Completed",   accent: "border-palette-sage/40",     emptyColor: "border-palette-sage/10" },
-  { status: "on-hold",     label: "On Hold",     accent: "border-palette-amber/40",    emptyColor: "border-palette-amber/10" },
+  { status: "draft",       label: "Brouillon",  accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
+  { status: "in-progress", label: "En cours",   accent: "border-primary/40",          emptyColor: "border-primary/10" },
+  { status: "completed",   label: "Terminé",    accent: "border-palette-sage/40",     emptyColor: "border-palette-sage/10" },
+  { status: "on-hold",     label: "En pause",   accent: "border-palette-amber/40",    emptyColor: "border-palette-amber/10" },
 ];
 
 export default function Dashboard() {
@@ -109,23 +109,23 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 mb-2">
             <LayoutList size={22} className="text-accent" />
             <span className="font-body text-sm font-semibold tracking-widest uppercase text-primary-foreground/60">
-              Project Management
+              Gestion de projets
             </span>
           </div>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="font-display text-3xl md:text-4xl leading-tight font-bold">
-                  Dashboard
+                  Tableau de bord
                 </h1>
                 {totalPending > 0 && (
                   <span className="bg-palette-amber text-white text-xs font-bold font-body px-2 py-0.5 rounded-full">
-                    {totalPending} new response{totalPending > 1 ? "s" : ""}
+                    {totalPending} nouvelle{totalPending > 1 ? "s" : ""} réponse{totalPending > 1 ? "s" : ""}
                   </span>
                 )}
               </div>
               <p className="font-body text-primary-foreground/65 mt-1 text-sm max-w-lg">
-                Manage your projects, track progress, and build roadmaps.
+                Gérez vos projets, suivez l'avancement et partagez avec vos clients.
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -142,7 +142,7 @@ export default function Dashboard() {
                 className="bg-accent text-accent-foreground hover:bg-accent/90 font-body text-sm gap-2"
               >
                 <Plus size={16} />
-                New Project
+                Nouveau projet
               </Button>
             </div>
           </div>
@@ -161,13 +161,13 @@ export default function Dashboard() {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
               <LayoutList size={28} className="text-primary" />
             </div>
-            <h2 className="font-display text-xl font-bold text-foreground mb-2">No projects yet</h2>
+            <h2 className="font-display text-xl font-bold text-foreground mb-2">Aucun projet</h2>
             <p className="font-body text-sm text-muted-foreground mb-6 max-w-sm">
-              Create your first project to start building roadmaps and sharing them with clients.
+              Créez votre premier projet pour commencer à planifier et partager avec vos clients.
             </p>
             <Button onClick={handleCreate} className="gap-2">
               <Plus size={16} />
-              Create your first project
+              Créer un projet
             </Button>
           </div>
         ) : (
@@ -196,6 +196,7 @@ export default function Dashboard() {
                           <DraggableCard
                             key={project.id}
                             project={project}
+                            clientDisplayName={clientName(project)}
                             onClick={() => navigate(`/project/${project.id}/brief`)}
                             onDelete={() => deleteProject(project.id)}
                             onCopyLink={() => handleCopyLink(project)}
@@ -211,6 +212,7 @@ export default function Dashboard() {
                   {activeProject && (
                     <ProjectCard
                       project={activeProject}
+                      clientDisplayName={clientName(activeProject)}
                       onClick={() => {}}
                       onDelete={() => {}}
                       onCopyLink={() => {}}
@@ -259,7 +261,7 @@ function DroppableColumn({
       >
         {items.length === 0 && !activeId && (
           <div className={`border-2 border-dashed ${col.emptyColor} rounded-lg h-[80px] flex items-center justify-center`}>
-            <p className="text-xs font-body text-muted-foreground/50">Drop here</p>
+            <p className="text-xs font-body text-muted-foreground/50">Déposer ici</p>
           </div>
         )}
         {children}
@@ -270,12 +272,14 @@ function DroppableColumn({
 
 function DraggableCard({
   project,
+  clientDisplayName,
   onClick,
   onDelete,
   onCopyLink,
   isDragging,
 }: {
   project: StoredProject;
+  clientDisplayName: string | null;
   onClick: () => void;
   onDelete: () => void;
   onCopyLink: () => void;
@@ -295,6 +299,7 @@ function DraggableCard({
     >
       <ProjectCard
         project={project}
+        clientDisplayName={clientDisplayName}
         onClick={onClick}
         onDelete={onDelete}
         onCopyLink={onCopyLink}
@@ -306,6 +311,7 @@ function DraggableCard({
 
 function ProjectCard({
   project,
+  clientDisplayName,
   onClick,
   onDelete,
   onCopyLink,
@@ -313,6 +319,7 @@ function ProjectCard({
   isOverlay,
 }: {
   project: StoredProject;
+  clientDisplayName?: string | null;
   onClick: () => void;
   onDelete: () => void;
   onCopyLink: () => void;
@@ -329,7 +336,7 @@ function ProjectCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover transition-shadow cursor-pointer group relative ${
+      className={`bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative ${
         isOverlay ? "rotate-2 shadow-xl scale-105 opacity-95" : ""
       }`}
     >
@@ -337,14 +344,14 @@ function ProjectCard({
       <button
         {...dragHandleProps}
         onClick={(e) => e.stopPropagation()}
-        className="absolute top-3 left-3 p-1 rounded text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-all"
+        className="absolute top-3 left-3 p-1 rounded text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-all"
         title="Drag to move"
       >
         <GripVertical size={13} />
       </button>
 
       {/* Top-right actions */}
-      <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="absolute top-2.5 right-2.5 flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
         <button
           onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
           className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all"
@@ -358,13 +365,13 @@ function ProjectCard({
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="px-2 py-0.5 rounded text-[10px] bg-destructive text-white font-semibold"
             >
-              Delete
+              Supprimer
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
               className="px-2 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground"
             >
-              Cancel
+              Annuler
             </button>
           </div>
         ) : (
@@ -382,24 +389,24 @@ function ProjectCard({
         {project.title}
       </h3>
 
-      {clientName(project) && (
+      {clientDisplayName && (
         <div className="flex items-center gap-1.5 text-muted-foreground font-body text-xs mb-2">
           <User size={11} />
-          <span>{clientName(project)}</span>
+          <span>{clientDisplayName}</span>
         </div>
       )}
 
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-2">
-          {project.tasks.length > 0 && (
+          {(project.tasks || []).length > 0 && (
             <span className="text-xs font-body text-muted-foreground">
-              {project.tasks.length} {project.tasks.length === 1 ? "task" : "tasks"}
+              {(project.tasks || []).length} tâche{(project.tasks || []).length > 1 ? "s" : ""}
             </span>
           )}
           {pendingResponses > 0 && (
             <span className="flex items-center gap-1 text-[10px] font-body font-semibold bg-palette-amber/15 text-palette-amber border border-palette-amber/30 rounded-full px-2 py-0.5">
               <MessageSquare size={9} />
-              {pendingResponses} response{pendingResponses > 1 ? "s" : ""}
+              {pendingResponses} réponse{pendingResponses > 1 ? "s" : ""}
             </span>
           )}
         </div>

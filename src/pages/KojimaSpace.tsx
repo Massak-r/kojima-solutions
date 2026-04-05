@@ -15,6 +15,7 @@ import {
   Trash2, CheckCircle2, Circle, Target, Sun, X, AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   listObjectives, createObjective, updateObjective, deleteObjective,
 } from "@/api/objectives";
@@ -36,7 +37,6 @@ import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { IntakeManager } from "@/components/IntakeManager";
 import { AnalyticsWidget } from "@/components/AnalyticsWidget";
 import { EmailQueue } from "@/components/EmailQueue";
-import { EmailTemplates } from "@/components/EmailTemplates";
 import { useClients } from "@/contexts/ClientsContext";
 
 // ── Completed section toggle (replaces <details>) ────────────────────────────
@@ -100,6 +100,7 @@ export default function KojimaSpace() {
   const { projects, loading: projectsLoading, createProject } = useProjects();
   const { quotes } = useQuotes();
   const { clients, getClient } = useClients();
+  const { toast } = useToast();
   const clientName = (p: { clientId?: string; client: string }) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
 
   // Calendar — now using Google Calendar API via CalendarWidget component
@@ -182,7 +183,9 @@ export default function KojimaSpace() {
     try {
       const sub = await createSubtask({ parentId, text, dueDate });
       setSubtasksMap(prev => ({ ...prev, [parentId]: [...(prev[parentId] || []), sub] }));
-    } catch {}
+    } catch {
+      toast({ title: "Erreur lors de l'ajout de l'étape", variant: "destructive" });
+    }
   }
   async function handleSubtaskToggle(parentId: string, subId: string) {
     const subs = subtasksMap[parentId] || [];
@@ -318,28 +321,28 @@ export default function KojimaSpace() {
                 className="bg-transparent border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 font-body text-sm gap-2"
               >
                 <LayoutList size={14} />
-                <span className="hidden sm:inline">All </span>Projects
+                <span className="hidden sm:inline">Tous les </span>Projets
               </Button>
               <Button
                 onClick={handleNewProject}
                 className="bg-accent text-accent-foreground hover:bg-accent/90 font-body text-sm gap-1.5"
               >
                 <Plus size={15} />
-                <span className="hidden sm:inline">New </span>Project
+                <span className="hidden sm:inline">Nouveau </span>Projet
               </Button>
               <Button
                 onClick={() => navigate("/quotes/new")}
                 className="bg-accent/70 text-accent-foreground hover:bg-accent/60 font-body text-sm gap-1.5"
               >
                 <Plus size={15} />
-                <span className="hidden sm:inline">New </span>Quote
+                <span className="hidden sm:inline">Nouveau </span>Devis
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 space-y-6">
 
         {/* ── Compact stats bar ────────────────────────────────────────────── */}
         <motion.div
@@ -371,13 +374,13 @@ export default function KojimaSpace() {
             <section className="bg-card border border-border rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
                 <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                  Latest Projects
+                  Derniers projets
                 </h2>
                 <Link
                   to="/projects"
                   className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                 >
-                  View all <ChevronRight size={11} />
+                  Voir tout <ChevronRight size={11} />
                 </Link>
               </div>
 
@@ -387,9 +390,9 @@ export default function KojimaSpace() {
                 </div>
               ) : recentProjects.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-sm text-muted-foreground font-body mb-3">No projects yet.</p>
+                  <p className="text-sm text-muted-foreground font-body mb-3">Aucun projet pour l'instant.</p>
                   <Button onClick={handleNewProject} size="sm" className="gap-1.5">
-                    <Plus size={13} /> New Project
+                    <Plus size={13} /> Nouveau projet
                   </Button>
                 </div>
               ) : (
@@ -430,7 +433,7 @@ export default function KojimaSpace() {
                                 <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
                               </div>
                               <span className="text-[10px] text-muted-foreground font-body">
-                                {completedTasks}/{totalTasks} tasks
+                                {completedTasks}/{totalTasks} tâches
                               </span>
                             </div>
                           )}
@@ -509,9 +512,6 @@ export default function KojimaSpace() {
 
             {/* Email Queue */}
             <EmailQueue />
-
-            {/* Email Templates */}
-            <EmailTemplates />
 
             {/* Upcoming deadlines */}
             {upcomingDeadlines.length > 0 && (

@@ -14,7 +14,7 @@ const steps = [
     descEn: "A first free hour to understand your needs and establish an action plan.",
     badgeFr: "0 crédit",
     badgeEn: "0 credits",
-    badgeClass: "text-palette-sage bg-palette-sage/10 border border-palette-sage/20",
+    badgeClass: "text-primary bg-primary/10 border border-primary/20",
     deliverableFr: "Définition d'un cahier des charges clair",
     deliverableEn: "Clear requirements definition",
   },

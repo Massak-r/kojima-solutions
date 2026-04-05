@@ -2,18 +2,19 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CloudOff, Lock, LogOut, Menu, MoreVertical, Shield, X, User } from "lucide-react";
+import { ArrowLeft, CloudOff, Lock, LogOut, Menu, MoreVertical, Settings, Shield, X, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
 import { getQueueSize } from "@/lib/offlineQueue";
 
 const ADMIN_NAV = [
-  { label: "Space",    to: "/space"                              },
-  { label: "Projects", to: "/projects"                          },
-  { label: "Finance",  to: "/accounting"                        },
-  { label: "Admin",    to: "/admin"                             },
-  { label: "Personnel", to: "/personal", icon: true             },
+  { label: "Space",     to: "/space"                              },
+  { label: "Projets",   to: "/projects"                          },
+  { label: "Finance",   to: "/accounting"                        },
+  { label: "Admin",     to: "/admin"                             },
+  { label: "Personnel", to: "/personal", icon: "user" as const  },
+  { label: "Réglages",  to: "/settings", icon: "settings" as const },
 ];
 
 const HOME_NAV = [
@@ -112,6 +113,7 @@ const Header = () => {
     "/accounting": "Finance",
     "/personal": "Personnel",
     "/admin": "Admin",
+    "/settings": "Réglages",
   };
   const mobileTitle = isAdminPage
     ? PAGE_TITLES[location.pathname] ??
@@ -126,6 +128,7 @@ const Header = () => {
         to !== "/accounting" &&
         to !== "/personal" &&
         to !== "/admin" &&
+        to !== "/settings" &&
         location.pathname.startsWith(
           to.replace("/quotes", "/quote").replace("/projects", "/project")
         ))
@@ -186,38 +189,7 @@ const Header = () => {
               </div>
             ) : isAdminPage ? (
               <div className="flex items-center gap-0.5">
-                {ADMIN_NAV.map(({ label, to, icon }) => {
-                  const active = isActive(to);
-                  return (
-                    <Link
-                      key={to}
-                      to={to}
-                      title={label}
-                      className={cn(
-                        "relative rounded-lg text-sm transition-colors",
-                        icon ? "p-1.5" : "px-2.5 lg:px-3 py-1.5",
-                        active
-                          ? "text-primary font-medium"
-                          : "hover:bg-secondary hover:text-foreground",
-                      )}
-                    >
-                      {/* Animated pill indicator */}
-                      {active && (
-                        <motion.span
-                          layoutId="nav-pill"
-                          className="absolute inset-0 bg-primary/10 rounded-lg"
-                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                        />
-                      )}
-                      <span className="relative z-10">
-                        {icon ? <User size={15} /> : label}
-                      </span>
-                    </Link>
-                  );
-                })}
-                <div className="ml-1.5">
-                  <NotificationBell />
-                </div>
+                <NotificationBell />
                 {offlineQueueSize > 0 && (
                   <span
                     className="ml-1 flex items-center gap-1 text-[10px] font-body text-amber-700 bg-amber-100/80 rounded-full px-2 py-0.5"

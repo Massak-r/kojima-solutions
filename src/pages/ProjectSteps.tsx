@@ -65,21 +65,7 @@ export default function ProjectSteps() {
       .finally(() => setLoadingPhases(false));
   }, [id]);
 
-  if (!project) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="font-display text-xl text-foreground/50 mb-4">Projet introuvable</p>
-          <Button onClick={() => navigate("/projects")} variant="outline">
-            <ArrowLeft size={16} className="mr-2" />
-            Retour
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const tasks = project.tasks;
+  const tasks = project?.tasks ?? [];
   const sortedTasks = [...tasks].sort((a, b) => a.order - b.order);
 
   // Group tasks by phase
@@ -96,6 +82,20 @@ export default function ProjectSteps() {
   }, [sortedTasks]);
 
   const funnelPhaseOptions: FunnelPhaseOption[] = phases.map((p) => ({ id: p.id, title: p.title }));
+
+  if (!project) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="font-display text-xl text-foreground/50 mb-4">Projet introuvable</p>
+          <Button onClick={() => navigate("/projects")} variant="outline">
+            <ArrowLeft size={16} className="mr-2" />
+            Retour
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // --- Handlers ---
 
