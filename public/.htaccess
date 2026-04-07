@@ -1,6 +1,15 @@
 Options -MultiViews
 RewriteEngine On
 
+# ── PHP upload limits (belt-and-suspenders with api/.user.ini) ──
+<IfModule mod_php.c>
+  php_value upload_max_filesize 200M
+  php_value post_max_size 210M
+  php_value max_execution_time 300
+  php_value max_input_time 300
+  php_value memory_limit 256M
+</IfModule>
+
 # Prioritize index.html over any index.php
 DirectoryIndex index.html index.php
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kojima-space-v5';
+const CACHE_NAME = 'kojima-space-v11';
 const ASSETS_CACHE = 'kojima-assets-v1';
 const API_CACHE = 'kojima-api-v2';
 const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -29,9 +29,15 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const { request } = e;
 
-  // Audio/video: always pass through to network (range requests need direct handling)
+  // Audio/video: don't intercept — range requests and large streams need direct handling
   if (request.destination === 'audio' || request.destination === 'video') {
-    e.respondWith(fetch(request));
+    return;
+  }
+
+  // API write requests (POST/PUT/DELETE): don't intercept at all.
+  // respondWith(fetch(request)) re-sends the body through the SW fetch pipeline,
+  // which can fail intermittently on mobile (stream consumed, SW sleeping, etc.)
+  if (request.url.includes('/api/') && request.method !== 'GET') {
     return;
   }
 
@@ -43,13 +49,6 @@ self.addEventListener('fetch', (e) => {
           caches.match('/index.html').then((cached) => cached || caches.match('/offline.html'))
         )
     );
-    return;
-  }
-
-  // API write requests (POST/PUT/DELETE): always pass through to network directly
-  // Never intercept uploads or mutations — avoids false "offline" errors on large uploads
-  if (request.url.includes('/api/') && request.method !== 'GET') {
-    e.respondWith(fetch(request));
     return;
   }
 

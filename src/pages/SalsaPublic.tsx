@@ -254,8 +254,9 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
   const [topicInput, setTopicInput] = useState('');
   const [topics,     setTopics]     = useState<string[]>([]);
   const [saving,     setSaving]     = useState(false);
-  // Video file upload
+  // Video file upload — store as ArrayBuffer to survive Android content URI revocation
   const [videoFile,  setVideoFile]  = useState<File | null>(null);
+  const [videoBuffer, setVideoBuffer] = useState<ArrayBuffer | null>(null);
   const [uploading,  setUploading]  = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   // User-selectable type (figures/solo)
@@ -284,15 +285,24 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
     if (trimmed && !topics.includes(trimmed)) setTopics(prev => [...prev, trimmed]);
   }
 
-  function handleFileSelect(f: File | null) {
+  async function handleFileSelect(f: File | null) {
     if (f) {
       if (f.size > 150 * 1024 * 1024) {
         toast({ title: 'Fichier trop volumineux', description: 'Maximum 150 Mo', variant: 'destructive' });
         return;
       }
-      setVideoFile(f);
+      // Read file into memory immediately — Android PWA revokes content URIs after await
+      try {
+        const buf = await f.arrayBuffer();
+        setVideoBuffer(buf);
+        setVideoFile(new File([buf], f.name, { type: f.type, lastModified: f.lastModified }));
+      } catch {
+        toast({ title: 'Erreur', description: 'Impossible de lire le fichier vidéo.', variant: 'destructive' });
+        return;
+      }
     } else {
       setVideoFile(null);
+      setVideoBuffer(null);
     }
   }
 
@@ -313,33 +323,46 @@ function AddMoveDialog({ type, open, authEmail, onClose, onAdded, onVideoUploade
       });
 
       // Upload video file if selected (transcode .mov etc. for browser compat)
-      if (videoFile) {
+      let uploadFailed = false;
+      if (videoFile && videoBuffer) {
         setUploading(true);
         try {
-          let fileToUpload: File = videoFile;
+          // Rebuild File from stored buffer — Android PWA can revoke content URIs
+          let fileToUpload = new File([videoBuffer], videoFile.name, { type: videoFile.type });
           const { needsCompression, compressVideo } = await import('@/lib/videoCompress');
-          if (needsCompression(videoFile)) {
+          if (needsCompression(fileToUpload)) {
             setUploadStatus('Compression...');
-            fileToUpload = await compressVideo(videoFile, (p) => {
-              if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
-              else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
-            });
+            try {
+              fileToUpload = await compressVideo(fileToUpload, (p) => {
+                if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
+                else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
+              });
+            } catch {
+              if (fileToUpload.size > 150 * 1024 * 1024) {
+                throw new Error('La compression a échoué et le fichier est trop volumineux (>150 Mo). Compressez-le manuellement.');
+              }
+            }
           }
           setUploadStatus('Upload...');
-          const vid = await uploadVideo(move.id, fileToUpload);
+          const vid = await uploadVideo(move.id, fileToUpload, undefined, undefined, (pct) => {
+            setUploadStatus(`Upload... ${pct}%`);
+          });
           onVideoUploaded(move.id, vid);
         } catch (e: any) {
-          toast({ title: 'Erreur upload', description: e.message, variant: 'destructive' });
+          uploadFailed = true;
+          toast({ title: 'Erreur upload vidéo', description: e.message + ' — le mouvement a été créé, vous pouvez réessayer l\'upload.', variant: 'destructive' });
         }
         setUploading(false);
         setUploadStatus('');
       }
 
-      toast({ title: 'Ajouté ✓', description: `"${move.title}" a été ajouté.` });
       onAdded(move);
-      onClose();
-      setTitle(''); setVideoUrl(''); setLinkUrl(''); setDesc(''); setTopics([]);
-      handleFileSelect(null);
+      if (!uploadFailed) {
+        toast({ title: 'Ajouté ✓', description: `"${move.title}" a été ajouté.` });
+        onClose();
+        setTitle(''); setVideoUrl(''); setLinkUrl(''); setDesc(''); setTopics([]);
+        handleFileSelect(null);
+      }
     } catch {
       toast({ title: 'Erreur', description: 'Impossible d\'ajouter le mouvement.', variant: 'destructive' });
     } finally {
@@ -503,8 +526,9 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
   const [topicInput, setTopicInput] = useState('');
   const [topics,     setTopics]     = useState<string[]>([]);
   const [saving,     setSaving]     = useState(false);
-  // Video file upload
+  // Video file upload — store as ArrayBuffer to survive Android content URI revocation
   const [videoFile,  setVideoFile]  = useState<File | null>(null);
+  const [videoBuffer, setVideoBuffer] = useState<ArrayBuffer | null>(null);
   const [uploading,  setUploading]  = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   // User-selectable type (figures/solo)
@@ -520,6 +544,7 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
       setDesc(move.description || '');
       setTopics(move.topics || []);
       setVideoFile(null);
+      setVideoBuffer(null);
       setMoveType(move.type);
       setSaving(false);
       setUploading(false);
@@ -532,15 +557,23 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
     if (trimmed && !topics.includes(trimmed)) setTopics(prev => [...prev, trimmed]);
   }
 
-  function handleFileSelect(f: File | null) {
+  async function handleFileSelect(f: File | null) {
     if (f) {
       if (f.size > 150 * 1024 * 1024) {
         toast({ title: 'Fichier trop volumineux', description: 'Maximum 150 Mo', variant: 'destructive' });
         return;
       }
-      setVideoFile(f);
+      try {
+        const buf = await f.arrayBuffer();
+        setVideoBuffer(buf);
+        setVideoFile(new File([buf], f.name, { type: f.type, lastModified: f.lastModified }));
+      } catch {
+        toast({ title: 'Erreur', description: 'Impossible de lire le fichier vidéo.', variant: 'destructive' });
+        return;
+      }
     } else {
       setVideoFile(null);
+      setVideoBuffer(null);
     }
   }
 
@@ -558,31 +591,44 @@ function EditMoveDialog({ move, onClose, onSaved, videos, onVideoUploaded, onDel
       });
 
       // Upload video file if selected (transcode .mov etc. for browser compat)
-      if (videoFile) {
+      let uploadFailed = false;
+      if (videoFile && videoBuffer) {
         setUploading(true);
         try {
-          let fileToUpload: File = videoFile;
+          // Rebuild File from stored buffer — Android PWA can revoke content URIs
+          let fileToUpload = new File([videoBuffer], videoFile.name, { type: videoFile.type });
           const { needsCompression, compressVideo } = await import('@/lib/videoCompress');
-          if (needsCompression(videoFile)) {
+          if (needsCompression(fileToUpload)) {
             setUploadStatus('Compression...');
-            fileToUpload = await compressVideo(videoFile, (p) => {
-              if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
-              else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
-            });
+            try {
+              fileToUpload = await compressVideo(fileToUpload, (p) => {
+                if (p.phase === 'loading') setUploadStatus(`Préparation... ${p.percent}%`);
+                else if (p.phase === 'compressing') setUploadStatus(`Compression... ${p.percent}%`);
+              });
+            } catch {
+              if (fileToUpload.size > 150 * 1024 * 1024) {
+                throw new Error('La compression a échoué et le fichier est trop volumineux (>150 Mo). Compressez-le manuellement.');
+              }
+            }
           }
           setUploadStatus('Upload...');
-          const vid = await uploadVideo(move.id, fileToUpload);
+          const vid = await uploadVideo(move.id, fileToUpload, undefined, undefined, (pct) => {
+            setUploadStatus(`Upload... ${pct}%`);
+          });
           onVideoUploaded(move.id, vid);
         } catch (e: any) {
-          toast({ title: 'Erreur upload', description: e.message, variant: 'destructive' });
+          uploadFailed = true;
+          toast({ title: 'Erreur upload vidéo', description: e.message + ' — les modifications sont sauvées, vous pouvez réessayer l\'upload.', variant: 'destructive' });
         }
         setUploading(false);
         setUploadStatus('');
       }
 
-      toast({ title: 'Modifié ✓' });
       onSaved(updated);
-      onClose();
+      if (!uploadFailed) {
+        toast({ title: 'Modifié ✓' });
+        onClose();
+      }
     } catch {
       toast({ title: 'Erreur', description: 'Impossible de modifier.', variant: 'destructive' });
     } finally {

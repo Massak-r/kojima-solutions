@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowed = [
     'https://kojima-solutions.ch',
+    'https://www.kojima-solutions.ch',
     'http://localhost:8080',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -80,7 +81,8 @@ function uuid(): string {
  */
 function requireAuth(): void {
     if (!defined('API_SECRET') || API_SECRET === '') return; // skip if not configured
-    $key = $_SERVER['HTTP_X_API_KEY'] ?? '';
+    // Accept API key from header OR POST body (body avoids CORS preflight on uploads)
+    $key = $_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? '';
     if ($key !== API_SECRET) {
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
