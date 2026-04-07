@@ -258,13 +258,24 @@ export function ChoreographyEditor({ readOnly }: { readOnly?: boolean }) {
     Promise.all([listChoreography(), listCustomCategories()])
       .then(([data, cats]) => {
         if (data.length > 0) {
-          setEntries(data.map(d => ({
+          const dbEntries: LocalEntry[] = data.map(d => ({
             localId: d.id,
             timestamp: d.timestamp,
             orderNum: d.orderNum,
             figure: d.figure,
             category: d.category,
-          })));
+          }));
+          // Append any new default rows beyond what the DB has
+          const dbTimestamps = new Set(dbEntries.map(e => e.timestamp));
+          const defaults = generateDefaultEntries();
+          const missing = defaults.filter(e => !dbTimestamps.has(e.timestamp));
+          if (missing.length > 0) {
+            let maxOrder = Math.max(...dbEntries.map(e => e.orderNum));
+            missing.forEach(e => { e.orderNum = ++maxOrder; });
+            setEntries([...dbEntries, ...missing]);
+          } else {
+            setEntries(dbEntries);
+          }
         }
         setCustomCats(cats);
       })
