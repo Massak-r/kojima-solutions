@@ -11,12 +11,12 @@ import {
   type ChoreographyEntry, type ChoreoCategory, type CustomCategory,
 } from '@/api/choreography';
 
-// ── Generate default timeline: every 3s from 00:01 to 01:34 (94s) ──
+// ── Generate default timeline: every 3s from 00:01 to 02:04 (124s) ──
 
 function generateDefaultEntries(): LocalEntry[] {
   const entries: LocalEntry[] = [];
   let order = 1;
-  for (let t = 1; t <= 94; t += 3) {
+  for (let t = 1; t <= 124; t += 3) {
     entries.push({
       localId: crypto.randomUUID(),
       timestamp: t,
