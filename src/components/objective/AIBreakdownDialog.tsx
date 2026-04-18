@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles, Copy, Download, Check, Loader2, Bot } from "lucide-react";
+import { Sparkles, Copy, Download, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { aiBreakdown } from "@/api/aiBreakdown";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 import type { SubtaskItem, EffortSize } from "@/api/todoSubtasks";
 
@@ -140,12 +138,10 @@ export function AIBreakdownDialog({
     [objective, subtasks, linkedProjectName, linkedClientName],
   );
 
-  const { toast } = useToast();
   const [prompt, setPrompt]     = useState(initialPrompt);
   const [response, setResponse] = useState("");
   const [copied, setCopied]     = useState(false);
   const [importing, setImporting] = useState(false);
-  const [asking, setAsking]     = useState(false);
 
   // Reset state when reopening or when the source data changes
   useEffect(() => {
@@ -164,26 +160,6 @@ export function AIBreakdownDialog({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {}
-  }
-
-  async function handleAskAI() {
-    if (asking) return;
-    setAsking(true);
-    try {
-      const res = await aiBreakdown(prompt);
-      setResponse(res.response || "");
-    } catch (e: any) {
-      const msg = e?.message ?? String(e);
-      toast({
-        title: "L'IA n'a pas répondu",
-        description: msg.includes("not configured")
-          ? "Ajoutez ANTHROPIC_API_KEY à api/config.php pour activer l'appel direct."
-          : msg,
-        variant: "destructive",
-      });
-    } finally {
-      setAsking(false);
-    }
   }
 
   async function handleImport() {
@@ -206,7 +182,7 @@ export function AIBreakdownDialog({
             Décomposer avec l'IA
           </DialogTitle>
           <DialogDescription>
-            Demandez à Claude directement, ou copiez le prompt dans votre IA préférée et collez sa réponse.
+            Copiez le prompt dans Claude (ou votre IA préférée), puis collez la réponse pour importer les étapes proposées.
           </DialogDescription>
         </DialogHeader>
 
@@ -215,29 +191,17 @@ export function AIBreakdownDialog({
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
               <label className="text-xs font-display font-bold uppercase tracking-wider text-foreground/70">
-                1 · Prompt
+                1 · Prompt à copier
               </label>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAskAI}
-                  disabled={asking || !prompt.trim()}
-                  className="h-7 gap-1.5 rounded-full text-xs border-primary/40 text-primary hover:bg-primary/5"
-                >
-                  {asking ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
-                  Demander à Claude
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopy}
-                  className="h-7 gap-1.5 rounded-full text-xs"
-                >
-                  {copied ? <Check size={12} /> : <Copy size={12} />}
-                  {copied ? "Copié" : "Copier"}
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopy}
+                className="h-7 gap-1.5 rounded-full text-xs"
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? "Copié" : "Copier"}
+              </Button>
             </div>
             <Textarea
               value={prompt}
@@ -293,6 +257,10 @@ export function AIBreakdownDialog({
             </div>
           )}
         </div>
+
+        <p className="text-[10px] font-body text-muted-foreground/70 italic px-1 pt-1">
+          Astuce&nbsp;: avec Claude Code + le MCP <code className="font-mono">kojima</code> configuré, demandez directement dans une conversation — l'IA crée les étapes sans cette boîte de dialogue.
+        </p>
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>

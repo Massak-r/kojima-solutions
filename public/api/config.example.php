@@ -19,12 +19,6 @@ define('VAPID_PUBLIC_KEY',  '');  // Base64url-encoded 65-byte uncompressed publ
 define('VAPID_PRIVATE_KEY', '');  // Base64url-encoded 32-byte private key
 define('VAPID_SUBJECT',     'mailto:chraiti.massaki@gmail.com');
 
-// ── Anthropic API (AI breakdown for Objective Workspace) ────────
-// Get a key from https://console.anthropic.com/settings/keys
-// Required for the "Demander à Claude" button. If unset, the copy-paste flow still works.
-define('ANTHROPIC_API_KEY', '');                   // sk-ant-…
-define('ANTHROPIC_MODEL',   'claude-sonnet-4-6');  // Override model if needed
-
 // ── Google Calendar API ──────────────────────────────────────────
 // 1. Create a Google Cloud project → Enable Calendar API → Create Service Account
 // 2. Download the JSON key file and place it OUTSIDE the web root
