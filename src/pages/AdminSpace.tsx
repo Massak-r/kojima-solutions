@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -877,6 +878,7 @@ function DocumentsTab() {
 
 function AdminTodosTab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [todos,       setTodos]       = useState<ObjectiveItem[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [newText,     setNewText]     = useState("");
@@ -1149,6 +1151,7 @@ function AdminTodosTab() {
                       onSubtaskUpdate={(subId, data) => handleSubtaskUpdate(todo.id, subId, data)}
                       onMoveUp={idx > 0 ? () => swapOrder(todo.id, active[idx - 1].id) : undefined}
                       onMoveDown={idx < active.length - 1 ? () => swapOrder(todo.id, active[idx + 1].id) : undefined}
+                      onOpenWorkspace={() => navigate(`/objective/admin/${todo.id}`, { state: { from: "/admin" } })}
                       deleteConfirming={deleteId === todo.id}
                       onDeleteConfirm={() => remove(todo.id)}
                       onDeleteCancel={() => setDeleteId(null)}
@@ -1186,6 +1189,7 @@ function AdminTodosTab() {
                           onSubtaskToggle={subId => handleSubtaskToggle(t.id, subId)}
                           onSubtaskAdd={(text, due) => handleSubtaskAdd(t.id, text, due)}
                           onSubtaskDelete={subId => handleSubtaskDelete(t.id, subId)}
+                          onOpenWorkspace={() => navigate(`/objective/admin/${t.id}`, { state: { from: "/admin" } })}
                           deleteConfirming={deleteId === t.id} onDeleteConfirm={() => remove(t.id)} onDeleteCancel={() => setDeleteId(null)}
                         />
                       ) : (

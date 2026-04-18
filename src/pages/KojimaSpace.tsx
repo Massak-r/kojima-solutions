@@ -37,6 +37,7 @@ import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { IntakeManager } from "@/components/IntakeManager";
 import { AnalyticsWidget } from "@/components/AnalyticsWidget";
 import { EmailQueue } from "@/components/EmailQueue";
+import { ObjectiveHealthCard } from "@/components/objective/ObjectiveHealthCard";
 import { useClients } from "@/contexts/ClientsContext";
 
 // ── Completed section toggle (replaces <details>) ────────────────────────────
@@ -112,7 +113,7 @@ export default function KojimaSpace() {
   const [subtasksMap, setSubtasksMap] = useState<Record<string, SubtaskItem[]>>({});
   const [todosLoading, setTodosLoading] = useState(true);
   const [newTodo, setNewTodo] = useState("");
-  const [newIsObj, setNewIsObj] = useState(false);
+  const [newIsObj, setNewIsObj] = useState(true);
   const [newCat, setNewCat] = useState("Kojima-Solutions");
   const [todoDeleteId, setTodoDeleteId] = useState<string | null>(null);
 
@@ -357,6 +358,15 @@ export default function KojimaSpace() {
           <MiniStat icon={<TrendingUp size={13} className="text-palette-sage" />} label="Revenu" value={formatCHF(totalRevenue)} onClick={() => navigate("/quotes")} />
           <MiniStat icon={<AlertTriangle size={13} className="text-destructive" />} label="En retard" value={overdueInvoices} pulse={overdueInvoices > 0} onClick={() => navigate("/accounting")} />
           <MiniStat icon={<Receipt size={13} className="text-primary" />} label="À recevoir" value={formatCHF(outstandingTotal)} onClick={() => navigate("/accounting")} />
+        </motion.div>
+
+        {/* ── Sprint health card ─────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.08 }}
+        >
+          <ObjectiveHealthCard />
         </motion.div>
 
         {/* ── Main grid ───────────────────────────────────────────────────────── */}
@@ -736,6 +746,7 @@ export default function KojimaSpace() {
                           onSubtaskUpdate={(subId, data) => handleSubtaskUpdate(todo.id, subId, data)}
                           onMoveUp={idx > 0 ? () => swapObjectiveOrder(todo.id, active[idx - 1].id) : undefined}
                           onMoveDown={idx < active.length - 1 ? () => swapObjectiveOrder(todo.id, active[idx + 1].id) : undefined}
+                          onOpenWorkspace={() => navigate(`/objective/admin/${todo.id}`, { state: { from: "/space" } })}
                           deleteConfirming={todoDeleteId === todo.id}
                           onDeleteConfirm={() => deleteTodo(todo.id)}
                           onDeleteCancel={() => setTodoDeleteId(null)}
@@ -786,6 +797,7 @@ export default function KojimaSpace() {
                             onSubtaskToggle={subId => handleSubtaskToggle(t.id, subId)}
                             onSubtaskAdd={(text, due) => handleSubtaskAdd(t.id, text, due)}
                             onSubtaskDelete={subId => handleSubtaskDelete(t.id, subId)}
+                            onOpenWorkspace={() => navigate(`/objective/admin/${t.id}`, { state: { from: "/space" } })}
                             deleteConfirming={todoDeleteId === t.id}
                             onDeleteConfirm={() => deleteTodo(t.id)}
                             onDeleteCancel={() => setTodoDeleteId(null)}
@@ -814,12 +826,24 @@ export default function KojimaSpace() {
             <div className="flex gap-1.5 pt-3 border-t border-border/30 mt-2">
               <Input
                 id="new-objective-input"
-                placeholder="Nouvel objectif..."
+                placeholder={newIsObj ? "Nouvel objectif..." : "Nouvelle tâche..."}
                 value={newTodo}
                 onChange={e => setNewTodo(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTodo())}
                 className="text-xs h-8"
               />
+              <button
+                onClick={() => setNewIsObj(o => !o)}
+                title={newIsObj ? "Objectif SMART (cliquez pour basculer en tâche)" : "Tâche simple (cliquez pour basculer en objectif)"}
+                className={cn(
+                  "h-8 px-2 rounded-md border text-xs font-body flex items-center gap-1 shrink-0 transition-colors",
+                  newIsObj
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/50",
+                )}
+              >
+                <Target size={12} />
+              </button>
               <select
                 value={newCat}
                 onChange={e => setNewCat(e.target.value)}

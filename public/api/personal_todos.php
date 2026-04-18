@@ -2,23 +2,40 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuth();
 
+// Auto-migrate: objective workspace columns
+try {
+    $cols = array_column($pdo->query('SHOW COLUMNS FROM personal_todos')->fetchAll(), 'Field');
+    if (!in_array('definition_of_done', $cols)) {
+        $pdo->exec('ALTER TABLE personal_todos ADD COLUMN definition_of_done TEXT DEFAULT NULL');
+    }
+    if (!in_array('linked_project_id', $cols)) {
+        $pdo->exec('ALTER TABLE personal_todos ADD COLUMN linked_project_id VARCHAR(36) DEFAULT NULL');
+    }
+    if (!in_array('linked_client_id', $cols)) {
+        $pdo->exec('ALTER TABLE personal_todos ADD COLUMN linked_client_id VARCHAR(36) DEFAULT NULL');
+    }
+} catch (Throwable $e) {}
+
 function mapTodo(array $row): array {
     return [
-        'id'             => $row['id'],
-        'text'           => $row['text'],
-        'completed'      => (bool)$row['completed'],
-        'order'          => (int)$row['sort_order'],
-        'dueDate'        => $row['due_date']  ?? null,
-        'recurring'      => $row['recurring'] ?? null,
-        'isObjective'    => (bool)($row['is_objective'] ?? 0),
-        'description'    => $row['description'] ?? null,
-        'smartSpecific'  => $row['smart_specific'] ?? null,
-        'smartMeasurable'=> $row['smart_measurable'] ?? null,
-        'smartAchievable'=> $row['smart_achievable'] ?? null,
-        'smartRelevant'  => $row['smart_relevant'] ?? null,
-        'priority'       => $row['priority'] ?? 'medium',
-        'status'         => $row['status'] ?? 'not_started',
-        'createdAt'      => $row['created_at'],
+        'id'               => $row['id'],
+        'text'             => $row['text'],
+        'completed'        => (bool)$row['completed'],
+        'order'            => (int)$row['sort_order'],
+        'dueDate'          => $row['due_date']  ?? null,
+        'recurring'        => $row['recurring'] ?? null,
+        'isObjective'      => (bool)($row['is_objective'] ?? 0),
+        'description'      => $row['description'] ?? null,
+        'smartSpecific'    => $row['smart_specific'] ?? null,
+        'smartMeasurable'  => $row['smart_measurable'] ?? null,
+        'smartAchievable'  => $row['smart_achievable'] ?? null,
+        'smartRelevant'    => $row['smart_relevant'] ?? null,
+        'priority'         => $row['priority'] ?? 'medium',
+        'status'           => $row['status'] ?? 'not_started',
+        'definitionOfDone' => $row['definition_of_done'] ?? null,
+        'linkedProjectId'  => $row['linked_project_id'] ?? null,
+        'linkedClientId'   => $row['linked_client_id'] ?? null,
+        'createdAt'        => $row['created_at'],
     ];
 }
 
@@ -67,19 +84,22 @@ if ($method === 'PUT') {
     $values = [];
 
     $map = [
-        'completed'      => ['completed = ?',       fn($v) => (int)(bool)$v],
-        'text'           => ['text = ?',             fn($v) => $v],
-        'order'          => ['sort_order = ?',       fn($v) => (int)$v],
-        'dueDate'        => ['due_date = ?',         fn($v) => $v],
-        'recurring'      => ['recurring = ?',        fn($v) => $v],
-        'isObjective'    => ['is_objective = ?',     fn($v) => (int)(bool)$v],
-        'description'    => ['description = ?',      fn($v) => $v],
-        'smartSpecific'  => ['smart_specific = ?',   fn($v) => $v],
-        'smartMeasurable'=> ['smart_measurable = ?', fn($v) => $v],
-        'smartAchievable'=> ['smart_achievable = ?', fn($v) => $v],
-        'smartRelevant'  => ['smart_relevant = ?',   fn($v) => $v],
-        'priority'       => ['priority = ?',         fn($v) => $v],
-        'status'         => ['status = ?',           fn($v) => $v],
+        'completed'       => ['completed = ?',          fn($v) => (int)(bool)$v],
+        'text'            => ['text = ?',                fn($v) => $v],
+        'order'           => ['sort_order = ?',          fn($v) => (int)$v],
+        'dueDate'         => ['due_date = ?',            fn($v) => $v],
+        'recurring'       => ['recurring = ?',           fn($v) => $v],
+        'isObjective'     => ['is_objective = ?',        fn($v) => (int)(bool)$v],
+        'description'     => ['description = ?',         fn($v) => $v],
+        'smartSpecific'   => ['smart_specific = ?',      fn($v) => $v],
+        'smartMeasurable' => ['smart_measurable = ?',    fn($v) => $v],
+        'smartAchievable' => ['smart_achievable = ?',    fn($v) => $v],
+        'smartRelevant'   => ['smart_relevant = ?',      fn($v) => $v],
+        'priority'        => ['priority = ?',            fn($v) => $v],
+        'status'          => ['status = ?',              fn($v) => $v],
+        'definitionOfDone'=> ['definition_of_done = ?',  fn($v) => $v ?: null],
+        'linkedProjectId' => ['linked_project_id = ?',   fn($v) => $v ?: null],
+        'linkedClientId'  => ['linked_client_id = ?',    fn($v) => $v ?: null],
     ];
 
     foreach ($map as $key => [$sql, $cast]) {
@@ -105,6 +125,9 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     if (!$id) fail('Missing id');
     $pdo->prepare("DELETE FROM todo_subtasks WHERE source = 'personal' AND parent_id = ?")->execute([$id]);
+    foreach (['objective_notes','objective_files','objective_links','objective_sessions','objective_activity','objective_decisions'] as $t) {
+        try { $pdo->prepare("DELETE FROM $t WHERE source = 'personal' AND objective_id = ?")->execute([$id]); } catch (Throwable $e) {}
+    }
     $pdo->prepare('DELETE FROM personal_todos WHERE id = ?')->execute([$id]);
     ok();
 }

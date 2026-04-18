@@ -6,10 +6,14 @@ import {
   TrendingUp,
   UserCircle,
   Shield,
+  Target,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 
 const BOTTOM_NAV = [
   { to: "/space",      label: "Space",    icon: LayoutDashboard },
+  { to: "/sprint",     label: "Sprint",   icon: Target },
   { to: "/projects",   label: "Projets",  icon: FolderKanban },
   { to: "/accounting", label: "Finance",  icon: TrendingUp },
   { to: "/admin",      label: "Admin",    icon: Shield },
@@ -17,8 +21,9 @@ const BOTTOM_NAV = [
 ];
 
 const ADMIN_PREFIXES = [
-  "/space", "/projects", "/project/", "/quotes", "/quote/",
+  "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
   "/clients", "/accounting", "/personal", "/admin", "/settings",
+  "/objective/",
 ];
 
 export function useIsAdminPage() {
@@ -29,6 +34,7 @@ export function useIsAdminPage() {
 export default function BottomNav() {
   const { pathname } = useLocation();
   const isAdminPage = ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
+  const sprintActive = useAnyFocusSessionActive();
 
   if (!isAdminPage) return null;
 
@@ -45,6 +51,7 @@ export default function BottomNav() {
               pathname === to ||
               (to === "/projects" && pathname.startsWith("/project/")) ||
               (to === "/quotes" && pathname.startsWith("/quote"));
+            const showBadge = to === "/sprint" && sprintActive;
             return (
               <Link
                 key={to}
@@ -60,7 +67,15 @@ export default function BottomNav() {
                     transition={{ type: "spring", stiffness: 500, damping: 35 }}
                   />
                 )}
-                <Icon size={20} strokeWidth={active ? 2.2 : 1.5} />
+                <div className="relative">
+                  <Icon size={20} strokeWidth={active ? 2.2 : 1.5} />
+                  {showBadge && (
+                    <span className={cn(
+                      "absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-emerald-500",
+                      "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
+                    )} />
+                  )}
+                </div>
                 <span className="text-[10px] font-medium leading-tight">
                   {label}
                 </span>
@@ -77,6 +92,7 @@ export default function BottomNav() {
             pathname === to ||
             (to === "/projects" && pathname.startsWith("/project/")) ||
             (to === "/quotes" && pathname.startsWith("/quote"));
+          const showBadge = to === "/sprint" && sprintActive;
           return (
             <Link
               key={to}
@@ -86,7 +102,7 @@ export default function BottomNav() {
                   ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
-              title={label}
+              title={sprintActive && to === "/sprint" ? `${label} · session en cours` : label}
             >
               {active && (
                 <motion.div
@@ -95,7 +111,15 @@ export default function BottomNav() {
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
                 />
               )}
-              <Icon size={18} strokeWidth={active ? 2.2 : 1.5} />
+              <div className="relative">
+                <Icon size={18} strokeWidth={active ? 2.2 : 1.5} />
+                {showBadge && (
+                  <span className={cn(
+                    "absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-emerald-500",
+                    "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
+                  )} />
+                )}
+              </div>
               <span className="text-[9px] font-medium leading-tight">
                 {label}
               </span>

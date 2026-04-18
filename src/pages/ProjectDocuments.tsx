@@ -11,12 +11,13 @@ import { cn } from "@/lib/utils";
 import { totalQuote, createEmptyQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import {
-  Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft,
+  Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft, ListTodo,
 } from "lucide-react";
 import { getProjectModules } from "@/api/modules";
-import { generateQuoteLinesFromModules } from "@/lib/moduleGenerators";
+import { generateQuoteLinesFromModules, generateQuoteLinesFromSteps } from "@/lib/moduleGenerators";
 import { MAINTENANCE_OPTIONS } from "@/data/moduleCatalog";
 import { useToast } from "@/hooks/use-toast";
+import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   draft:         { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
@@ -43,6 +44,7 @@ export default function ProjectDocuments() {
   const { getClient } = useClients();
   const { quotes, addQuote, updateQuote, deleteQuote } = useQuotes();
   const { toast } = useToast();
+  const { settings: companySettings } = useCompanySettings();
   const project = getProject(id!);
 
   const [typeFilter, setTypeFilter] = useState("all");
@@ -106,7 +108,42 @@ export default function ProjectDocuments() {
     };
     addQuote(quote);
     toast({ title: `Devis créé avec ${lines.length} lignes` });
-    navigate(`/quotes/${quote.id}`);
+    setMode(`edit:${quote.id}`);
+  }
+
+  function handleImportFromSteps() {
+    if (!id || !project) return;
+    const tasks = project.tasks ?? [];
+    const withHours = tasks.filter((t) => t.estimatedHours && t.estimatedHours > 0);
+    if (withHours.length === 0) {
+      toast({ title: "Aucune étape avec des heures estimées", variant: "destructive" });
+      return;
+    }
+    let rate = companySettings.defaultHourlyRate;
+    if (!rate) {
+      const input = window.prompt("Taux horaire (CHF/h) :", "120");
+      if (!input) return;
+      rate = Math.max(0, Number(input) || 0);
+      if (!rate) return;
+    }
+    const lines = generateQuoteLinesFromSteps(withHours, rate);
+    const skipped = tasks.length - withHours.length;
+    const base = createEmptyQuote("fr");
+    const quote: Quote = {
+      ...base,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      projectId: id,
+      projectTitle: project.title,
+      clientName: (project.clientId ? getClient(project.clientId)?.name : null) || project.client || "",
+      lineItems: lines,
+    };
+    addQuote(quote);
+    const msg = skipped > 0
+      ? `Devis créé avec ${lines.length} lignes (${skipped} étape(s) sans heures ignorée(s))`
+      : `Devis créé avec ${lines.length} lignes`;
+    toast({ title: msg });
+    setMode(`edit:${quote.id}`);
   }
 
   function handleConvertToInvoice(q: Quote) {
@@ -170,9 +207,12 @@ export default function ProjectDocuments() {
                   Documents
                 </h2>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleImportFromModules}>
                   <Blocks size={12} /> Depuis les modules
+                </Button>
+                <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleImportFromSteps}>
+                  <ListTodo size={12} /> Depuis les étapes
                 </Button>
                 <Button size="sm" className="text-xs gap-1.5" onClick={() => setMode("new")}>
                   <Plus size={12} /> Nouveau

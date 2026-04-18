@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Circle, CheckCircle2, Trash2, ChevronRight, Pencil, Target, AlertTriangle, ChevronUp, ChevronDown, Sun } from "lucide-react";
+import { Circle, CheckCircle2, Trash2, ChevronRight, Pencil, Target, AlertTriangle, ChevronUp, ChevronDown, Sun, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,6 +44,7 @@ interface ObjectiveRowProps {
   onSubtaskAdd:       (text: string, dueDate?: string) => void;
   onSubtaskDelete:    (id: string) => void;
   onSubtaskUpdate?:   (id: string, data: any) => void;
+  onOpenWorkspace?:   () => void;
   deleteConfirming:   boolean;
   onDeleteConfirm:    () => void;
   onDeleteCancel:     () => void;
@@ -58,6 +59,7 @@ export function ObjectiveRow({
   onToggle, onDelete, onTitleSave, onCategoryChange, onMoveUp, onMoveDown,
   onDescriptionSave, onSmartSave, onPriorityChange, onStatusChange,
   onSubtaskToggle, onSubtaskAdd, onSubtaskDelete, onSubtaskUpdate,
+  onOpenWorkspace,
   deleteConfirming, onDeleteConfirm, onDeleteCancel,
 }: ObjectiveRowProps) {
   const [expanded, setExpanded]     = useState(false);
@@ -227,6 +229,17 @@ export function ObjectiveRow({
             {onMoveUp && <button onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronUp size={14} /></button>}
             {onMoveDown && <button onClick={onMoveDown} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronDown size={14} /></button>}
           </div>
+        )}
+
+        {/* Open workspace (objectives only, not simple todos) */}
+        {!isSimpleTodo && onOpenWorkspace && !completed && (
+          <button
+            onClick={e => { e.stopPropagation(); onOpenWorkspace(); }}
+            className="opacity-40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary shrink-0 p-0.5"
+            title="Ouvrir l'espace de travail"
+          >
+            <Maximize2 size={14} />
+          </button>
         )}
 
         {/* Expand indicator (hidden for simple todos) */}

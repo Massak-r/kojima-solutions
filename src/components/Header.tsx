@@ -107,6 +107,7 @@ const Header = () => {
   // Mobile page title for admin pages
   const PAGE_TITLES: Record<string, string> = {
     "/space": "Kojima Space",
+    "/sprint": "Sprint",
     "/projects": "Projets",
     "/quotes": "Devis",
     "/clients": "Clients",
@@ -199,6 +200,13 @@ const Header = () => {
                     {offlineQueueSize}
                   </span>
                 )}
+                <Link
+                  to="/settings"
+                  className="ml-1 flex items-center gap-1.5 text-muted-foreground/50 hover:text-foreground transition-colors text-xs px-2 py-1.5 rounded-lg hover:bg-secondary"
+                  title="Réglages"
+                >
+                  <Settings size={13} />
+                </Link>
                 <button
                   onClick={() => navigate("/")}
                   className="ml-1 flex items-center gap-1.5 text-muted-foreground/60 hover:text-foreground transition-colors text-xs"
@@ -286,6 +294,18 @@ const Header = () => {
                       >
                         <Shield size={15} />
                         Admin
+                      </Link>
+                      <Link
+                        to="/settings"
+                        onClick={() => setOverflowOpen(false)}
+                        className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-colors border-t border-border ${
+                          location.pathname === "/settings"
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                      >
+                        <Settings size={15} />
+                        Réglages
                       </Link>
                       <button
                         onClick={() => { setOverflowOpen(false); navigate("/"); }}

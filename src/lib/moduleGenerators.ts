@@ -57,6 +57,21 @@ export function generateQuoteLinesFromModules(modules: SelectedModule[]): QuoteL
   }).filter(Boolean) as QuoteLineItem[];
 }
 
+/** Generate QuoteLineItem[] from project steps (tasks with estimatedHours) */
+export function generateQuoteLinesFromSteps(
+  tasks: TimelineTask[],
+  hourlyRate: number,
+): QuoteLineItem[] {
+  return tasks
+    .filter((t) => t.estimatedHours && t.estimatedHours > 0)
+    .map((t) => ({
+      id: uid(),
+      description: t.title + (t.description ? `\n${t.description}` : ""),
+      quantity: t.estimatedHours!,
+      unitPrice: hourlyRate,
+    }));
+}
+
 /** Generate a deliverables markdown list from selected modules */
 export function generateDeliverablesFromModules(modules: SelectedModule[]): string {
   return modules

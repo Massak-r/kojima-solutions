@@ -7,6 +7,7 @@ import {
   totalQuote,
   TVA_RATE,
 } from "@/types/quote";
+import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 
 function formatCurrency(value: number, lang: "fr" | "en"): string {
   return new Intl.NumberFormat(lang === "fr" ? "fr-CH" : "en-CH", {
@@ -23,6 +24,7 @@ interface QuotePreviewProps {
 }
 
 export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
+  const { settings: co } = useCompanySettings();
   const lang = quote.lang;
   const isFr = lang === "fr";
   const isInvoice = (quote as { docType?: string }).docType === "invoice";
@@ -31,11 +33,13 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
     ? (isInvoice ? "Facture" : "Devis")
     : (isInvoice ? "Invoice" : "Quote");
 
-  const accentColor = isInvoice ? "hsl(var(--accent))" : "hsl(var(--primary))";
-  const accentFaint  = isInvoice ? "hsl(var(--accent) / 0.15)" : "hsl(var(--primary) / 0.15)";
-  const accentMid    = isInvoice ? "hsl(var(--accent) / 0.4)"  : "hsl(var(--primary) / 0.4)";
-  const accentBg     = isInvoice ? "hsl(var(--accent) / 0.08)" : "hsl(var(--primary) / 0.08)";
-  const accentLight  = isInvoice ? "hsl(var(--accent) / 0.2)"  : "hsl(var(--primary) / 0.2)";
+  // Use hardcoded colors for print/PDF reliability (CSS variables may not resolve in iframe print)
+  const baseColor   = isInvoice ? "107, 131, 158" : "42, 74, 107"; // accent rgb / primary rgb
+  const accentColor = `rgb(${baseColor})`;
+  const accentFaint = `rgba(${baseColor}, 0.15)`;
+  const accentMid   = `rgba(${baseColor}, 0.4)`;
+  const accentBg    = `rgba(${baseColor}, 0.08)`;
+  const accentLight = `rgba(${baseColor}, 0.2)`;
 
   const subtotal = subtotalQuote(quote);
   const discount = discountAmountQuote(quote);
@@ -82,14 +86,17 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
                 className="text-[22px] font-bold tracking-tight text-gray-900"
                 style={{ letterSpacing: "-0.02em" }}
               >
-                Kojima<span style={{ color: accentColor }}>.</span>Solutions
+                {co.companyName.includes(".")
+                  ? <>{co.companyName.split(".")[0]}<span style={{ color: accentColor }}>.</span>{co.companyName.split(".").slice(1).join(".")}</>
+                  : co.companyName}
               </div>
               <div className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
-                <div>Massaki Chraïti</div>
-                <div>Rue de la Paix 4</div>
-                <div>1020 Renens, Suisse</div>
-                <div className="mt-0.5">massaki@kojima-solutions.ch</div>
-                <div className="text-gray-400 mt-0.5">IDE: CHE-000.000.000</div>
+                <div>{co.ownerName}</div>
+                {co.address.split(",").map((line, i) => (
+                  <div key={i}>{line.trim()}</div>
+                ))}
+                <div className="mt-0.5">{co.email}</div>
+                {co.ideNumber && <div className="text-gray-400 mt-0.5">IDE: {co.ideNumber}</div>}
               </div>
             </div>
             <div className="text-right">
@@ -235,7 +242,9 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
                 <span>
                   {isInvoice
                     ? (isFr ? "Total à payer" : "Total due")
-                    : (isFr ? "Total TTC" : "Total (incl. VAT):")}
+                    : quote.applyTva
+                      ? (isFr ? "Total TTC" : "Total (incl. VAT)")
+                      : "Total"}
                 </span>
                 <span>{formatCurrency(total, lang)}</span>
               </div>
@@ -263,24 +272,21 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
               </div>
               <div className="text-xs text-gray-700 leading-relaxed grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5">
                 <span className="text-gray-500">{isFr ? "Titulaire" : "Account holder"}:</span>
-                <span>Kojima Solutions — Massaki Chraïti</span>
+                <span>{co.bankAccountHolder || "-"}</span>
                 <span className="text-gray-500">IBAN:</span>
-                <span className="font-mono">CH00 0000 0000 0000 0000 0</span>
-                <span className="text-gray-500">BIC/SWIFT:</span>
-                <span className="font-mono">XXXXXXXX</span>
-                <span className="text-gray-500">{isFr ? "Banque" : "Bank"}:</span>
-                <span>À compléter</span>
+                <span className="font-mono">{co.bankIban || "-"}</span>
+                {co.bankBic && (<>
+                  <span className="text-gray-500">BIC/SWIFT:</span>
+                  <span className="font-mono">{co.bankBic}</span>
+                </>)}
+                {co.bankName && (<>
+                  <span className="text-gray-500">{isFr ? "Banque" : "Bank"}:</span>
+                  <span>{co.bankName}</span>
+                </>)}
               </div>
             </div>
           )}
 
-          {/* Footer */}
-          <div className="mt-8 h-px w-full" style={{ backgroundColor: accentLight }} />
-          <div className="mt-3 text-center text-[9px] text-gray-400 leading-relaxed">
-            <span>Kojima Solutions — Massaki Chraïti — Rue de la Paix 4, 1020 Renens, Suisse</span>
-            <br />
-            <span>IDE: CHE-000.000.000 — massaki@kojima-solutions.ch — kojima-solutions.ch</span>
-          </div>
         </div>
         {/* Right edge accent */}
         <div className="w-1 shrink-0" style={{ backgroundColor: accentFaint }} />

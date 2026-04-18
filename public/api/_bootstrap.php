@@ -137,6 +137,19 @@ function validateMagicBytes(string $filePath, string $mime): bool {
             return ord($bytes[0]) === 0x00 && ord($bytes[1]) === 0x00 && ord($bytes[2]) === 0x01;
         case 'video/ogg':
             return str_starts_with($bytes, 'OggS');
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        case 'application/zip':
+            return substr($bytes, 0, 4) === "PK\x03\x04";
+        case 'application/msword':
+        case 'application/vnd.ms-excel':
+        case 'application/vnd.ms-powerpoint':
+            return substr($bytes, 0, 8) === "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1";
+        case 'text/plain':
+        case 'text/markdown':
+        case 'text/csv':
+            return true;
         default:
             return true; // unknown type, skip check
     }

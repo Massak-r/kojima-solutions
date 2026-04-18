@@ -20,6 +20,9 @@ export interface ObjectiveItem {
   priority:        TodoPriority;
   status:          TodoStatus;
   order:           number;
+  definitionOfDone?: string | null;
+  linkedProjectId?:  string | null;
+  linkedClientId?:   string | null;
   createdAt:       string;
 }
 
@@ -53,7 +56,7 @@ export function createObjective(data: {
 
 export function updateObjective(
   id: string,
-  data: Partial<Pick<ObjectiveItem, 'completed' | 'text' | 'category' | 'dueDate' | 'recurring' | 'order' | 'isObjective' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status'>>,
+  data: Partial<Pick<ObjectiveItem, 'completed' | 'text' | 'category' | 'dueDate' | 'recurring' | 'order' | 'isObjective' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'definitionOfDone' | 'linkedProjectId' | 'linkedClientId'>>,
 ) {
   return apiFetch<ObjectiveItem>(`admin_todos.php?id=${id}`, {
     method: 'PUT',

@@ -19,6 +19,9 @@ export interface PersonalTodoItem {
   smartRelevant?:  string | null;
   priority:        TodoPriority;
   status:          TodoStatus;
+  definitionOfDone?: string | null;
+  linkedProjectId?:  string | null;
+  linkedClientId?:   string | null;
   createdAt:       string;
 }
 
@@ -47,7 +50,7 @@ export function createPersonalTodo(data: {
 
 export function updatePersonalTodo(
   id: string,
-  data: Partial<Pick<PersonalTodoItem, 'completed' | 'text' | 'order' | 'dueDate' | 'recurring' | 'isObjective' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status'>>,
+  data: Partial<Pick<PersonalTodoItem, 'completed' | 'text' | 'order' | 'dueDate' | 'recurring' | 'isObjective' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'definitionOfDone' | 'linkedProjectId' | 'linkedClientId'>>,
 ) {
   return apiFetch<PersonalTodoItem>(`personal_todos.php?id=${id}`, {
     method: 'PUT',

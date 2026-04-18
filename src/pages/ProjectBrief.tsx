@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { ProjectDetailsPanel } from "@/components/ProjectDetailsPanel";
+import { LinkedObjectivesPanel } from "@/components/projects/LinkedObjectivesPanel";
 import { getIntakeByProject, type IntakeResponse, type Tier } from "@/api/funnels";
 import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +101,9 @@ export default function ProjectBrief() {
         <section>
           <ProjectDetailsPanel project={project} onChange={(updates) => updateProject(project.id, updates)} />
         </section>
+
+        {/* Section 1b: Linked objectives (read-only, hidden when none) */}
+        <LinkedObjectivesPanel projectId={project.id} />
 
         {/* Section 2: Intake brief */}
         <section className="bg-card border border-border rounded-2xl overflow-hidden">

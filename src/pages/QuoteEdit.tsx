@@ -41,12 +41,19 @@ export default function QuoteEdit() {
 
   const { id: _id, createdAt: _createdAt, ...initial } = quote;
 
+  const backUrl = quote.projectId
+    ? `/project/${quote.projectId}/documents`
+    : "/quotes";
+  const backLabel = quote.projectId
+    ? t("Retour au projet", "Back to project")
+    : t("Liste des devis", "Back to quotes");
+
   return (
     <div className="min-h-screen bg-background pt-20 pb-16">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <p className="mb-6 no-print">
-          <Link to="/quotes" className="text-sm text-muted-foreground hover:text-foreground">
-            ← {t("Liste des devis", "Back to quotes")}
+          <Link to={backUrl} className="text-sm text-muted-foreground hover:text-foreground">
+            ← {backLabel}
           </Link>
         </p>
         <QuoteForm initial={initial} quoteId={id} />

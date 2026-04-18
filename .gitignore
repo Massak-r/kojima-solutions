@@ -21,7 +21,6 @@ public/api/config.php
 public/uploads/
 public/private_docs/
 public/private_videos/
-public/salsa/
 
 # Editor directories and files
 .vscode/*

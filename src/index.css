@@ -81,6 +81,10 @@
     font-family: 'Inter', sans-serif;
   }
 
+  html, body {
+    overflow-x: clip;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Sora', sans-serif;
   }
@@ -352,12 +356,38 @@
     box-shadow: none !important;
     margin: 0 !important;
   }
+
+  /* Reset AdminContentWrapper padding for print pages */
+  body.quote-print-mode > div,
+  body.quote-print-mode .pt-16,
+  body.quote-print-mode .pb-safe-bottom {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body.quote-print-mode [class*="pl-16"] {
+    padding-left: 0 !important;
+  }
+
+  /* Undo A4 preview scaling when printing from form */
+  .quote-preview-wrapper {
+    aspect-ratio: unset !important;
+    overflow: visible !important;
+    position: static !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+  }
+  .quote-preview-wrapper > div {
+    position: static !important;
+    transform: none !important;
+    width: 210mm !important;
+  }
 }
 
 /* ── PWA / Standalone mode ── */
 @media (display-mode: standalone) {
   body {
-    overscroll-behavior-y: contain;
+    overscroll-behavior: contain;
   }
   /* Account for notch / status bar in standalone */
   header.fixed {

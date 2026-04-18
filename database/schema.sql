@@ -219,75 +219,6 @@ CREATE TABLE IF NOT EXISTS personal_costs (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Salsa Moves ───────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS salsa_moves (
-  id          VARCHAR(36)   NOT NULL,
-  type        ENUM('cours','figures','solo') NOT NULL DEFAULT 'figures',
-  title       VARCHAR(255)  NOT NULL,
-  description TEXT          NULL,
-  video_url   VARCHAR(500)  NULL,
-  link_url    VARCHAR(500)  NULL,
-  topics      JSON          NULL,
-  status      ENUM('learning','acquired','mastered') NOT NULL DEFAULT 'learning',
-  sort_order  INT           NOT NULL DEFAULT 0,
-  notes       TEXT          NULL,
-  created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  INDEX idx_type (type),
-  INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Salsa Access (email-gated sharing per type) ──────────────
-
-CREATE TABLE IF NOT EXISTS salsa_access (
-  id         VARCHAR(36)   NOT NULL,
-  type       ENUM('cours','figures','solo') NOT NULL,
-  email      VARCHAR(255)  NOT NULL,
-  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_type_email (type, email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Class Progress (2 classes × cours moves tracking) ────────
-
-CREATE TABLE IF NOT EXISTS class_progress (
-  id         VARCHAR(36)   NOT NULL,
-  class_key  VARCHAR(50)   NOT NULL,
-  move_id    VARCHAR(36)   NOT NULL,
-  status     ENUM('done','next','planned') NOT NULL DEFAULT 'planned',
-  done_order INT           NULL,
-  done_at    DATE          NULL,
-  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_class_move (class_key, move_id),
-  INDEX idx_class_key (class_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Playlists (user/admin named move lists for figures & solo) ─
-
-CREATE TABLE IF NOT EXISTS playlists (
-  id         VARCHAR(36)   NOT NULL,
-  type       ENUM('figures','solo') NOT NULL,
-  email      VARCHAR(255)  NOT NULL,
-  name       VARCHAR(255)  NOT NULL,
-  is_shared  TINYINT(1)    NOT NULL DEFAULT 0,
-  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  INDEX idx_type_email (type, email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS playlist_items (
-  id          VARCHAR(36)  NOT NULL,
-  playlist_id VARCHAR(36)  NOT NULL,
-  move_id     VARCHAR(36)  NOT NULL,
-  sort_order  INT          NOT NULL DEFAULT 0,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_playlist_move (playlist_id, move_id),
-  CONSTRAINT fk_playlist_items_playlist
-    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- ============================================================
 -- Migrations (run on existing DB):
 -- ALTER TABLE projects ADD COLUMN client_slug VARCHAR(100) UNIQUE NULL;
@@ -300,11 +231,6 @@ CREATE TABLE IF NOT EXISTS playlist_items (
 -- CREATE TABLE notifications (...) as above (run full CREATE TABLE notifications statement on existing DB);
 -- CREATE TABLE personal_todos (...) as above (run full CREATE TABLE personal_todos statement on existing DB);
 -- CREATE TABLE personal_costs (...) as above (run full CREATE TABLE personal_costs statement on existing DB);
--- CREATE TABLE salsa_moves (...) as above (run full CREATE TABLE salsa_moves statement on existing DB);
--- CREATE TABLE salsa_access (...) as above (run full CREATE TABLE salsa_access statement on existing DB);
--- CREATE TABLE class_progress (...) as above (run full CREATE TABLE class_progress statement on existing DB);
--- CREATE TABLE playlists (...) as above (run full CREATE TABLE playlists statement on existing DB);
--- CREATE TABLE playlist_items (...) as above (run full CREATE TABLE playlist_items statement on existing DB);
 -- ============================================================
 -- End of schema
 -- ============================================================
@@ -353,7 +279,6 @@ CREATE TABLE IF NOT EXISTS admin_todos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Migrations for new columns ──────────────────────────────────────────────
--- ALTER TABLE salsa_moves ADD COLUMN difficulty TINYINT NOT NULL DEFAULT 0;
 -- ALTER TABLE personal_todos ADD COLUMN due_date DATE NULL;
 -- ALTER TABLE personal_todos ADD COLUMN recurring ENUM('daily','weekly','monthly') NULL;
 -- CREATE TABLE consumables (
@@ -385,22 +310,6 @@ CREATE TABLE IF NOT EXISTS todo_subtasks (
   created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_parent (source, parent_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Salsa Videos ──────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS salsa_videos (
-  id            VARCHAR(36)   NOT NULL,
-  move_id       VARCHAR(36)   NOT NULL,
-  filename      VARCHAR(255)  NOT NULL,
-  original_name VARCHAR(255)  NOT NULL,
-  file_size     INT UNSIGNED  NOT NULL,
-  mime_type     VARCHAR(100)  NOT NULL,
-  trim_start    DECIMAL(8,2)  DEFAULT NULL,
-  trim_end      DECIMAL(8,2)  DEFAULT NULL,
-  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  INDEX idx_move_id (move_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Expenses (business expenses, migrated from localStorage) ──

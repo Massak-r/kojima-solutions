@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +113,22 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   const [data, setData] = useState<QuoteFormData>(
     () => initial ?? createEmptyQuote(siteLang)
   );
+
+  // A4 preview scaling
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(0.5);
+
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width;
+      // 210mm ≈ 793.7px at 96dpi
+      setPreviewScale(Math.min(width / 793.7, 1));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   function set<K extends keyof QuoteFormData>(key: K, value: QuoteFormData[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -599,8 +615,21 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
             ({siteT("Le PDF généré sera identique.", "Generated PDF will match this exactly.")})
           </span>
         </p>
-        <div className="quote-preview-wrapper overflow-auto max-h-[calc(100vh-10rem)] rounded-xl border border-border bg-muted/30 p-4">
-          <QuotePreview quote={data} />
+        <div
+          ref={previewRef}
+          className="quote-preview-wrapper rounded-xl border border-border bg-muted/30 overflow-hidden relative"
+          style={{ aspectRatio: "210 / 297" }}
+        >
+          <div
+            className="absolute top-0 left-0 origin-top-left"
+            style={{
+              width: "210mm",
+              minHeight: "297mm",
+              transform: `scale(${previewScale})`,
+            }}
+          >
+            <QuotePreview quote={data} />
+          </div>
         </div>
       </div>
     </div>

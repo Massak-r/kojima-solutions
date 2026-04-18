@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,9 @@ import {
 } from "@/components/ui/select";
 import {
   CheckCircle2, Circle, Trash2, Plus, Pencil, ExternalLink, ChevronRight,
-  Search, ChevronDown, ChevronUp, Music2, Loader2, Sun,
-  ArrowUp, ArrowDown, Link2, X, Copy, Check, Zap, RefreshCw, Calendar,
-  Upload, Video, Play, Target, ShoppingCart, Package, Wallet,
+  Search, ChevronDown, ChevronUp, Loader2, Sun,
+  X, Check, Zap, RefreshCw, Calendar,
+  Target, ShoppingCart, Package, Wallet,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,9 +28,44 @@ import {
 } from "@/api/objectives";
 import type { ObjectiveItem, TodoRecurring } from "@/api/objectives";
 import {
+  listPersonalTodos, createPersonalTodo,
+  updatePersonalTodo, deletePersonalTodo,
+} from "@/api/personalTodos";
+import type { PersonalTodoItem } from "@/api/personalTodos";
+import {
   listSubtasks, createSubtask, updateSubtask, deleteSubtask, batchCompleteSubtasks,
 } from "@/api/todoSubtasks";
 import type { SubtaskItem } from "@/api/todoSubtasks";
+
+// Each personal-page row carries a hidden source tag so writes go to the right table.
+// New items always go to personal_todos; legacy admin_todos rows with category="Perso"
+// remain editable in place until they're naturally completed/deleted.
+type DualObjective = ObjectiveItem & { __source: "admin" | "personal" };
+
+function personalToObjective(p: PersonalTodoItem): DualObjective {
+  return {
+    id: p.id,
+    text: p.text,
+    completed: p.completed,
+    category: "Perso",
+    dueDate: p.dueDate,
+    recurring: (p.recurring ?? null) as ObjectiveItem["recurring"],
+    isObjective: p.isObjective,
+    description: p.description ?? null,
+    smartSpecific: p.smartSpecific ?? null,
+    smartMeasurable: p.smartMeasurable ?? null,
+    smartAchievable: p.smartAchievable ?? null,
+    smartRelevant: p.smartRelevant ?? null,
+    priority: p.priority,
+    status: p.status,
+    definitionOfDone: p.definitionOfDone ?? null,
+    linkedProjectId: p.linkedProjectId ?? null,
+    linkedClientId: p.linkedClientId ?? null,
+    order: p.order,
+    createdAt: p.createdAt,
+    __source: "personal",
+  };
+}
 import { PERSONAL_CATEGORIES, sortObjectives } from "@/lib/objectiveCategories";
 import { ObjectiveRow } from "@/components/todos/ObjectiveRow";
 import { CategorySection } from "@/components/todos/CategorySection";
@@ -55,39 +91,9 @@ import {
 import type { PersonalCostItem } from "@/api/personalCosts";
 
 import {
-  listMoves, createMove, updateMove, deleteMove,
-} from "@/api/salsaMoves";
-import type { SalsaMoveItem } from "@/api/salsaMoves";
-
-import {
-  listAccess, addAccess, removeAccess,
-} from "@/api/salsaAccess";
-import type { SalsaAccessItem } from "@/api/salsaAccess";
-
-import { listProgress } from "@/api/classProgress";
-import type { ClassProgressItem } from "@/api/classProgress";
-
-import {
   FREQUENCY_MONTHLY_FACTOR, FREQUENCY_DAYS, FREQUENCY_LABELS,
   type CostFrequency,
 } from "@/types/personalCost";
-import {
-  SALSA_TYPE_LABELS, SALSA_DEFAULT_TOPICS,
-  type SalsaType, type SalsaStatus,
-} from "@/types/salsaMove";
-import { ClassColumn } from "@/components/salsa/ClassColumn";
-import { StarRating } from "@/components/salsa/StarRating";
-import { RhythmReference } from "@/components/salsa/RhythmReference";
-import {
-  listAllPlaylists, createPlaylist, updatePlaylist, deletePlaylist,
-  type Playlist,
-} from "@/api/playlists";
-import {
-  listVideos, uploadVideo, deleteVideo, getVideoUrl,
-  type SalsaVideo,
-} from "@/api/salsaVideos";
-import { VideoPlayer } from "@/components/salsa/VideoPlayer";
-import { ChoreographyEditor } from "@/components/salsa/ChoreographyEditor";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,7 +168,8 @@ function CompletedToggle({ count, children }: { count: number; children: React.R
 
 function TodosTab() {
   const { toast } = useToast();
-  const [todos,         setTodos]         = useState<ObjectiveItem[]>(() => {
+  const navigate = useNavigate();
+  const [todos,         setTodos]         = useState<DualObjective[]>(() => {
     try { return JSON.parse(localStorage.getItem("kojima-personal-todos") || "[]"); } catch { return []; }
   });
   const [newText,       setNewText]       = useState("");
@@ -179,24 +186,42 @@ function TodosTab() {
   useEffect(() => {
     Promise.all([
       listObjectives([...PERSONAL_CATEGORIES]),
-      listSubtasks(),
-    ]).then(([items, subs]) => {
-      setTodos(items);
-      setCompletedOpen(items.filter(t => t.completed).length <= 3);
-      localStorage.setItem("kojima-personal-todos", JSON.stringify(items));
-      // Group subtasks by parentId
+      listPersonalTodos(),
+      listSubtasks(undefined, "admin"),
+      listSubtasks(undefined, "personal"),
+    ]).then(([adminItems, personalItems, adminSubs, personalSubs]) => {
+      const merged: DualObjective[] = [
+        ...adminItems.map(o => ({ ...o, __source: "admin" as const })),
+        ...personalItems.map(personalToObjective),
+      ];
+      setTodos(merged);
+      setCompletedOpen(merged.filter(t => t.completed).length <= 3);
+      localStorage.setItem("kojima-personal-todos", JSON.stringify(merged));
+      const subs = [...adminSubs, ...personalSubs];
       const map: Record<string, SubtaskItem[]> = {};
-      for (const s of subs) {
-        (map[s.parentId] ??= []).push(s);
-      }
+      for (const s of subs) (map[s.parentId] ??= []).push(s);
       setSubtasksMap(map);
       localStorage.setItem("kojima-personal-subtasks", JSON.stringify(subs));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  function sync(updated: ObjectiveItem[]) {
+  function sync(updated: DualObjective[]) {
     setTodos(updated);
     localStorage.setItem("kojima-personal-todos", JSON.stringify(updated));
+  }
+
+  function sourceOf(id: string): "admin" | "personal" {
+    return todos.find(t => t.id === id)?.__source ?? "personal";
+  }
+
+  function dispatchUpdate(id: string, data: Partial<ObjectiveItem>) {
+    if (sourceOf(id) === "admin") return updateObjective(id, data);
+    return updatePersonalTodo(id, data as any);
+  }
+
+  function dispatchDelete(id: string) {
+    if (sourceOf(id) === "admin") return deleteObjective(id);
+    return deletePersonalTodo(id);
   }
 
   async function addTodo() {
@@ -205,21 +230,21 @@ function TodosTab() {
     const isObjective = newIsObj;
     setNewText(""); setNewDue(""); setNewRecurring(""); setNewIsObj(false);
     try {
-      const item = await createObjective({
+      const item = await createPersonalTodo({
         text,
-        category:    "Perso",
-        dueDate:     newDue       || undefined,
-        recurring:   newRecurring || undefined,
+        dueDate:   newDue       || undefined,
+        recurring: newRecurring || undefined,
         isObjective,
       });
-      sync([...todos, item]);
+      sync([...todos, personalToObjective(item)]);
     } catch {
-      const fake: ObjectiveItem = {
+      const fake: DualObjective = {
         id: crypto.randomUUID(), text, completed: false, category: "Perso", order: todos.length,
         dueDate: newDue || undefined, recurring: (newRecurring as TodoRecurring) || undefined,
         isObjective,
         priority: "medium", status: "not_started",
         createdAt: new Date().toISOString(),
+        __source: "personal",
       };
       sync([...todos, fake]);
     }
@@ -230,7 +255,7 @@ function TodosTab() {
     const willComplete = !todo.completed;
     const updated = todos.map(t => t.id === id ? { ...t, completed: willComplete } : t);
     sync(updated);
-    try { await updateObjective(id, { completed: willComplete }); } catch {}
+    try { await dispatchUpdate(id, { completed: willComplete }); } catch {}
 
     // If completing an objective, auto-complete all subtasks
     if (willComplete && todo.isObjective) {
@@ -245,12 +270,12 @@ function TodosTab() {
       }
     }
 
-    // Spawn next occurrence for recurring todos
+    // Spawn next occurrence for recurring todos — always create the next one in personal_todos
     if (willComplete && todo.recurring) {
       const nextDue = nextRecurringDate(todo.dueDate, todo.recurring);
       try {
-        const next = await createObjective({ text: todo.text, category: todo.category || "Perso", dueDate: nextDue, recurring: todo.recurring });
-        sync([...updated, next]);
+        const next = await createPersonalTodo({ text: todo.text, dueDate: nextDue, recurring: todo.recurring as TodoRecurring });
+        sync([...updated, personalToObjective(next)]);
       } catch {}
     }
   }
@@ -260,7 +285,7 @@ function TodosTab() {
     sync(todos.filter(t => t.id !== id));
     setSubtasksMap(prev => { const n = { ...prev }; delete n[id]; return n; });
     setDeleteId(null);
-    try { await deleteObjective(id); } catch {}
+    try { await dispatchDelete(id); } catch {}
   }
 
   async function swapOrder(idA: string, idB: string) {
@@ -268,43 +293,43 @@ function TodosTab() {
     const b = todos.find(t => t.id === idB);
     if (!a || !b) return;
     setTodos(prev => prev.map(t => t.id === idA ? { ...t, order: b.order } : t.id === idB ? { ...t, order: a.order } : t));
-    try { await updateObjective(idA, { order: b.order }); await updateObjective(idB, { order: a.order }); } catch {}
+    try { await dispatchUpdate(idA, { order: b.order }); await dispatchUpdate(idB, { order: a.order }); } catch {}
   }
 
   async function promote(id: string) {
     const updated = todos.map(t => t.id === id ? { ...t, isObjective: true } : t);
     sync(updated);
-    try { await updateObjective(id, { isObjective: true }); } catch {}
+    try { await dispatchUpdate(id, { isObjective: true }); } catch {}
   }
 
   async function saveDescription(id: string, desc: string) {
     const updated = todos.map(t => t.id === id ? { ...t, description: desc || null } : t);
     sync(updated);
-    try { await updateObjective(id, { description: desc || undefined }); } catch {}
+    try { await dispatchUpdate(id, { description: desc || undefined }); } catch {}
   }
 
   async function saveSmartField(id: string, field: string, value: string) {
     if (field === "timebound") {
       const updated = todos.map(t => t.id === id ? { ...t, dueDate: value || undefined } : t);
       sync(updated);
-      try { await updateObjective(id, { dueDate: value || undefined }); } catch {}
+      try { await dispatchUpdate(id, { dueDate: value || undefined }); } catch {}
       return;
     }
     const updated = todos.map(t => t.id === id ? { ...t, [field]: value || null } : t);
     sync(updated);
-    try { await updateObjective(id, { [field]: value || undefined } as any); } catch {}
+    try { await dispatchUpdate(id, { [field]: value || undefined } as any); } catch {}
   }
 
   async function savePriority(id: string, priority: any) {
     const updated = todos.map(t => t.id === id ? { ...t, priority } : t);
     sync(updated);
-    try { await updateObjective(id, { priority }); } catch {}
+    try { await dispatchUpdate(id, { priority }); } catch {}
   }
 
   async function saveStatus(id: string, status: any) {
     const updated = todos.map(t => t.id === id ? { ...t, status } : t);
     sync(updated);
-    try { await updateObjective(id, { status }); } catch {}
+    try { await dispatchUpdate(id, { status }); } catch {}
   }
 
   async function handleSubtaskToggle(parentId: string, subId: string) {
@@ -321,7 +346,7 @@ function TodosTab() {
 
   async function handleSubtaskAdd(parentId: string, text: string, dueDate?: string) {
     try {
-      const sub = await createSubtask({ parentId, text, dueDate });
+      const sub = await createSubtask({ parentId, text, dueDate, source: sourceOf(parentId) });
       setSubtasksMap(prev => ({
         ...prev,
         [parentId]: [...(prev[parentId] || []), sub],
@@ -483,8 +508,8 @@ function TodosTab() {
                   categoryOptions={[...PERSONAL_CATEGORIES]}
                   onToggle={() => toggle(todo.id)}
                   onDelete={() => remove(todo.id)}
-                  onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjective(todo.id, { text: title }); } catch {} } }}
-                  onCategoryChange={async (c) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, category: c } : t)); try { await updateObjective(todo.id, { category: c }); } catch {} }}
+                  onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await dispatchUpdate(todo.id, { text: title }); } catch {} } }}
+                  onCategoryChange={async (c) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, category: c } : t)); try { await dispatchUpdate(todo.id, { category: c }); } catch {} }}
                   onDescriptionSave={desc => saveDescription(todo.id, desc)}
                   onSmartSave={(field, value) => saveSmartField(todo.id, field, value)}
                   onPriorityChange={p => savePriority(todo.id, p)}
@@ -495,6 +520,7 @@ function TodosTab() {
                   onSubtaskUpdate={(subId, data) => handleSubtaskUpdate(todo.id, subId, data)}
                   onMoveUp={idx > 0 ? () => swapOrder(todo.id, active[idx - 1].id) : undefined}
                   onMoveDown={idx < active.length - 1 ? () => swapOrder(todo.id, active[idx + 1].id) : undefined}
+                  onOpenWorkspace={() => navigate(`/objective/${todo.__source}/${todo.id}`, { state: { from: "/personal" } })}
                   deleteConfirming={deleteId === todo.id}
                   onDeleteConfirm={() => remove(todo.id)}
                   onDeleteCancel={() => setDeleteId(null)}
@@ -516,7 +542,7 @@ function TodosTab() {
                   categoryBadge={todo.category}
                   onToggle={() => toggle(todo.id)}
                   onDelete={() => setDeleteId(todo.id)}
-                  onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjective(todo.id, { text: title }); } catch {} } }}
+                  onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await dispatchUpdate(todo.id, { text: title }); } catch {} } }}
                   onDescriptionSave={() => {}}
                   onSmartSave={() => {}}
                   onPriorityChange={p => savePriority(todo.id, p)}
@@ -545,6 +571,7 @@ function TodosTab() {
                     onSubtaskToggle={subId => handleSubtaskToggle(t.id, subId)}
                     onSubtaskAdd={(text, due) => handleSubtaskAdd(t.id, text, due)}
                     onSubtaskDelete={subId => handleSubtaskDelete(t.id, subId)}
+                    onOpenWorkspace={() => navigate(`/objective/admin/${t.id}`, { state: { from: "/personal" } })}
                     deleteConfirming={deleteId === t.id} onDeleteConfirm={() => remove(t.id)} onDeleteCancel={() => setDeleteId(null)}
                   />
                 ) : (
@@ -1626,1053 +1653,6 @@ function BudgetTab() {
   );
 }
 
-// ── Salsa Tab — Move Card ──────────────────────────────────────────────────────
-
-interface MoveCardPill {
-  classKey: string;
-  className: string;
-  status: "done" | "next" | "planned";
-}
-
-type SalsaDialogData = {
-  id?: string;
-  type: SalsaType;
-  title: string;
-  description: string;
-  videoUrl: string;
-  linkUrl: string;
-  topics: string[];
-  status: SalsaStatus;
-  difficulty: number;
-  notes: string;
-  customTopic: string;
-};
-
-function emptyDialogClean(type: SalsaType): SalsaDialogData {
-  return { type, title: "", description: "", videoUrl: "", linkUrl: "", topics: [], status: "learning", difficulty: 0, notes: "", customTopic: "" };
-}
-
-function extractYouTubeId(url?: string): string | null {
-  if (!url) return null;
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
-  ];
-  for (const p of patterns) {
-    const m = url.match(p);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-function MoveCard({
-  move, onEdit, onDelete, onMoveUp, onMoveDown, isFirst, isLast, classPills,
-  videos, onDeleteVideo, onOpenVideo,
-}: {
-  move: SalsaMoveItem;
-  onEdit: (m: SalsaMoveItem) => void;
-  onDelete: (id: string) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  isFirst?: boolean;
-  isLast?: boolean;
-  classPills?: MoveCardPill[];
-  videos?: SalsaVideo[];
-  onDeleteVideo?: (videoId: string) => void;
-  onOpenVideo?: (src: string, title: string, trimStart?: number | null, trimEnd?: number | null) => void;
-}) {
-  const [expanded,    setExpanded]    = useState(false);
-  const [deleteState, setDeleteState] = useState(false);
-  const [activeVideoIdx, setActiveVideoIdx] = useState(0);
-
-
-  const ytId = move.videoUrl ? extractYouTubeId(move.videoUrl) : null;
-  const hasUploadedVideos = videos && videos.length > 0;
-  const activeVideo = hasUploadedVideos ? videos[activeVideoIdx] : null;
-
-  return (
-    <div className="glass-card rounded-2xl overflow-hidden flex flex-col relative group" style={{ containerType: 'inline-size' }}>
-      {/* Video thumbnail - click to open lightbox (max square) */}
-      {activeVideo ? (
-        <div
-          className="relative bg-black cursor-pointer overflow-hidden"
-          style={{ maxHeight: '100cqi' }}
-          onClick={() => onOpenVideo?.(getVideoUrl(activeVideo.id), move.title, activeVideo.trimStart, activeVideo.trimEnd)}
-        >
-          <video
-            src={getVideoUrl(activeVideo.id)}
-            className="w-full object-cover opacity-80"
-            preload="metadata"
-            muted
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
-              <Play size={20} className="text-white ml-0.5" />
-            </div>
-          </div>
-          {/* Video switcher dots */}
-          {videos.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm z-10">
-              {videos.map((v, i) => (
-                <button
-                  key={v.id}
-                  onClick={(e) => { e.stopPropagation(); setActiveVideoIdx(i); }}
-                  className={cn(
-                    "w-2 h-2 rounded-full transition-all",
-                    i === activeVideoIdx ? "bg-primary scale-125" : "bg-white/40 hover:bg-white/70",
-                  )}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : ytId ? (
-        <div
-          className="relative bg-black cursor-pointer overflow-hidden"
-          style={{ maxHeight: '100cqi' }}
-          onClick={() => onOpenVideo?.(`youtube:${ytId}`, move.title)}
-        >
-          <img
-            src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`}
-            alt={move.title}
-            className="w-full object-cover opacity-80"
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
-              <Play size={20} className="text-white ml-0.5" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-100 dark:from-violet-950 dark:to-purple-900 flex items-center justify-center" style={{ maxHeight: '100cqi' }}>
-          <Music2 size={32} className="text-violet-300 dark:text-violet-600" />
-        </div>
-      )}
-
-      {/* Reorder arrows (cours only, hover) */}
-      {(onMoveUp || onMoveDown) && (
-        <div className="absolute top-2 left-2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <button
-            onClick={onMoveUp}
-            disabled={isFirst}
-            className={cn("p-1 rounded bg-black/40 text-white hover:bg-black/60 transition-colors", isFirst && "opacity-30 cursor-default")}
-          >
-            <ArrowUp size={11} />
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={isLast}
-            className={cn("p-1 rounded bg-black/40 text-white hover:bg-black/60 transition-colors", isLast && "opacity-30 cursor-default")}
-          >
-            <ArrowDown size={11} />
-          </button>
-        </div>
-      )}
-
-      <div className="p-4 flex-1 flex flex-col gap-2">
-        <div className="flex items-start gap-2">
-          <h3 className="font-body font-semibold text-sm leading-snug flex-1">{move.title}</h3>
-          {hasUploadedVideos && (
-            <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0 mt-0.5">
-              {(videos.reduce((s, v) => s + v.fileSize, 0) / (1024 * 1024)).toFixed(1)} Mo
-            </span>
-          )}
-        </div>
-
-        {move.difficulty > 0 && (
-          <StarRating value={move.difficulty} />
-        )}
-
-        {move.topics.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {move.topics.map(t => (
-              <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-body">{t}</span>
-            ))}
-          </div>
-        )}
-
-        {move.description && (
-          <div>
-            <p className={cn("text-xs text-muted-foreground font-body leading-relaxed", !expanded && "line-clamp-2")}>
-              {move.description}
-            </p>
-            {move.description.length > 100 && (
-              <button onClick={() => setExpanded(v => !v)} className="text-xs text-primary mt-0.5 flex items-center gap-0.5">
-                {expanded ? <><ChevronUp size={12} /> Réduire</> : <><ChevronDown size={12} /> Voir plus</>}
-              </button>
-            )}
-          </div>
-        )}
-
-        {move.notes && (
-          <p className="text-xs italic text-muted-foreground/70 font-body border-l-2 border-border pl-2">{move.notes}</p>
-        )}
-
-        {/* Class pills */}
-        {classPills && classPills.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {classPills.map(pill => (
-              <span key={pill.classKey} className={cn(
-                "text-xs px-2 py-0.5 rounded-full font-body",
-                pill.status === "done"    ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400" :
-                pill.status === "next"    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" :
-                "bg-secondary text-muted-foreground"
-              )}>
-                {pill.status === "done" ? "✓" : pill.status === "next" ? "⚡" : "○"} {pill.className}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 mt-auto pt-2">
-          {move.linkUrl && (
-            <a href={move.linkUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary flex items-center gap-1 hover:underline">
-              <ExternalLink size={11} /> Lien
-            </a>
-          )}
-          <div className="ml-auto flex gap-1.5">
-            <button onClick={() => onEdit(move)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
-              <Pencil size={13} />
-            </button>
-            {deleteState ? (
-              <>
-                <Button size="sm" variant="destructive" className="h-7 text-xs px-2" onClick={() => onDelete(move.id)}>Oui</Button>
-                <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setDeleteState(false)}>Non</Button>
-              </>
-            ) : (
-              <button onClick={() => setDeleteState(true)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ── Rhythm Reference Panel ────────────────────────────────────────────────────
-
-function RhythmReferencePanel() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
-      >
-        <span className="text-base">🥁</span>
-        <span className="font-body font-medium text-sm">Rythmes</span>
-        <span className="text-xs text-muted-foreground font-body ml-1">Rumba · Orishas</span>
-        {open ? <ChevronUp size={15} className="ml-auto text-muted-foreground" /> : <ChevronDown size={15} className="ml-auto text-muted-foreground" />}
-      </button>
-      {open && (
-        <div className="border-t border-border">
-          <RhythmReference />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Salsa Share Panel ─────────────────────────────────────────────────────────
-
-function SalsaSharePanel() {
-  const { toast } = useToast();
-  const [open,           setOpen]          = useState(false);
-  const [access,         setAccess]        = useState<Record<SalsaType, SalsaAccessItem[]>>({ cours: [], figures: [], solo: [] });
-  const [loaded,         setLoaded]        = useState(false);
-  const [newEmail,       setNewEmail]      = useState<Record<SalsaType, string>>({ cours: "", figures: "", solo: "" });
-  const [adding,         setAdding]        = useState<SalsaType | null>(null);
-  const [copied,         setCopied]        = useState<SalsaType | null>(null);
-  // Playlists (figures & solo)
-  const [adminPlaylists, setAdminPlaylists] = useState<Record<"figures"|"solo", Playlist[]>>({ figures: [], solo: [] });
-  const [newPlName,      setNewPlName]     = useState<Record<"figures"|"solo", string>>({ figures: "", solo: "" });
-  const [creatingPl,     setCreatingPl]    = useState<"figures"|"solo"|null>(null);
-  const [togglingPl,     setTogglingPl]    = useState<string | null>(null);
-
-  async function loadAll() {
-    if (loaded) return;
-    try {
-      const [cours, figures, solo, figPl, soloPl] = await Promise.all([
-        listAccess("cours"), listAccess("figures"), listAccess("solo"),
-        listAllPlaylists("figures"), listAllPlaylists("solo"),
-      ]);
-      setAccess({ cours, figures, solo });
-      setAdminPlaylists({ figures: figPl, solo: soloPl });
-      setLoaded(true);
-    } catch {}
-  }
-
-  async function handleCreatePlaylist(type: "figures"|"solo") {
-    const name = newPlName[type].trim();
-    if (!name) return;
-    setCreatingPl(type);
-    try {
-      const pl = await createPlaylist({ type, email: "admin", name, isShared: false });
-      setAdminPlaylists(prev => ({ ...prev, [type]: [...prev[type], pl] }));
-      setNewPlName(prev => ({ ...prev, [type]: "" }));
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de créer la playlist.", variant: "destructive" });
-    } finally { setCreatingPl(null); }
-  }
-
-  async function handleToggleShared(pl: Playlist) {
-    setTogglingPl(pl.id);
-    try {
-      const updated = await updatePlaylist(pl.id, { isShared: !pl.isShared });
-      const t = pl.type as "figures"|"solo";
-      setAdminPlaylists(prev => ({ ...prev, [t]: prev[t].map(p => p.id === pl.id ? updated : p) }));
-    } catch {
-      toast({ title: "Erreur", variant: "destructive" });
-    } finally { setTogglingPl(null); }
-  }
-
-  async function handleDeletePlaylist(pl: Playlist) {
-    const t = pl.type as "figures"|"solo";
-    setAdminPlaylists(prev => ({ ...prev, [t]: prev[t].filter(p => p.id !== pl.id) }));
-    try { await deletePlaylist(pl.id); } catch {}
-  }
-
-  function handleToggle() {
-    if (!open) { loadAll(); }
-    setOpen(o => !o);
-  }
-
-  async function handleAdd(type: SalsaType) {
-    const email = newEmail[type].trim();
-    if (!email) return;
-    setAdding(type);
-    try {
-      const item = await addAccess(type, email);
-      setAccess(prev => ({
-        ...prev,
-        [type]: prev[type].some(a => a.id === item.id) ? prev[type] : [...prev[type], item],
-      }));
-      // When adding "figures" access, also grant "solo" access (combined URL)
-      if (type === "figures") {
-        try {
-          const soloItem = await addAccess("solo", email);
-          setAccess(prev => ({
-            ...prev,
-            solo: prev.solo.some(a => a.id === soloItem.id) ? prev.solo : [...prev.solo, soloItem],
-          }));
-        } catch {}
-      }
-      setNewEmail(prev => ({ ...prev, [type]: "" }));
-    } catch {
-      toast({ title: "Erreur", description: "Impossible d'ajouter l'accès.", variant: "destructive" });
-    }
-    setAdding(null);
-  }
-
-  async function handleRemove(type: SalsaType, id: string) {
-    // Find the email to also remove solo access when removing figures
-    const entry = access[type].find(a => a.id === id);
-    setAccess(prev => ({ ...prev, [type]: prev[type].filter(a => a.id !== id) }));
-    try { await removeAccess(id); } catch {}
-    if (type === "figures" && entry) {
-      const soloEntry = access.solo.find(a => a.email === entry.email);
-      if (soloEntry) {
-        setAccess(prev => ({ ...prev, solo: prev.solo.filter(a => a.id !== soloEntry.id) }));
-        try { await removeAccess(soloEntry.id); } catch {}
-      }
-    }
-  }
-
-  function copyUrl(type: SalsaType) {
-    const url = `https://kojima-solutions.ch/salsa/${type}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(type);
-      setTimeout(() => setCopied(t => t === type ? null : t), 2000);
-    });
-  }
-
-  const SHARE_SECTIONS: { type: SalsaType; label: string; url: string }[] = [
-    { type: "cours",   label: "Programme de cours", url: "https://kojima-solutions.ch/salsa/cours" },
-    { type: "figures", label: "Figures & Solo",     url: "https://kojima-solutions.ch/salsa/figures" },
-  ];
-
-  return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
-      >
-        <Link2 size={15} className="text-muted-foreground" />
-        <span className="font-body font-medium text-sm">🔗 Partage & Accès</span>
-        {open ? <ChevronUp size={15} className="ml-auto text-muted-foreground" /> : <ChevronDown size={15} className="ml-auto text-muted-foreground" />}
-      </button>
-
-      {open && (
-        <div className="px-4 pb-5 space-y-6 border-t border-border pt-4">
-          {SHARE_SECTIONS.map(({ type, label, url }) => (
-            <div key={type} className="space-y-2">
-              <h4 className="text-xs font-body font-semibold text-muted-foreground uppercase tracking-wider">
-                {label}
-              </h4>
-              {/* Shareable URL */}
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-secondary px-2.5 py-1.5 rounded-lg overflow-x-auto font-mono text-muted-foreground whitespace-nowrap">
-                  {url}
-                </code>
-                <button
-                  onClick={() => copyUrl(type)}
-                  className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
-                  title="Copier l'URL"
-                >
-                  {copied === type ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-                </button>
-              </div>
-              {/* Authorized emails */}
-              <div className="flex flex-wrap gap-1.5 min-h-6">
-                {access[type].length === 0 && (
-                  <span className="text-xs text-muted-foreground/50 italic">Aucun accès configuré</span>
-                )}
-                {access[type].map(a => (
-                  <span key={a.id} className="inline-flex items-center gap-1 text-xs bg-secondary text-foreground px-2.5 py-1 rounded-full font-body">
-                    {a.email}
-                    <button onClick={() => handleRemove(type, a.id)} className="hover:text-destructive ml-0.5 transition-colors">
-                      <X size={11} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              {/* Add email */}
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="email@exemple.com"
-                  value={newEmail[type]}
-                  onChange={e => setNewEmail(prev => ({ ...prev, [type]: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && handleAdd(type)}
-                  className="h-8 text-xs font-body"
-                />
-                <Button
-                  size="sm" variant="outline"
-                  className="h-8 text-xs shrink-0"
-                  onClick={() => handleAdd(type)}
-                  disabled={adding === type || !newEmail[type].trim()}
-                >
-                  {adding === type ? <Loader2 size={12} className="animate-spin" /> : "Ajouter"}
-                </Button>
-              </div>
-
-              {/* Playlists (figures section shows both figures & solo playlists) */}
-              {type === "figures" && (
-                <div className="pt-2 border-t border-border space-y-2">
-                  <p className="text-xs font-body text-muted-foreground font-semibold">🔖 Playlists</p>
-                  {(["figures", "solo"] as const).map(plType => {
-                    const pls = adminPlaylists[plType];
-                    return pls.map(pl => (
-                      <div key={pl.id} className="flex items-center gap-2 text-xs font-body">
-                        <span className="text-muted-foreground/50">{plType === "figures" ? "F" : "S"}</span>
-                        <span className="flex-1 break-words min-w-0">{pl.name}
-                          <span className="ml-1 text-muted-foreground/50">({pl.items.length})</span>
-                        </span>
-                        <button
-                          onClick={() => handleToggleShared(pl)}
-                          disabled={togglingPl === pl.id}
-                          title={pl.isShared ? "Visible par tous (cliquer pour retirer)" : "Privée (cliquer pour partager)"}
-                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                            pl.isShared
-                              ? "bg-violet-100 text-violet-700 border-violet-300"
-                              : "text-muted-foreground border-border hover:border-violet-300"
-                          }`}
-                        >
-                          {pl.isShared ? "📌 Partagée" : "Privée"}
-                        </button>
-                        <button onClick={() => handleDeletePlaylist(pl)}
-                          className="text-muted-foreground hover:text-destructive transition-colors">
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ));
-                  })}
-                  {adminPlaylists.figures.length === 0 && adminPlaylists.solo.length === 0 && (
-                    <p className="text-xs text-muted-foreground/50 italic">Aucune playlist.</p>
-                  )}
-                  {(["figures", "solo"] as const).map(plType => (
-                    <div key={plType} className="flex gap-2">
-                      <Input
-                        placeholder={`Playlist ${plType === "figures" ? "figures" : "solo"}...`}
-                        value={newPlName[plType]}
-                        onChange={e => setNewPlName(prev => ({ ...prev, [plType]: e.target.value }))}
-                        onKeyDown={e => e.key === "Enter" && handleCreatePlaylist(plType)}
-                        className="h-7 text-xs font-body"
-                      />
-                      <Button size="sm" variant="outline" className="h-7 text-xs shrink-0"
-                        onClick={() => handleCreatePlaylist(plType)}
-                        disabled={creatingPl === plType || !newPlName[plType].trim()}>
-                        {creatingPl === plType ? <Loader2 size={11} className="animate-spin" /> : <Plus size={12} />}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Class Tracker ─────────────────────────────────────────────────────────────
-
-type ClassKey = "class_1" | "class_2";
-
-
-function ClassTracker({
-  coursMoves, allProgress, classNames, onProgressChange, onClassNamesChange,
-}: {
-  coursMoves: SalsaMoveItem[];
-  allProgress: Record<string, ClassProgressItem[]>;
-  classNames: Record<string, string>;
-  onProgressChange: (classKey: string, items: ClassProgressItem[]) => void;
-  onClassNamesChange: (names: Record<string, string>) => void;
-}) {
-  function handleRename(classKey: string, name: string) {
-    const updated = { ...classNames, [classKey]: name };
-    onClassNamesChange(updated);
-    localStorage.setItem("kojima-class-names", JSON.stringify(updated));
-  }
-
-  return (
-    <div>
-      <h3 className="font-body font-semibold text-base mb-4 flex items-center gap-2">
-        📊 Suivi des classes
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {(["class_1", "class_2"] as ClassKey[]).map(key => (
-          <ClassColumn
-            key={key}
-            classKey={key}
-            className={classNames[key] || (key === "class_1" ? "Classe 1" : "Classe 2")}
-            coursMoves={coursMoves}
-            progress={allProgress[key] || []}
-            onProgressChange={items => onProgressChange(key, items)}
-            onRename={name => handleRename(key, name)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Salsa Tab ─────────────────────────────────────────────────────────────────
-
-function SalsaTab() {
-  const [salsaType,    setSalsaType]    = useState<SalsaType>("figures");
-  const [moves,        setMoves]        = useState<SalsaMoveItem[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState("");
-  const [topicFilter,  setTopicFilter]  = useState("all");
-
-  const [dialogOpen,   setDialogOpen]   = useState(false);
-  const [form,         setForm]         = useState<SalsaDialogData>(emptyDialogClean("figures"));
-  const [saving,       setSaving]       = useState(false);
-
-  // Video state
-  const [videoFile,    setVideoFile]    = useState<File | null>(null);
-  const [uploading,    setUploading]    = useState(false);
-  const [compressMsg,  setCompressMsg]  = useState<string | null>(null);
-  const [moveVideos,   setMoveVideos]   = useState<Record<string, SalsaVideo[]>>({});
-
-  // Lightbox state
-  const [lightbox, setLightbox] = useState<{ src: string; title: string; trimStart?: number | null; trimEnd?: number | null } | null>(null);
-
-  // Class tracker state
-  const [allProgress, setAllProgress] = useState<Record<string, ClassProgressItem[]>>({ class_1: [], class_2: [] });
-  const [classNames,  setClassNames]  = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem("kojima-class-names") || "{}"); } catch { return {}; }
-  });
-
-  // Load videos for all moves
-  async function loadAllVideos(allMoves: SalsaMoveItem[]) {
-    const videoMap: Record<string, SalsaVideo[]> = {};
-    await Promise.all(
-      allMoves.map(async m => {
-        try {
-          const vids = await listVideos(m.id);
-          if (vids.length > 0) videoMap[m.id] = vids;
-        } catch {}
-      })
-    );
-    setMoveVideos(videoMap);
-  }
-
-  useEffect(() => {
-    listMoves()
-      .then(allMoves => {
-        setMoves(allMoves);
-        loadAllVideos(allMoves);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    Promise.all([listProgress("class_1"), listProgress("class_2")])
-      .then(([p1, p2]) => setAllProgress({ class_1: p1, class_2: p2 }))
-      .catch(() => {});
-  }, []);
-
-  const currentMoves = useMemo(() => {
-    return moves
-      .filter(m => m.type === salsaType)
-      .filter(m => !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.description?.toLowerCase().includes(search.toLowerCase()))
-      .filter(m => topicFilter === "all" || m.topics.includes(topicFilter))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [moves, salsaType, search, topicFilter]);
-
-  const allTopics = useMemo(() => {
-    const set = new Set<string>();
-    moves.filter(m => m.type === salsaType).forEach(m => m.topics.forEach(t => set.add(t)));
-    return Array.from(set).sort();
-  }, [moves, salsaType]);
-
-
-  const allSuggestedTopics = useMemo(() => {
-    const extra = moves.flatMap(m => m.topics);
-    return Array.from(new Set([...SALSA_DEFAULT_TOPICS, ...extra])).sort();
-  }, [moves]);
-
-  function openAdd() { setForm(emptyDialogClean(salsaType)); setVideoFile(null); setDialogOpen(true); }
-  function openEdit(m: SalsaMoveItem) {
-    setForm({
-      id: m.id, type: m.type, title: m.title,
-      description: m.description ?? "", videoUrl: m.videoUrl ?? "",
-      linkUrl: m.linkUrl ?? "", topics: [...m.topics],
-      status: m.status, difficulty: m.difficulty ?? 0, notes: m.notes ?? "", customTopic: "",
-    });
-    setVideoFile(null);
-    setDialogOpen(true);
-  }
-
-  const { toast } = useToast();
-
-  async function save() {
-    if (!form.title.trim()) return;
-    setSaving(true);
-    try {
-      const payload = {
-        type: form.type, title: form.title.trim(),
-        description: form.description.trim() || undefined,
-        videoUrl:    form.videoUrl.trim() || undefined,
-        linkUrl:     form.linkUrl.trim() || undefined,
-        topics:      form.topics,
-        status:      form.status,
-        difficulty:  form.difficulty,
-        notes:       form.notes.trim() || undefined,
-        sortOrder:   form.id ? (moves.find(m => m.id === form.id)?.sortOrder ?? 0) : moves.length,
-      };
-      let moveId: string;
-      if (form.id) {
-        const updated = await updateMove(form.id, payload);
-        setMoves(prev => prev.map(m => m.id === form.id ? updated : m));
-        moveId = form.id;
-      } else {
-        const created = await createMove(payload);
-        setMoves(prev => [...prev, created]);
-        moveId = created.id;
-      }
-
-      // Upload video if selected
-      if (videoFile) {
-        setUploading(true);
-        try {
-          let fileToUpload = videoFile;
-
-          // Compress large videos (>50 MB) or transcode non-browser formats (.mov etc.)
-          const { needsCompression, compressVideo } = await import('@/lib/videoCompress');
-          if (needsCompression(fileToUpload)) {
-            setCompressMsg("Compression en cours... 0%");
-            fileToUpload = await compressVideo(fileToUpload, (p) => {
-              if (p.phase === 'loading') {
-                setCompressMsg("Chargement de la video...");
-              } else if (p.phase === 'compressing') {
-                setCompressMsg(`Compression en cours... ${p.percent}%`);
-              } else if (p.phase === 'done') {
-                setCompressMsg(null);
-              }
-            });
-            setCompressMsg(null);
-          } else {
-            setCompressMsg("Upload direct (pas de compression)...");
-          }
-
-          const vid = await uploadVideo(moveId, fileToUpload);
-          setMoveVideos(prev => ({
-            ...prev,
-            [moveId]: [...(prev[moveId] || []), vid],
-          }));
-          const sizeMB = (fileToUpload.size / (1024 * 1024)).toFixed(1);
-          toast({ title: `Video uploaded (${sizeMB} Mo)` });
-        } catch (e: any) {
-          setCompressMsg(null);
-          toast({ title: "Erreur upload video", description: e.message, variant: "destructive" });
-        }
-        setUploading(false);
-      }
-
-      setVideoFile(null);
-      setDialogOpen(false);
-    } catch {}
-    setSaving(false);
-  }
-
-  async function handleDeleteVideo(videoId: string) {
-    try {
-      await deleteVideo(videoId);
-      setMoveVideos(prev => {
-        const updated = { ...prev };
-        for (const key of Object.keys(updated)) {
-          updated[key] = updated[key].filter(v => v.id !== videoId);
-          if (updated[key].length === 0) delete updated[key];
-        }
-        return updated;
-      });
-    } catch {}
-  }
-
-  async function remove(id: string) {
-    setMoves(prev => prev.filter(m => m.id !== id));
-    try { await deleteMove(id); } catch {}
-  }
-
-  async function moveUp(id: string) {
-    const sorted = moves.filter(m => m.type === "cours").sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(m => m.id === id);
-    if (idx <= 0) return;
-    const prev = sorted[idx - 1], curr = sorted[idx];
-    setMoves(ms => ms.map(m =>
-      m.id === curr.id ? { ...m, sortOrder: prev.sortOrder } :
-      m.id === prev.id ? { ...m, sortOrder: curr.sortOrder } : m
-    ));
-    try {
-      await Promise.all([
-        updateMove(curr.id, { sortOrder: prev.sortOrder }),
-        updateMove(prev.id, { sortOrder: curr.sortOrder }),
-      ]);
-    } catch {}
-  }
-
-  async function moveDown(id: string) {
-    const sorted = moves.filter(m => m.type === "cours").sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(m => m.id === id);
-    if (idx < 0 || idx >= sorted.length - 1) return;
-    const next = sorted[idx + 1], curr = sorted[idx];
-    setMoves(ms => ms.map(m =>
-      m.id === curr.id ? { ...m, sortOrder: next.sortOrder } :
-      m.id === next.id ? { ...m, sortOrder: curr.sortOrder } : m
-    ));
-    try {
-      await Promise.all([
-        updateMove(curr.id, { sortOrder: next.sortOrder }),
-        updateMove(next.id, { sortOrder: curr.sortOrder }),
-      ]);
-    } catch {}
-  }
-
-  function getClassPills(moveId: string): MoveCardPill[] {
-    return (["class_1", "class_2"] as ClassKey[]).flatMap(key => {
-      const p = allProgress[key]?.find(p => p.moveId === moveId);
-      if (!p) return [];
-      return [{ classKey: key, className: classNames[key] || (key === "class_1" ? "Classe 1" : "Classe 2"), status: p.status }];
-    });
-  }
-
-  function toggleTopic(topic: string) {
-    setForm(f => ({
-      ...f,
-      topics: f.topics.includes(topic) ? f.topics.filter(t => t !== topic) : [...f.topics, topic],
-    }));
-  }
-
-  function addCustomTopic() {
-    const t = form.customTopic.trim();
-    if (!t || form.topics.includes(t)) return;
-    setForm(f => ({ ...f, topics: [...f.topics, t], customTopic: "" }));
-  }
-
-  const coursMoves = useMemo(
-    () => moves.filter(m => m.type === "cours").sort((a, b) => a.sortOrder - b.sortOrder),
-    [moves]
-  );
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      {/* Sub-type switcher */}
-      <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl w-fit">
-        {(["cours", "figures", "solo"] as SalsaType[]).map(t => (
-          <button
-            key={t}
-            onClick={() => { setSalsaType(t); setSearch(""); setTopicFilter("all"); }}
-            className={cn(
-              "px-4 py-1.5 rounded-lg text-sm font-body transition-all",
-              salsaType === t ? "bg-background shadow text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {SALSA_TYPE_LABELS[t]}
-          </button>
-        ))}
-      </div>
-
-      {/* Choreography editor (cours only, at the very top) */}
-      {salsaType === "cours" && (
-        <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-          <h2 className="font-display text-sm font-bold text-foreground">Choregraphie</h2>
-          <ChoreographyEditor />
-        </div>
-      )}
-
-      {/* Class tracker (cours only) */}
-      {salsaType === "cours" && (
-        <div className="pt-2 border-t border-border">
-          <ClassTracker
-            coursMoves={coursMoves}
-            allProgress={allProgress}
-            classNames={classNames}
-            onProgressChange={(key, items) => setAllProgress(prev => ({ ...prev, [key]: items }))}
-            onClassNamesChange={setClassNames}
-          />
-        </div>
-      )}
-
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8 font-body h-9"
-          />
-        </div>
-        <Select value={topicFilter} onValueChange={setTopicFilter}>
-          <SelectTrigger className="w-44 font-body h-9 text-xs"><SelectValue placeholder="Tous les topics" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les topics</SelectItem>
-            {allTopics.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Button size="sm" onClick={openAdd} className="h-9"><Plus size={14} className="mr-1" /> Ajouter</Button>
-      </div>
-
-      {/* Grid */}
-      {loading ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
-      ) : currentMoves.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm font-body">
-          {moves.filter(m => m.type === salsaType).length === 0
-            ? "Aucune figure pour cette section. Ajoutez-en une !"
-            : "Aucun résultat pour ces filtres."}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {currentMoves.map((m, idx) => (
-            <MoveCard
-              key={m.id}
-              move={m}
-              onEdit={openEdit}
-              onDelete={remove}
-              onMoveUp={salsaType === "cours" ? () => moveUp(m.id) : undefined}
-              onMoveDown={salsaType === "cours" ? () => moveDown(m.id) : undefined}
-              isFirst={salsaType === "cours" && idx === 0}
-              isLast={salsaType === "cours" && idx === currentMoves.length - 1}
-              classPills={salsaType === "cours" ? getClassPills(m.id) : undefined}
-              videos={moveVideos[m.id]}
-              onDeleteVideo={handleDeleteVideo}
-              onOpenVideo={(src, title, ts, te) => setLightbox({ src, title, trimStart: ts, trimEnd: te })}
-            />
-          ))}
-        </div>
-      )}
-
-
-
-      {/* Rhythm Reference */}
-      <RhythmReferencePanel />
-
-      {/* Sharing panel */}
-      <SalsaSharePanel />
-
-      {/* Add/Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto font-body">
-          <DialogHeader>
-            <DialogTitle>{form.id ? "Modifier la figure" : "Nouvelle figure"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Input placeholder="Titre *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as SalsaType }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cours">Programme de cours</SelectItem>
-                  <SelectItem value="figures">Figures</SelectItem>
-                  <SelectItem value="solo">Solo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Topics</p>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {allSuggestedTopics.map(t => (
-                  <button
-                    key={t}
-                    onClick={() => toggleTopic(t)}
-                    className={cn(
-                      "text-xs px-2.5 py-1 rounded-full border transition-all font-body",
-                      form.topics.includes(t)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-secondary text-muted-foreground border-border hover:border-primary/50"
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Ajouter un topic…"
-                  value={form.customTopic}
-                  onChange={e => setForm(f => ({ ...f, customTopic: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && addCustomTopic()}
-                  className="text-xs h-8"
-                />
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={addCustomTopic}>+</Button>
-              </div>
-            </div>
-            <Textarea
-              placeholder="Description (optionnel)"
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              rows={3}
-            />
-            <Input placeholder="URL YouTube (optionnel)" value={form.videoUrl} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} />
-            <Input placeholder="Lien externe (optionnel)" value={form.linkUrl} onChange={e => setForm(f => ({ ...f, linkUrl: e.target.value }))} />
-
-            {/* Video upload */}
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground font-body">Video (max 150 Mo)</p>
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border hover:border-primary/50 cursor-pointer transition-colors flex-1">
-                  <Upload size={14} className="text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground font-body truncate">
-                    {videoFile ? videoFile.name : "Choisir une video..."}
-                  </span>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        if (f.size > 150 * 1024 * 1024) {
-                          toast({ title: "Fichier trop volumineux", description: "Maximum 150 Mo", variant: "destructive" });
-                          return;
-                        }
-                        setVideoFile(f);
-                      }
-                    }}
-                  />
-                </label>
-                {videoFile && (
-                  <button onClick={() => {
-                    setVideoFile(null);
-                  }} className="p-1.5 rounded text-muted-foreground hover:text-destructive">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              {videoFile && (
-                <p className="text-[10px] text-muted-foreground font-body">
-                  {(videoFile.size / (1024 * 1024)).toFixed(1)} Mo
-                </p>
-              )}
-              {compressMsg && (
-                <p className="text-[10px] text-primary font-body font-medium animate-pulse">{compressMsg}</p>
-              )}
-              {/* Show existing videos */}
-              {form.id && moveVideos[form.id]?.length > 0 && (
-                <div className="pt-1">
-                  <p className="text-[10px] text-muted-foreground font-body mb-1">Vidéos existantes :</p>
-                  {moveVideos[form.id].map(v => (
-                    <div key={v.id} className="flex items-center gap-2 text-xs text-muted-foreground font-body">
-                      <Video size={11} />
-                      <span className="truncate flex-1">{v.originalName}</span>
-                      <span className="text-[10px]">{(v.fileSize / (1024 * 1024)).toFixed(1)} Mo</span>
-                      <button
-                        onClick={() => handleDeleteVideo(v.id)}
-                        className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5 font-body">Difficulté</p>
-              <StarRating value={form.difficulty} onChange={v => setForm(f => ({ ...f, difficulty: v }))} size="md" />
-            </div>
-            <Textarea
-              placeholder="Notes personnelles (optionnel)"
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              rows={2}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button onClick={save} disabled={saving || uploading || !form.title.trim()}>
-              {(saving || uploading) ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-              {uploading ? "Upload…" : form.id ? "Enregistrer" : "Créer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Video lightbox */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
-        >
-          <button
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
-            onClick={() => setLightbox(null)}
-          >
-            <X size={24} />
-          </button>
-          <div
-            className="w-full max-w-4xl max-h-[90vh]"
-            onClick={e => e.stopPropagation()}
-          >
-            {lightbox.src.startsWith("youtube:") ? (
-              <div className="aspect-video w-full">
-                <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${lightbox.src.replace("youtube:", "")}?autoplay=1`}
-                  className="w-full h-full rounded-xl"
-                  allow="autoplay; encrypted-media"
-                  allowFullScreen
-                />
-              </div>
-            ) : (
-              <VideoPlayer src={lightbox.src} title={lightbox.title} trimStart={lightbox.trimStart} trimEnd={lightbox.trimEnd} />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Personal() {
@@ -2683,7 +1663,7 @@ export default function Personal() {
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
             Espace<span className="text-primary">.</span>Personnel
           </h1>
-          <p className="text-muted-foreground text-sm font-body mt-1">Budget, trésorerie et salsa.</p>
+          <p className="text-muted-foreground text-sm font-body mt-1">Budget et trésorerie.</p>
         </div>
 
         <Tabs defaultValue="budget">
@@ -2693,14 +1673,10 @@ export default function Personal() {
               <TabsTrigger value="tresorerie" className="text-xs sm:text-sm flex items-center gap-1.5">
                 <Wallet size={13} /> Trésorerie
               </TabsTrigger>
-              <TabsTrigger value="salsa"  className="text-xs sm:text-sm flex items-center gap-1.5">
-                <Music2 size={13} /> Salsa
-              </TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="budget"><BudgetTab /></TabsContent>
           <TabsContent value="tresorerie"><TresorerieTab /></TabsContent>
-          <TabsContent value="salsa"><SalsaTab /></TabsContent>
         </Tabs>
       </div>
     </div>

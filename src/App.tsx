@@ -8,6 +8,7 @@ import { QuotesProvider } from "@/hooks/useQuotes";
 import { ClientsProvider } from "@/contexts/ClientsContext";
 import { ProjectsProvider } from "@/contexts/ProjectsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CompanySettingsProvider } from "@/contexts/CompanySettingsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Header from "@/components/Header";
 import BottomNav, { useIsAdminPage } from "@/components/BottomNav";
@@ -17,6 +18,7 @@ import PageTransition from "@/components/PageTransition";
 import ScrollToTop from "@/components/ScrollToTop";
 import CommandPalette from "@/components/CommandPalette";
 import { ProjectMeetingNotes } from "@/components/ProjectMeetingNotes";
+import { FocusRetroPrompt } from "@/components/objective/FocusRetroPrompt";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/LoginPage";
@@ -36,7 +38,9 @@ import Accounting from "./pages/Accounting";
 import Personal from "./pages/Personal";
 import AdminSpace from "./pages/AdminSpace";
 import SettingsPage from "./pages/SettingsPage";
-import SalsaPublic from "./pages/SalsaPublic";
+import ObjectiveWorkspace from "./pages/ObjectiveWorkspace";
+import SprintPage from "./pages/SprintPage";
+
 import SharedFolder from "./pages/SharedFolder";
 import ProjectFunnel from "./pages/ProjectFunnel";
 import ProjectBrief from "./pages/ProjectBrief";
@@ -74,6 +78,7 @@ const App = () => (
           <LanguageProvider>
             <QuotesProvider>
               <ClientsProvider>
+                <CompanySettingsProvider>
                 <ProjectsProvider>
                   <Header />
                   <BottomNav />
@@ -82,6 +87,7 @@ const App = () => (
                   <ScrollToTop />
                   <CommandPalette />
                   <ProjectMeetingNotes />
+                  <FocusRetroPrompt />
                   <AdminContentWrapper>
                     <PageTransition>
                     <Routes>
@@ -91,7 +97,7 @@ const App = () => (
                       <Route path="/client/login" element={<ClientLogin />} />
                       <Route path="/client/:id" element={<ClientDashboard />} />
                       <Route path="/quotes/:id/print" element={<QuotePrintPage />} />
-                      <Route path="/salsa/:type" element={<SalsaPublic />} />
+
                       <Route path="/shared/folder/:token" element={<SharedFolder />} />
                       <Route path="/portfolio" element={<Portfolio />} />
                       <Route path="/intake" element={<IntakeForm />} />
@@ -132,12 +138,15 @@ const App = () => (
                       <Route path="/personal"   element={<ProtectedRoute><Personal /></ProtectedRoute>} />
                       <Route path="/admin"      element={<ProtectedRoute><AdminSpace /></ProtectedRoute>} />
                       <Route path="/settings"   element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                      <Route path="/objective/:source/:id" element={<ProtectedRoute><ObjectiveWorkspace /></ProtectedRoute>} />
+                      <Route path="/sprint"     element={<ProtectedRoute><SprintPage /></ProtectedRoute>} />
 
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                     </PageTransition>
                   </AdminContentWrapper>
                 </ProjectsProvider>
+                </CompanySettingsProvider>
               </ClientsProvider>
             </QuotesProvider>
           </LanguageProvider>
