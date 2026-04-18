@@ -157,3 +157,69 @@ export const getGlobalWeekSummary = () =>
     weekStart: string;
     byObjective: { source: ObjectiveSource; objectiveId: string; sec: number; sessionCount: number }[];
   }>("objective_sessions.php?summary=week&all=1");
+
+// ── Notes ────────────────────────────────────────────────────────
+export interface ObjectiveNote {
+  id: string;
+  source: ObjectiveSource;
+  objectiveId: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listNotes = (source: ObjectiveSource, objectiveId: string) =>
+  call<ObjectiveNote[]>(`objective_notes.php?source=${source}&objective_id=${objectiveId}`);
+
+export const createNote = (data: {
+  source: ObjectiveSource;
+  objectiveId: string;
+  title?: string;
+  content?: string;
+  pinned?: boolean;
+}) => call<ObjectiveNote>("objective_notes.php", { method: "POST", body: JSON.stringify(data) });
+
+export const updateNote = (id: string, patch: Partial<Pick<ObjectiveNote, "title" | "content" | "pinned">>) =>
+  call<ObjectiveNote>(`objective_notes.php?id=${id}`, { method: "PUT", body: JSON.stringify(patch) });
+
+export const deleteNote = (id: string) =>
+  call<void>(`objective_notes.php?id=${id}`, { method: "DELETE" });
+
+// ── Decisions ────────────────────────────────────────────────────
+export interface ObjectiveDecision {
+  id: string;
+  source: ObjectiveSource;
+  objectiveId: string;
+  title: string;
+  rationale?: string | null;
+  decidedAt: string;
+}
+
+export const listDecisions = (source: ObjectiveSource, objectiveId: string) =>
+  call<ObjectiveDecision[]>(`objective_decisions.php?source=${source}&objective_id=${objectiveId}`);
+
+export const createDecision = (data: {
+  source: ObjectiveSource;
+  objectiveId: string;
+  title: string;
+  rationale?: string;
+  decidedAt?: string;
+}) => call<ObjectiveDecision>("objective_decisions.php", { method: "POST", body: JSON.stringify(data) });
+
+export const updateDecision = (id: string, patch: Partial<Pick<ObjectiveDecision, "title" | "rationale" | "decidedAt">>) =>
+  call<ObjectiveDecision>(`objective_decisions.php?id=${id}`, { method: "PUT", body: JSON.stringify(patch) });
+
+// ── Activity ─────────────────────────────────────────────────────
+export interface ObjectiveActivity {
+  id: string;
+  source: ObjectiveSource;
+  objectiveId: string;
+  kind: string;
+  payload: unknown | null;
+  createdAt: string;
+}
+
+export const listActivity = (source: ObjectiveSource, objectiveId: string, limit = 50) =>
+  call<ObjectiveActivity[]>(`objective_activity.php?source=${source}&objective_id=${objectiveId}&limit=${limit}`);
