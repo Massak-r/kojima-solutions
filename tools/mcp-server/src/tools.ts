@@ -7,6 +7,17 @@ import {
   listNotes, createNote, updateNote, deleteNote,
   listDecisions, createDecision, updateDecision,
   listActivity,
+  listClients, getClient, createClient, updateClient,
+  listProjects, getProject, createProject, updateProject,
+  getProjectModules, saveProjectModules,
+  getCadrage, saveCadrage,
+  listIntakes, getIntakeByProject, updateIntake,
+  listQuotes, listProjectQuotes, getQuote, createQuote, updateQuote,
+  listAdminDocs, updateAdminDoc, deleteAdminDoc,
+  listAdminFolders, createAdminFolder, updateAdminFolder,
+  listPersonalDocs, updatePersonalDoc,
+  listExpenses, createExpense, updateExpense,
+  listPersonalCosts, createPersonalCost, updatePersonalCost,
   type ObjectiveSource, type ObjectiveSummary, type SubtaskItem,
 } from "./api.js";
 
@@ -264,6 +275,82 @@ export const TOOLS: ToolDefinition[] = [
       required: ["source", "objective_id"],
     },
   },
+
+  // ── Clients ────────────────────────────────────────────────────
+  { name: "list_clients", description: "List all clients (id, name, email, company, etc.).", inputSchema: { type: "object", properties: {} } },
+  { name: "get_client",   description: "Fetch one client by id.",   inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "create_client",description: "Create a new client. Pass any subset of fields the user provides (name, email, company, phone, address, notes, …).",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_client",description: "Patch a client. Pass only the fields to change.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Projects ───────────────────────────────────────────────────
+  { name: "list_projects", description: "List every project (title, client, status, dates, paymentStatus).",  inputSchema: { type: "object", properties: {} } },
+  { name: "get_project",   description: "Fetch one project with full data (steps, modules selection, etc.).", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "create_project",description: "Create a new project. Common fields: title, client, clientId, status (draft|in-progress|completed|on-hold), startDate, endDate, paymentStatus.",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_project",description: "Patch a project (title, status, dates, client link, payment, notes, …).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Project modules (selection of which modules are in a project's scope) ─
+  { name: "get_project_modules", description: "Get the modules selection for a project (what's in scope + maintenance tier).",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
+  { name: "save_project_modules", description: "Replace the modules selection for a project. Pass {modules: SelectedModule[], maintenance: MaintenanceTier}.",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["project_id", "data"] } },
+
+  // ── Cadrage (project scoping doc) ──────────────────────────────
+  { name: "get_cadrage", description: "Get the scoping document for a project (objectives, in/out scope, deliverables, milestones, constraints, validated budget).",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
+  { name: "save_cadrage", description: "Save (upsert) the scoping doc. Send only fields you want to change; others stay as-is.",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["project_id", "data"] } },
+
+  // ── Intake ─────────────────────────────────────────────────────
+  { name: "list_intakes", description: "List all client intake form submissions (status: new|reviewed|converted).", inputSchema: { type: "object", properties: {} } },
+  { name: "get_project_intake", description: "Fetch the intake submission(s) linked to a project — useful to draft briefs, modules, or quotes from the original responses.",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
+  { name: "update_intake", description: "Patch an intake response (status, projectId link, suggestedTier).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Quotes / Invoices ─────────────────────────────────────────
+  { name: "list_quotes", description: "List all quotes / invoices (number, client, total, validity, payment + invoice statuses).", inputSchema: { type: "object", properties: {} } },
+  { name: "list_project_quotes", description: "List quotes attached to one project.", inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
+  { name: "get_quote", description: "Fetch one quote/invoice by id with full line items.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "create_quote", description: "Create a new quote/invoice. Pass id, projectId, client, items[], discount, taxRate, validityDate, etc.",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_quote", description: "Patch a quote (items, statuses, dates, etc.).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Documents (admin) ──────────────────────────────────────────
+  { name: "list_admin_docs", description: "List PDFs and other docs in the admin library (id, title, category, folderId, year, filename, fileSize).", inputSchema: { type: "object", properties: {} } },
+  { name: "update_admin_doc", description: "Patch a doc: title, category, folderId (move between folders), year, sortOrder.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+  { name: "delete_admin_doc", description: "Permanently delete a doc. Confirm with the user — no undo.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "list_admin_folders", description: "List doc folders (with parentId for nesting and shareToken for public sharing).", inputSchema: { type: "object", properties: {} } },
+  { name: "create_admin_folder", description: "Create a new folder. Optionally set parentId for nesting.",
+    inputSchema: { type: "object", properties: { name: { type: "string" }, parentId: { type: ["string", "null"] } }, required: ["name"] } },
+  { name: "update_admin_folder", description: "Patch a folder (name, parentId, sortOrder, summary, links).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Documents (personal) ──────────────────────────────────────
+  { name: "list_personal_docs", description: "List personal-scope docs.", inputSchema: { type: "object", properties: {} } },
+  { name: "update_personal_doc", description: "Patch title or category on a personal doc.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Expenses ───────────────────────────────────────────────────
+  { name: "list_expenses", description: "List one-off business expenses, optionally filtered by year.",
+    inputSchema: { type: "object", properties: { year: { type: "number" } } } },
+  { name: "create_expense", description: "Log a new expense. Required: date (YYYY-MM-DD), amount, description, category. Optional: notes.",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_expense", description: "Patch an expense.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Personal recurring costs (subscriptions, rent, etc.) ──────
+  { name: "list_personal_costs", description: "List recurring personal costs (subscriptions, rent, insurance) with frequency and lastPaid.", inputSchema: { type: "object", properties: {} } },
+  { name: "create_personal_cost", description: "Create a recurring cost. Required: name, amount, frequency (one of CostFrequency). Optional: category, lastPaid (YYYY-MM-DD).",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_personal_cost", description: "Patch a recurring cost.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -415,6 +502,55 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
 
     case "list_activity":
       return await listActivity(args.source, args.objective_id, args.limit);
+
+    // ── Clients ─────────────────────────────────────────────────
+    case "list_clients":   return await listClients();
+    case "get_client":     return await getClient(args.id);
+    case "create_client":  return await createClient(args.data);
+    case "update_client":  return await updateClient(args.id, args.data);
+
+    // ── Projects ────────────────────────────────────────────────
+    case "list_projects":  return await listProjects();
+    case "get_project":    return await getProject(args.id);
+    case "create_project": return await createProject(args.data);
+    case "update_project": return await updateProject(args.id, args.data);
+
+    case "get_project_modules":  return await getProjectModules(args.project_id);
+    case "save_project_modules": return await saveProjectModules(args.project_id, args.data);
+
+    case "get_cadrage":  return await getCadrage(args.project_id);
+    case "save_cadrage": return await saveCadrage(args.project_id, args.data);
+
+    case "list_intakes":        return await listIntakes();
+    case "get_project_intake":  return await getIntakeByProject(args.project_id);
+    case "update_intake":       return await updateIntake(args.id, args.data);
+
+    // ── Quotes / Invoices ───────────────────────────────────────
+    case "list_quotes":         return await listQuotes();
+    case "list_project_quotes": return await listProjectQuotes(args.project_id);
+    case "get_quote":           return await getQuote(args.id);
+    case "create_quote":        return await createQuote(args.data);
+    case "update_quote":        return await updateQuote(args.id, args.data);
+
+    // ── Documents ───────────────────────────────────────────────
+    case "list_admin_docs":     return await listAdminDocs();
+    case "update_admin_doc":    return await updateAdminDoc(args.id, args.data);
+    case "delete_admin_doc":    await deleteAdminDoc(args.id); return { ok: true };
+    case "list_admin_folders":  return await listAdminFolders();
+    case "create_admin_folder": return await createAdminFolder({ name: args.name, parentId: args.parentId ?? null });
+    case "update_admin_folder": return await updateAdminFolder(args.id, args.data);
+
+    case "list_personal_docs":  return await listPersonalDocs();
+    case "update_personal_doc": return await updatePersonalDoc(args.id, args.data);
+
+    // ── Expenses + recurring costs ─────────────────────────────
+    case "list_expenses":  return await listExpenses(args.year);
+    case "create_expense": return await createExpense(args.data);
+    case "update_expense": return await updateExpense(args.id, args.data);
+
+    case "list_personal_costs":  return await listPersonalCosts();
+    case "create_personal_cost": return await createPersonalCost(args.data);
+    case "update_personal_cost": return await updatePersonalCost(args.id, args.data);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

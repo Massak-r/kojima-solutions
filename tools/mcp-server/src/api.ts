@@ -223,3 +223,51 @@ export interface ObjectiveActivity {
 
 export const listActivity = (source: ObjectiveSource, objectiveId: string, limit = 50) =>
   call<ObjectiveActivity[]>(`objective_activity.php?source=${source}&objective_id=${objectiveId}&limit=${limit}`);
+
+// ─────────────────────────────────────────────────────────────────
+// Layer 1 — broader workspace surface (loose typing; PHP validates)
+// ─────────────────────────────────────────────────────────────────
+
+export const listClients   = ()                                 => call<any[]>("clients.php");
+export const getClient     = (id: string)                       => call<any>(`clients.php?id=${id}`);
+export const createClient  = (data: Record<string, unknown>)    => call<any>("clients.php", { method: "POST", body: JSON.stringify(data) });
+export const updateClient  = (id: string, data: Record<string, unknown>) => call<any>(`clients.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listProjects  = ()                                 => call<any[]>("projects.php");
+export const getProject    = (id: string)                       => call<any>(`projects.php?id=${id}`);
+export const createProject = (data: Record<string, unknown>)    => call<any>("projects.php", { method: "POST", body: JSON.stringify(data) });
+export const updateProject = (id: string, data: Record<string, unknown>) => call<any>(`projects.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const getProjectModules  = (projectId: string)                              => call<any>(`modules.php?project_id=${projectId}`);
+export const saveProjectModules = (projectId: string, data: Record<string, unknown>) => call<any>(`modules.php?project_id=${projectId}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const getCadrage  = (projectId: string)                              => call<any>(`cadrage.php?project_id=${projectId}`);
+export const saveCadrage = (projectId: string, data: Record<string, unknown>) => call<any>(`cadrage.php?project_id=${projectId}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listIntakes        = ()                          => call<any[]>("intake.php");
+export const getIntakeByProject = (projectId: string)         => call<any[]>(`intake.php?project_id=${projectId}`);
+export const updateIntake       = (id: string, data: Record<string, unknown>) => call<any>(`intake.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listQuotes        = ()                          => call<any[]>("quotes.php");
+export const listProjectQuotes = (projectId: string)         => call<any[]>(`quotes.php?projectId=${projectId}`);
+export const getQuote          = (id: string)                => call<any>(`quotes.php?id=${id}`);
+export const createQuote       = (data: Record<string, unknown>) => call<any>("quotes.php", { method: "POST", body: JSON.stringify(data) });
+export const updateQuote       = (id: string, data: Record<string, unknown>) => call<any>(`quotes.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listAdminDocs    = ()                          => call<any[]>("admin_docs.php");
+export const updateAdminDoc   = (id: string, data: Record<string, unknown>) => call<any>(`admin_docs.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteAdminDoc   = (id: string)                => call<void>(`admin_docs.php?id=${id}`, { method: "DELETE" });
+export const listAdminFolders = ()                          => call<any[]>("admin_doc_folders.php");
+export const createAdminFolder= (data: Record<string, unknown>) => call<any>("admin_doc_folders.php", { method: "POST", body: JSON.stringify(data) });
+export const updateAdminFolder= (id: string, data: Record<string, unknown>) => call<any>(`admin_doc_folders.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listPersonalDocs   = ()                          => call<any[]>("personal_docs.php");
+export const updatePersonalDoc  = (id: string, data: Record<string, unknown>) => call<any>(`personal_docs.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listExpenses    = (year?: number)             => call<any[]>(`expenses.php${year ? `?year=${year}` : ""}`);
+export const createExpense   = (data: Record<string, unknown>) => call<any>("expenses.php", { method: "POST", body: JSON.stringify(data) });
+export const updateExpense   = (id: string, data: Record<string, unknown>) => call<any>(`expenses.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const listPersonalCosts  = ()                          => call<any[]>("personal_costs.php");
+export const createPersonalCost = (data: Record<string, unknown>) => call<any>("personal_costs.php", { method: "POST", body: JSON.stringify(data) });
+export const updatePersonalCost = (id: string, data: Record<string, unknown>) => call<any>(`personal_costs.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
