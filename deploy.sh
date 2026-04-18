@@ -13,6 +13,13 @@ echo "▶  Building Kojima Solutions..."
 npm run build
 
 echo ""
+echo "▶  Stripping server-only files from dist/ before upload ..."
+# Vite copies everything in public/ into dist/, including PHP files. config.php
+# holds production credentials and must NEVER be overwritten by a deploy from
+# a dev machine. Drop it before the scp so the remote one stays intact.
+rm -f dist/api/config.php
+
+echo ""
 echo "▶  Uploading to ${SSH_USER}@${SSH_HOST}:${REMOTE_PATH} ..."
 # Upload all files (dist/* misses hidden files like .htaccess, so we do both)
 scp -r -P ${SSH_PORT} dist/* "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/"
