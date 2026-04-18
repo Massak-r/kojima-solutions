@@ -1,6 +1,34 @@
 // Thin HTTP client that proxies into the existing PHP API.
 // All business logic (validation, schema, auth) stays server-side.
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+// Load env from a .env next to the package (so users can edit one file and
+// not have to pass --env flags through `claude mcp add`).
+function loadDotEnv(): void {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // dist/api.js → ../  is the package root; src/api.ts via tsx → also ../
+  const candidates = [resolve(here, "..", ".env"), resolve(here, "..", "..", ".env")];
+  for (const path of candidates) {
+    try {
+      const text = readFileSync(path, "utf8");
+      for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const eq = line.indexOf("=");
+        if (eq < 0) continue;
+        const key = line.slice(0, eq).trim();
+        const val = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+        if (process.env[key] === undefined) process.env[key] = val;
+      }
+      return;
+    } catch { /* try next */ }
+  }
+}
+loadDotEnv();
+
 const BASE = (process.env.KOJIMA_API_BASE ?? "https://kojima-solutions.ch").replace(/\/$/, "");
 const KEY  = process.env.KOJIMA_API_KEY ?? "";
 
