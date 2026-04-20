@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import {
   Trash2, Plus, FileText, Upload, ExternalLink,
-  Loader2, FolderOpen, Calendar, X, Pencil, Check,
+  Loader2, FolderOpen, Archive, X, Pencil, Check,
   Search, FolderPlus, ChevronRight, Home, Link2, Link2Off, Folder, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ import {
 } from "@/api/adminDocs";
 import type { AdminDocItem, DocFolder } from "@/api/adminDocs";
 
-import { EcheancesTab } from "@/components/admin/EcheancesTab";
+import { RegistreTab } from "@/components/admin/RegistreTab";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ function RichText({ text, className }: { text: string; className?: string }) {
 
 // ── Documents Tab ─────────────────────────────────────────────────────────────
 
-function DocumentsTab() {
+function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null }) {
   const { toast } = useToast();
   const [docs,        setDocs]        = useState<AdminDocItem[]>([]);
   const [folders,     setFolders]     = useState<DocFolder[]>([]);
@@ -111,6 +111,8 @@ function DocumentsTab() {
 
   // Folder navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+
+  useEffect(() => { if (defaultFolder) setCurrentFolderId(defaultFolder); }, [defaultFolder]);
 
   // Upload dialog state
   const [uploadOpen,  setUploadOpen]  = useState(false);
@@ -855,29 +857,34 @@ function DocumentsTab() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminSpace() {
+  const [activeTab,     setActiveTab]     = useState('registre');
+  const [defaultFolder, setDefaultFolder] = useState<string | null>(null);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-12 py-8">
         <div className="mb-8">
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
-            Documents <span className="text-primary">&amp;</span> Échéances
+            Documents <span className="text-primary">&amp;</span> Registre
           </h1>
           <p className="text-muted-foreground text-sm font-body mt-1">
-            Documents et échéances.
+            Gestion documentaire et registre administratif.
           </p>
         </div>
 
-        <Tabs defaultValue="echeances" className="w-full">
+        <Tabs value={activeTab} onValueChange={v => { if (v !== 'documents') setDefaultFolder(null); setActiveTab(v); }} className="w-full">
           <TabsList className="mb-6">
-            <TabsTrigger value="echeances" className="font-body gap-1.5">
-              <Calendar size={14} /> Échéances
+            <TabsTrigger value="registre" className="font-body gap-1.5">
+              <Archive size={14} /> Registre
             </TabsTrigger>
             <TabsTrigger value="documents" className="font-body gap-1.5">
               <FileText size={14} /> Documents
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="echeances"><EcheancesTab /></TabsContent>
-          <TabsContent value="documents"><DocumentsTab /></TabsContent>
+          <TabsContent value="registre">
+            <RegistreTab onOpenFolder={(fid) => { setDefaultFolder(fid); setActiveTab('documents'); }} />
+          </TabsContent>
+          <TabsContent value="documents"><DocumentsTab defaultFolder={defaultFolder} /></TabsContent>
         </Tabs>
       </div>
     </div>
