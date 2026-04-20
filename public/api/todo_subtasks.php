@@ -37,7 +37,74 @@ try {
         // Backfill: for any currently-flagged rows, stamp with created_at so stale calc has a baseline.
         $pdo->exec('UPDATE todo_subtasks SET flagged_at = created_at WHERE flagged_today = 1 AND flagged_at IS NULL');
     }
+    if (!in_array('recurrence', $cols)) {
+        // recurrence: null | daily | weekdays | weekly | monthly — drives auto-reflagging
+        $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN recurrence VARCHAR(20) DEFAULT NULL');
+    }
+    if (!in_array('recurrence_day', $cols)) {
+        // recurrence_day: 1-7 for weekly (ISO Mon=1..Sun=7), 1-31 for monthly
+        $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN recurrence_day INT DEFAULT NULL');
+    }
+    if (!in_array('scheduled_for', $cols)) {
+        // scheduled_for: date at which a postponed task should re-flag
+        $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN scheduled_for DATE DEFAULT NULL');
+    }
+    if (!in_array('completed_at', $cols)) {
+        // completed_at: needed to decide if a recurring task should reset today
+        $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN completed_at DATETIME DEFAULT NULL');
+    }
 } catch (Throwable $e) {}
+
+/**
+ * Daily refresh (idempotent):
+ *   1) Re-flag postponed tasks whose scheduled_for has arrived
+ *   2) Reset recurring tasks completed on a previous day so they re-enter today's sprint
+ * Runs on every GET. SQL guards against same-day re-firing via completed_at.
+ */
+function runDailyRefresh(PDO $pdo): void {
+    $today = date('Y-m-d');
+    $dow   = (int)date('N'); // 1=Mon..7=Sun
+    $dom   = (int)date('j'); // 1..31
+
+    try {
+        // 1. Postponed tasks: scheduled_for arrived → re-flag
+        $pdo->prepare("UPDATE todo_subtasks
+            SET flagged_today = 1, flagged_at = NOW(), scheduled_for = NULL
+            WHERE scheduled_for IS NOT NULL AND scheduled_for <= ?")
+            ->execute([$today]);
+
+        // 2. Recurring resets — only if completed on an earlier day
+        // Daily: every day
+        $pdo->prepare("UPDATE todo_subtasks
+            SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
+            WHERE recurrence = 'daily' AND completed = 1
+              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
+            ->execute([$today]);
+
+        // Weekdays: Mon-Fri
+        if ($dow >= 1 && $dow <= 5) {
+            $pdo->prepare("UPDATE todo_subtasks
+                SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
+                WHERE recurrence = 'weekdays' AND completed = 1
+                  AND (completed_at IS NULL OR DATE(completed_at) < ?)")
+                ->execute([$today]);
+        }
+
+        // Weekly: today's day of week matches recurrence_day
+        $pdo->prepare("UPDATE todo_subtasks
+            SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
+            WHERE recurrence = 'weekly' AND recurrence_day = ? AND completed = 1
+              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
+            ->execute([$dow, $today]);
+
+        // Monthly: today's day of month matches recurrence_day
+        $pdo->prepare("UPDATE todo_subtasks
+            SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
+            WHERE recurrence = 'monthly' AND recurrence_day = ? AND completed = 1
+              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
+            ->execute([$dom, $today]);
+    } catch (Throwable $e) {}
+}
 
 function emitSubtaskActivity(PDO $pdo, string $source, string $objectiveId, string $kind, array $payload): void {
     try {
@@ -67,6 +134,10 @@ function mapSubtask(array $row): array {
         'flaggedAt'        => $row['flagged_at'] ?? null,
         'effortSize'       => $row['effort_size'] ?? null,
         'estimatedMinutes' => isset($row['estimated_minutes']) ? (int)$row['estimated_minutes'] : null,
+        'recurrence'       => $row['recurrence'] ?? null,
+        'recurrenceDay'    => isset($row['recurrence_day']) ? (int)$row['recurrence_day'] : null,
+        'scheduledFor'     => $row['scheduled_for'] ?? null,
+        'completedAt'      => $row['completed_at'] ?? null,
         'createdAt'        => $row['created_at'],
     ];
 }
@@ -78,6 +149,7 @@ $parent = $_GET['parent_id'] ?? null;
 
 // GET
 if ($method === 'GET') {
+    runDailyRefresh($pdo);
     if ($parent) {
         $stmt = $pdo->prepare('SELECT * FROM todo_subtasks WHERE parent_id = ? ORDER BY sort_order ASC, created_at ASC');
         $stmt->execute([$parent]);
@@ -157,6 +229,9 @@ if ($method === 'PUT') {
         'effortSize'      => ['effort_size = ?',        fn($v) => $v ?: null],
         'parentSubtaskId' => ['parent_subtask_id = ?',  fn($v) => $v ?: null],
         'estimatedMinutes'=> ['estimated_minutes = ?',  fn($v) => $v === null || $v === '' ? null : (int)$v],
+        'recurrence'      => ['recurrence = ?',         fn($v) => $v ?: null],
+        'recurrenceDay'   => ['recurrence_day = ?',     fn($v) => $v === null || $v === '' ? null : (int)$v],
+        'scheduledFor'    => ['scheduled_for = ?',      fn($v) => $v ?: null],
     ];
 
     foreach ($map as $key => [$sql, $cast]) {
@@ -178,6 +253,15 @@ if ($method === 'PUT') {
             } else {
                 $fields[] = 'flagged_at = NULL';
             }
+        }
+    }
+
+    // Stamp completed_at on 0→1 transitions so recurrence reset knows the last completion date
+    if (array_key_exists('completed', $data)) {
+        $nextCompleted = (int)(bool)$data['completed'];
+        $prevCompleted = (int)($prev['completed'] ?? 0);
+        if ($nextCompleted !== $prevCompleted) {
+            $fields[] = $nextCompleted === 1 ? 'completed_at = NOW()' : 'completed_at = NULL';
         }
     }
 

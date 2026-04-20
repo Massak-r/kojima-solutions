@@ -1,14 +1,14 @@
 import { useState } from "react";
 import {
   Circle, CheckCircle2, Trash2, ChevronRight, ChevronUp, ChevronDown,
-  Pencil, AlertTriangle, Star, Zap, GripVertical, CornerDownRight, Clock,
+  Pencil, AlertTriangle, Star, Zap, GripVertical, CornerDownRight, Clock, Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmartFields } from "./SmartFields";
 import { STATUS_CONFIG, PRIORITY_BORDER } from "@/lib/objectiveConstants";
-import type { SubtaskItem, EffortSize } from "@/api/todoSubtasks";
+import type { SubtaskItem, EffortSize, Recurrence } from "@/api/todoSubtasks";
 import type { TodoPriority, TodoStatus } from "@/api/objectives";
 
 export const EFFORT_CONFIG: Record<EffortSize, { label: string; short: string; bg: string; text: string; border: string }> = {
@@ -434,6 +434,9 @@ export function SubtaskCard({
                 </div>
               )}
 
+              {/* Recurrence */}
+              <RecurrenceRow sub={sub} onUpdate={onUpdate} />
+
               {!isChild && (
                 <SmartFields
                   specific={sub.smartSpecific}
@@ -487,5 +490,101 @@ export function SubtaskCard({
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+const RECURRENCE_OPTIONS: { value: Recurrence | null; label: string }[] = [
+  { value: null,       label: "Aucune"    },
+  { value: "daily",    label: "Journalier" },
+  { value: "weekdays", label: "Lun-Ven"   },
+  { value: "weekly",   label: "Hebdo"     },
+  { value: "monthly",  label: "Mensuel"   },
+];
+const WEEKDAY_SHORT = ["L", "M", "M", "J", "V", "S", "D"]; // ISO Mon=1..Sun=7
+
+function RecurrenceRow({
+  sub,
+  onUpdate,
+}: {
+  sub: SubtaskItem;
+  onUpdate?: (id: string, data: Partial<SubtaskItem>) => void;
+}) {
+  if (!onUpdate) return null;
+  const current = sub.recurrence ?? null;
+
+  function setRecurrence(next: Recurrence | null) {
+    if (next === current) { onUpdate!(sub.id, { recurrence: null, recurrenceDay: null }); return; }
+    if (next === "weekly") {
+      const isoDow = ((new Date().getDay() + 6) % 7) + 1; // JS 0=Sun → ISO 1..7
+      onUpdate!(sub.id, { recurrence: "weekly", recurrenceDay: isoDow });
+    } else if (next === "monthly") {
+      onUpdate!(sub.id, { recurrence: "monthly", recurrenceDay: new Date().getDate() });
+    } else {
+      onUpdate!(sub.id, { recurrence: next, recurrenceDay: null });
+    }
+  }
+
+  return (
+    <div className="mb-2.5 ml-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-display font-bold text-foreground/60 uppercase tracking-wider">
+          <Repeat size={10} /> Récurrence
+        </div>
+        {RECURRENCE_OPTIONS.map(opt => (
+          <button
+            key={opt.label}
+            onClick={ev => { ev.stopPropagation(); setRecurrence(opt.value); }}
+            className={cn(
+              "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all border",
+              current === opt.value
+                ? "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 border-sky-500/30"
+                : "text-muted-foreground/25 border-transparent hover:text-muted-foreground/50",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {current === "weekly" && (
+        <div className="flex items-center gap-1 mt-1.5">
+          {WEEKDAY_SHORT.map((lbl, i) => {
+            const dow = i + 1;
+            return (
+              <button
+                key={dow}
+                onClick={ev => { ev.stopPropagation(); onUpdate(sub.id, { recurrenceDay: dow }); }}
+                className={cn(
+                  "text-[10px] font-body font-bold w-6 h-6 rounded-full transition-all border",
+                  sub.recurrenceDay === dow
+                    ? "bg-sky-500 text-white border-sky-500"
+                    : "text-muted-foreground/40 border-border/40 hover:text-foreground",
+                )}
+              >
+                {lbl}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {current === "monthly" && (
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-[10px] font-body text-muted-foreground">Jour du mois :</span>
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={sub.recurrenceDay ?? 1}
+            onClick={ev => ev.stopPropagation()}
+            onChange={ev => {
+              const v = Math.max(1, Math.min(31, parseInt(ev.target.value) || 1));
+              onUpdate(sub.id, { recurrenceDay: v });
+            }}
+            className="w-14 text-xs font-mono tabular-nums bg-secondary/30 border border-border/30 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary/20"
+          />
+        </div>
+      )}
+    </div>
   );
 }

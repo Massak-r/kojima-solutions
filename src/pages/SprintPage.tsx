@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2, Hourglass,
+  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2, Hourglass, CalendarPlus, Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -159,6 +159,20 @@ export default function SprintPage() {
       return next;
     });
     try { await updateSubtask(subId, { completed: true }); } catch {}
+  }
+
+  async function postponeSubtask(subId: string) {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const patch = { flaggedToday: false, scheduledFor: tomorrow };
+    setAllSubtasks(prev => prev.map(s => s.id === subId ? { ...s, ...patch } : s));
+    setSubtasksMap(prev => {
+      const next: Record<string, SubtaskItem[]> = {};
+      for (const [k, arr] of Object.entries(prev)) {
+        next[k] = arr.map(s => s.id === subId ? { ...s, ...patch } : s);
+      }
+      return next;
+    });
+    try { await updateSubtask(subId, patch); } catch {}
   }
 
   useEffect(() => {
@@ -323,6 +337,7 @@ export default function SprintPage() {
               backlogPending={backlogPending}
               backlogDone={backlogDone}
               onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
+              onPostpone={postponeSubtask}
             />
           ) : null}
 
@@ -388,7 +403,7 @@ function EmptyFocusHint({ hasBacklog }: { hasBacklog: boolean }) {
 }
 
 function SprintBacklog({
-  items, subtaskById, objectivesById, backlogPending, backlogDone, onJump,
+  items, subtaskById, objectivesById, backlogPending, backlogDone, onJump, onPostpone,
 }: {
   items: SubtaskItem[];
   subtaskById: Record<string, SubtaskItem>;
@@ -396,6 +411,7 @@ function SprintBacklog({
   backlogPending: number;
   backlogDone: number;
   onJump: (source: ObjectiveSource, objectiveId: string) => void;
+  onPostpone: (subId: string) => void;
 }) {
   const pct = items.length === 0 ? 0 : Math.round((backlogDone / items.length) * 100);
 
@@ -431,11 +447,11 @@ function SprintBacklog({
           const ageDays = daysSinceFlagged(item);
           const isStale = !item.completed && ageDays >= STALE_THRESHOLD_DAYS;
           return (
-            <li key={item.id}>
+            <li key={item.id} className="relative group">
               <button
                 onClick={() => onJump(src, item.parentId)}
                 className={cn(
-                  "w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-3 py-2.5 group",
+                  "w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-3 py-2.5 pr-16",
                   item.completed && "opacity-50",
                 )}
               >
@@ -466,6 +482,15 @@ function SprintBacklog({
                         {effortCfg.short}
                       </span>
                     )}
+                    {item.recurrence && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-400"
+                        title={`Récurrente : ${item.recurrence}`}
+                      >
+                        <Repeat size={9} />
+                        {item.recurrence === "daily" ? "Jour" : item.recurrence === "weekdays" ? "L-V" : item.recurrence === "weekly" ? "Hebdo" : "Mois"}
+                      </span>
+                    )}
                     {isStale && (
                       <span
                         className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
@@ -479,6 +504,15 @@ function SprintBacklog({
                 </div>
                 <ChevronRight size={14} className="text-muted-foreground/30 group-hover:text-primary transition-colors mt-1 shrink-0" />
               </button>
+              {!item.completed && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onPostpone(item.id); }}
+                  className="absolute right-9 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-sky-600 transition-all p-1 rounded-md hover:bg-sky-50 dark:hover:bg-sky-500/10"
+                  title="Repousser à demain"
+                >
+                  <CalendarPlus size={13} />
+                </button>
+              )}
             </li>
           );
         })}

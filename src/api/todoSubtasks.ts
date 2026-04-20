@@ -2,6 +2,7 @@ import { apiFetch } from './client';
 import type { TodoPriority, TodoStatus } from './objectives';
 
 export type EffortSize = 'rapide' | 'moyen' | 'complexe';
+export type Recurrence = 'daily' | 'weekdays' | 'weekly' | 'monthly';
 
 export interface SubtaskItem {
   id:              string;
@@ -23,6 +24,10 @@ export interface SubtaskItem {
   flaggedAt?:      string | null;
   effortSize?:     EffortSize | null;
   estimatedMinutes?: number | null;
+  recurrence?:     Recurrence | null;
+  recurrenceDay?:  number | null;   // 1-7 (weekly, ISO Mon=1) or 1-31 (monthly)
+  scheduledFor?:   string | null;   // YYYY-MM-DD — auto-reflags when reached
+  completedAt?:    string | null;
   createdAt:       string;
 }
 
@@ -54,7 +59,7 @@ export function createSubtask(data: {
 
 export function updateSubtask(
   id: string,
-  data: Partial<Pick<SubtaskItem, 'completed' | 'text' | 'dueDate' | 'order' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'flaggedToday' | 'effortSize' | 'parentSubtaskId' | 'estimatedMinutes'>>,
+  data: Partial<Pick<SubtaskItem, 'completed' | 'text' | 'dueDate' | 'order' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'flaggedToday' | 'effortSize' | 'parentSubtaskId' | 'estimatedMinutes' | 'recurrence' | 'recurrenceDay' | 'scheduledFor'>>,
 ) {
   return apiFetch<SubtaskItem>(`todo_subtasks.php?id=${id}`, {
     method: 'PUT',
