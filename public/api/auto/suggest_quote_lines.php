@@ -1,14 +1,10 @@
 <?php
-// Phase 2c — Suggest invoice line items from tracked focus sessions.
-// Reads all completed sessions for objectives linked to a project, groups by
-// objective, asks Claude to propose quote lines, and returns them as JSON.
+// Phase 2c — Return aggregated focus session data so Claude (MCP) can suggest
+// invoice lines. Claude reads the breakdown, proposes lines, then calls
+// create_quote if the user approves.
 // GET /api/auto/suggest_quote_lines.php?project_id=uuid
 require_once __DIR__ . '/../_bootstrap.php';
 requireAuth();
-
-if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) {
-    fail('ANTHROPIC_API_KEY not configured in config.php', 503);
-}
 
 $projectId = $_GET['project_id'] ?? (body()['projectId'] ?? null);
 if (!$projectId) fail('project_id required');
@@ -24,10 +20,10 @@ $objStmt->execute([$projectId]);
 $objectives = $objStmt->fetchAll();
 
 if (empty($objectives)) {
-    ok(['lines' => [], 'totalHours' => 0, 'message' => 'No objectives linked to this project.']);
+    ok(['breakdown' => [], 'totalHours' => 0, 'projectTitle' => $project['title'],
+        'message' => 'No objectives linked to this project.']);
 }
 
-// All completed sessions for those objectives
 $objIds       = array_column($objectives, 'id');
 $placeholders = implode(',', array_fill(0, count($objIds), '?'));
 $sessStmt     = $pdo->prepare(
@@ -41,10 +37,6 @@ $sessStmt     = $pdo->prepare(
 );
 $sessStmt->execute($objIds);
 $sessions = $sessStmt->fetchAll();
-
-if (empty($sessions)) {
-    ok(['lines' => [], 'totalHours' => 0, 'message' => 'No completed focus sessions found for this project.']);
-}
 
 // Aggregate by objective
 $byObj = [];
@@ -60,62 +52,16 @@ foreach ($sessions as $s) {
 $totalSec   = array_sum(array_column($byObj, 'totalSec'));
 $totalHours = round($totalSec / 3600, 2);
 
-$sessionSummary = "Projet: {$project['title']}\nTravail tracé:\n";
-foreach ($byObj as $o) {
-    $h = round($o['totalSec'] / 3600, 2);
-    $sessionSummary .= "- {$o['text']}: {$h}h ({$o['sessions']} session" . ($o['sessions'] > 1 ? 's' : '') . ")\n";
-}
-$sessionSummary .= "\nTotal: {$totalHours}h";
-
-$prompt = "Sur la base de ces sessions de travail tracées, propose des lignes de facturation.\n\n" .
-          "Réponds UNIQUEMENT avec un tableau JSON (sans markdown):\n" .
-          "[{\"description\": \"...\", \"quantity\": heures_arrondies_au_demi, \"unitPrice\": 100}]\n\n" .
-          "Règles:\n" .
-          "- Regroupe les tâches similaires si pertinent\n" .
-          "- Arrondi les heures au 0.5h supérieur\n" .
-          "- Tarif fixe: 100 CHF/h\n" .
-          "- Descriptions professionnelles, claires\n\n" .
-          $sessionSummary;
-
-$payload = json_encode([
-    'model'      => 'claude-haiku-4-5-20251001',
-    'max_tokens' => 512,
-    'messages'   => [['role' => 'user', 'content' => $prompt]],
-]);
-
-$ch = curl_init('https://api.anthropic.com/v1/messages');
-curl_setopt_array($ch, [
-    CURLOPT_POST           => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT        => 30,
-    CURLOPT_HTTPHEADER     => [
-        'Content-Type: application/json',
-        'x-api-key: ' . ANTHROPIC_API_KEY,
-        'anthropic-version: 2023-06-01',
-    ],
-    CURLOPT_POSTFIELDS => $payload,
-]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($httpCode !== 200 || !$response) {
-    fail('Anthropic API error: ' . substr($response ?: '', 0, 200), 502);
-}
-
-$apiResult = json_decode($response, true);
-$raw       = $apiResult['content'][0]['text'] ?? '';
-$raw       = preg_replace('/^```(?:json)?\s*|\s*```$/s', '', trim($raw));
-$lines     = json_decode($raw, true);
-
-if (!is_array($lines)) {
-    fail('Could not parse AI suggestion: ' . $raw, 502);
-}
-
 ok([
-    'lines'      => $lines,
-    'totalHours' => $totalHours,
-    'breakdown'  => array_values($byObj),
-    'projectId'  => $projectId,
+    'projectId'    => $projectId,
+    'projectTitle' => $project['title'],
+    'clientId'     => $project['client_id'] ?? null,
+    'totalHours'   => $totalHours,
+    'breakdown'    => array_values(array_map(function ($o) {
+        return [
+            'objective' => $o['text'],
+            'hours'     => round($o['totalSec'] / 3600, 2),
+            'sessions'  => $o['sessions'],
+        ];
+    }, $byObj)),
 ]);

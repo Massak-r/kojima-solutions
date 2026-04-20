@@ -59,41 +59,6 @@ if ($method === 'POST') {
     );
     $stmt->execute([$docId, $title, $category, $folderId, $year, $filename, $file['name'], $file['size']]);
 
-    // Phase 2a — try to auto-classify the PDF inline; ignore failures silently.
-    if (defined('ANTHROPIC_API_KEY') && ANTHROPIC_API_KEY) {
-        $pdfB64  = base64_encode(file_get_contents($dest));
-        $aiBody  = json_encode([
-            'model'      => 'claude-haiku-4-5-20251001',
-            'max_tokens' => 200,
-            'messages'   => [[
-                'role'    => 'user',
-                'content' => [
-                    ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => 'application/pdf', 'data' => $pdfB64]],
-                    ['type' => 'text', 'text' => "Retourne UNIQUEMENT un JSON: {\"title\":\"...\",\"category\":\"...\",\"tags\":[]} — catégorie parmi [Comptabilité,Contrats,Administratif,Technique,RH,Clients,Autre]. Titre max 60 chars."],
-                ],
-            ]],
-        ]);
-        $ch = curl_init('https://api.anthropic.com/v1/messages');
-        curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-api-key: ' . ANTHROPIC_API_KEY, 'anthropic-version: 2023-06-01'],
-            CURLOPT_POSTFIELDS => $aiBody]);
-        $aiResp = curl_exec($ch);
-        $aiCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($aiCode === 200 && $aiResp) {
-            $parsed = json_decode($aiResp, true);
-            $raw    = $parsed['content'][0]['text'] ?? '';
-            $raw    = preg_replace('/^```(?:json)?\s*|\s*```$/s', '', trim($raw));
-            $sug    = json_decode($raw, true);
-            if ($sug && !empty($sug['title'])) {
-                $newTitle = substr(trim($sug['title']), 0, 120);
-                $newCat   = $sug['category'] ?? $category;
-                $pdo->prepare('UPDATE admin_docs SET title = ?, category = ? WHERE id = ?')
-                    ->execute([$newTitle, $newCat, $docId]);
-            }
-        }
-    }
-
     $row = $pdo->prepare('SELECT * FROM admin_docs WHERE id=?');
     $row->execute([$docId]);
     ok(mapDoc($row->fetch()));

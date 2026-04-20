@@ -382,11 +382,11 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "classify_pdf",
     description:
-      "Use Claude AI to automatically suggest a title, category, and tags for an admin PDF document. Updates the admin_docs record in place. Requires ANTHROPIC_API_KEY server-side.",
+      "Fetch metadata and extracted text from an admin PDF document so you can classify it. Read the returned extractedText + filename, then suggest a title/category/tags and call update_admin_doc to save your classification. No paid API needed — you do the classification.",
     inputSchema: {
       type: "object",
       properties: {
-        doc_id: { type: "string", description: "UUID of the admin_doc to classify." },
+        doc_id: { type: "string", description: "UUID of the admin_doc to fetch." },
       },
       required: ["doc_id"],
     },
@@ -394,11 +394,11 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "generate_brief_from_intake",
     description:
-      "Generate a structured project brief (markdown) from a client intake form submission using Claude AI. Saves the brief as a note on the linked objective if intake.project_id is set. Requires ANTHROPIC_API_KEY server-side.",
+      "Fetch structured intake form data for a client submission so you can draft a project brief. Read the returned responses, write the brief in markdown, then call create_note to save it (use linkedObjective.id + linkedObjective.source if present). No paid API needed — you generate the brief.",
     inputSchema: {
       type: "object",
       properties: {
-        intake_id: { type: "string", description: "UUID of the intake_response to process." },
+        intake_id: { type: "string", description: "UUID of the intake_response to fetch." },
       },
       required: ["intake_id"],
     },
@@ -406,7 +406,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "suggest_quote_lines",
     description:
-      "Analyse tracked focus sessions for a project and suggest invoice line items based on time spent per objective. Returns suggested lines + total hours. Requires ANTHROPIC_API_KEY server-side.",
+      "Fetch aggregated focus-session data for a project (hours per objective). Read the breakdown, propose invoice line items at 100 CHF/h rounded to 0.5h, then call create_quote if the user approves. No paid API needed — you generate the suggestions.",
     inputSchema: {
       type: "object",
       properties: {
