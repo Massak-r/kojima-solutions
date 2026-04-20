@@ -11,6 +11,7 @@ define('ADMIN_EMAIL', 'chraiti.massaki@gmail.com'); // Receives client feedback 
 define('CRON_KEY',   '');                          // Optional: secret key to protect digest.php URL (leave empty to disable check)
 define('API_SECRET', '');                          // Required: secret key sent by frontend as X-API-Key header
 define('ANALYTICS_SECRET', '');                    // Secret for daily visitor hash (analytics privacy)
+define('ANTHROPIC_API_KEY', '');                   // Phase 2 automations: PDF classification, brief generation, quote suggestions
 
 // ── Web Push (VAPID) ────────────────────────────────────────────
 // Generate keys: openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout

@@ -35,7 +35,7 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ProjectDocuments from "./pages/ProjectDocuments";
 import ClientsManager from "./pages/ClientsManager";
 import Accounting from "./pages/Accounting";
-import Personal from "./pages/Personal";
+import Tresorerie from "./pages/Tresorerie";
 import AdminSpace from "./pages/AdminSpace";
 import SettingsPage from "./pages/SettingsPage";
 import ObjectiveWorkspace from "./pages/ObjectiveWorkspace";
@@ -135,8 +135,10 @@ const App = () => (
                       <Route path="/project/:id/invoice" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
                       <Route path="/clients" element={<ProtectedRoute><ClientsManager /></ProtectedRoute>} />
                       <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
-                      <Route path="/personal"   element={<ProtectedRoute><Personal /></ProtectedRoute>} />
-                      <Route path="/admin"      element={<ProtectedRoute><AdminSpace /></ProtectedRoute>} />
+                      <Route path="/personal"   element={<Navigate to="/tresorerie" replace />} />
+                      <Route path="/admin"      element={<Navigate to="/documents" replace />} />
+                      <Route path="/tresorerie" element={<ProtectedRoute><Tresorerie /></ProtectedRoute>} />
+                      <Route path="/documents"  element={<ProtectedRoute><AdminSpace /></ProtectedRoute>} />
                       <Route path="/settings"   element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                       <Route path="/objective/:source/:id" element={<ProtectedRoute><ObjectiveWorkspace /></ProtectedRoute>} />
                       <Route path="/sprint"     element={<ProtectedRoute><SprintPage /></ProtectedRoute>} />

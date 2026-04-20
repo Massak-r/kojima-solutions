@@ -20,6 +20,7 @@ export interface SubtaskItem {
   priority:        TodoPriority;
   status:          TodoStatus;
   flaggedToday:    boolean;
+  flaggedAt?:      string | null;
   effortSize?:     EffortSize | null;
   estimatedMinutes?: number | null;
   createdAt:       string;
@@ -43,11 +44,11 @@ export function createSubtask(data: {
   status?: TodoStatus;
   effortSize?: EffortSize;
   estimatedMinutes?: number | null;
-  source?: 'admin' | 'personal';
+  source: 'admin' | 'personal';
 }) {
   return apiFetch<SubtaskItem>('todo_subtasks.php', {
     method: 'POST',
-    body: JSON.stringify({ source: 'admin', ...data }),
+    body: JSON.stringify(data),
   });
 }
 

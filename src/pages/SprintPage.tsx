@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2,
+  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2, Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,18 @@ import { STATUS_CONFIG, PRIORITY_BORDER } from "@/lib/objectiveConstants";
 const DAILY_COMMIT_KEY_PREFIX = "kojima-daily-commit-";
 function todayKey() {
   return DAILY_COMMIT_KEY_PREFIX + new Date().toISOString().slice(0, 10);
+}
+
+// Flagged subtasks that have been in the backlog longer than this are
+// surfaced with a visible "stale" cue — signal to either finish or unflag.
+const STALE_THRESHOLD_DAYS = 7;
+function daysSinceFlagged(item: Pick<SubtaskItem, "flaggedAt" | "createdAt">): number {
+  // Prefer the real flag timestamp; fall back to createdAt for rows from before
+  // the flagged_at column existed.
+  const raw = item.flaggedAt ?? item.createdAt;
+  const t = new Date(raw).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.floor((Date.now() - t) / 86400000);
 }
 
 // ISO week year + week number, e.g. "2026-W16". Used to throttle the Friday review
@@ -416,6 +428,8 @@ function SprintBacklog({
           const parentSub = item.parentSubtaskId ? subtaskById[item.parentSubtaskId] : null;
           const src: ObjectiveSource = item.source === "personal" ? "personal" : "admin";
           const effortCfg = item.effortSize ? EFFORT_CONFIG[item.effortSize] : null;
+          const ageDays = daysSinceFlagged(item);
+          const isStale = !item.completed && ageDays >= STALE_THRESHOLD_DAYS;
           return (
             <li key={item.id}>
               <button
@@ -450,6 +464,15 @@ function SprintBacklog({
                         effortCfg.bg, effortCfg.text, effortCfg.border,
                       )}>
                         {effortCfg.short}
+                      </span>
+                    )}
+                    {isStale && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
+                        title={`Flaggée depuis ${ageDays} jour${ageDays > 1 ? "s" : ""} — à faire ou à retirer du sprint`}
+                      >
+                        <Hourglass size={9} />
+                        {ageDays}j
                       </span>
                     )}
                   </div>

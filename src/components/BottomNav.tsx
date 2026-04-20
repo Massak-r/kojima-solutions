@@ -4,25 +4,25 @@ import {
   LayoutDashboard,
   FolderKanban,
   TrendingUp,
-  UserCircle,
-  Shield,
+  Wallet,
+  FileText,
   Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 
 const BOTTOM_NAV = [
-  { to: "/space",      label: "Space",    icon: LayoutDashboard },
-  { to: "/sprint",     label: "Sprint",   icon: Target },
-  { to: "/projects",   label: "Projets",  icon: FolderKanban },
-  { to: "/accounting", label: "Finance",  icon: TrendingUp },
-  { to: "/admin",      label: "Admin",    icon: Shield },
-  { to: "/personal",   label: "Perso",    icon: UserCircle },
+  { to: "/space",      label: "Espace",     icon: LayoutDashboard },
+  { to: "/sprint",     label: "Sprint",     icon: Target          },
+  { to: "/projects",   label: "Projets",    icon: FolderKanban    },
+  { to: "/accounting", label: "Finance",    icon: TrendingUp      },
+  { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
+  { to: "/documents",  label: "Documents",  icon: FileText        },
 ];
 
 const ADMIN_PREFIXES = [
   "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
-  "/clients", "/accounting", "/personal", "/admin", "/settings",
+  "/clients", "/accounting", "/tresorerie", "/documents", "/settings",
   "/objective/",
 ];
 

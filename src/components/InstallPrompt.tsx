@@ -5,7 +5,7 @@ import { Download, X } from "lucide-react";
 
 const ADMIN_PREFIXES = [
   "/space", "/projects", "/project/", "/quotes", "/quote/",
-  "/clients", "/accounting", "/personal", "/admin",
+  "/clients", "/accounting", "/tresorerie", "/documents",
 ];
 
 const DISMISSED_KEY = "kojima-pwa-install-dismissed";

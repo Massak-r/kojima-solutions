@@ -23,6 +23,7 @@ export interface PersonalTodoItem {
   linkedProjectId?:  string | null;
   linkedClientId?:   string | null;
   createdAt:       string;
+  updatedAt?:      string | null;
 }
 
 export function listPersonalTodos() {

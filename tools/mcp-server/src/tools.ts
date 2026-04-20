@@ -1,5 +1,6 @@
 import {
   listAdminObjectives, listPersonalObjectives,
+  createAdminObjective, createPersonalObjective,
   updateAdminObjective, updatePersonalObjective,
   listSubtasks, createSubtask, updateSubtask,
   startSession, stopSession, patchSession, listSessions,
@@ -18,6 +19,7 @@ import {
   listPersonalDocs, updatePersonalDoc,
   listExpenses, createExpense, updateExpense,
   listPersonalCosts, createPersonalCost, updatePersonalCost,
+  classifyPdf, generateBriefFromIntake, suggestQuoteLines,
   type ObjectiveSource, type ObjectiveSummary, type SubtaskItem,
 } from "./api.js";
 
@@ -62,6 +64,30 @@ export const TOOLS: ToolDefinition[] = [
         id:     { type: "string", description: "Objective UUID." },
       },
       required: ["source", "id"],
+    },
+  },
+  {
+    name: "create_objective",
+    description:
+      "Create a new top-level objective. Use source='admin' for work/business goals and source='personal' for personal goals. Returns the created objective with its id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        source:           { type: "string", enum: ["admin", "personal"] },
+        text:             { type: "string", description: "Short, clear objective title." },
+        category:         { type: "string", description: "Category label (e.g. 'Kojima-Solutions', 'Perso', 'Emploi', 'Famille')." },
+        priority:         { type: "string", enum: ["low", "medium", "high"] },
+        description:      { type: "string" },
+        smartSpecific:    { type: "string" },
+        smartMeasurable:  { type: "string" },
+        smartAchievable:  { type: "string" },
+        smartRelevant:    { type: "string" },
+        definitionOfDone: { type: "string" },
+        linkedProjectId:  { type: ["string", "null"] },
+        linkedClientId:   { type: ["string", "null"] },
+        dueDate:          { type: "string", description: "Optional ISO date YYYY-MM-DD." },
+      },
+      required: ["source", "text"],
     },
   },
   {
@@ -351,6 +377,44 @@ export const TOOLS: ToolDefinition[] = [
     inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
   { name: "update_personal_cost", description: "Patch a recurring cost.",
     inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+
+  // ── Phase 2 automations ────────────────────────────────────────
+  {
+    name: "classify_pdf",
+    description:
+      "Use Claude AI to automatically suggest a title, category, and tags for an admin PDF document. Updates the admin_docs record in place. Requires ANTHROPIC_API_KEY server-side.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        doc_id: { type: "string", description: "UUID of the admin_doc to classify." },
+      },
+      required: ["doc_id"],
+    },
+  },
+  {
+    name: "generate_brief_from_intake",
+    description:
+      "Generate a structured project brief (markdown) from a client intake form submission using Claude AI. Saves the brief as a note on the linked objective if intake.project_id is set. Requires ANTHROPIC_API_KEY server-side.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intake_id: { type: "string", description: "UUID of the intake_response to process." },
+      },
+      required: ["intake_id"],
+    },
+  },
+  {
+    name: "suggest_quote_lines",
+    description:
+      "Analyse tracked focus sessions for a project and suggest invoice line items based on time spent per objective. Returns suggested lines + total hours. Requires ANTHROPIC_API_KEY server-side.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "UUID of the project to analyze." },
+      },
+      required: ["project_id"],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -374,6 +438,13 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
         (includeCompleted || !o.completed) &&
         (!onlyObjectives  || o.isObjective)
       );
+    }
+
+    case "create_objective": {
+      const { source, ...data } = args;
+      return source === "admin"
+        ? await createAdminObjective(data)
+        : await createPersonalObjective(data);
     }
 
     case "get_objective": {
@@ -551,6 +622,16 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
     case "list_personal_costs":  return await listPersonalCosts();
     case "create_personal_cost": return await createPersonalCost(args.data);
     case "update_personal_cost": return await updatePersonalCost(args.id, args.data);
+
+    // ── Phase 2 automations ─────────────────────────────────────
+    case "classify_pdf":
+      return await classifyPdf(args.doc_id);
+
+    case "generate_brief_from_intake":
+      return await generateBriefFromIntake(args.intake_id);
+
+    case "suggest_quote_lines":
+      return await suggestQuoteLines(args.project_id);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

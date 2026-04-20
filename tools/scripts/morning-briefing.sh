@@ -18,12 +18,13 @@ HOUR=$((10#$(date +%H)))   # 0..23, leading-zero stripped
 
 MARKER_DIR="${HOME}/.kojima"
 if [[ "${KOJIMA_BRIEFING_FORCE:-0}" == "1" ]]; then
-  DOW=2
+  DOW=4   # Thursday: fires daily briefing + clients en attente
   HOUR=8
   MARKER_DIR="$(mktemp -d)"
 fi
 DAILY_MARKER="${MARKER_DIR}/daily-${TODAY}.done"
 RETRO_MARKER="${MARKER_DIR}/retro-${TODAY}.done"
+CLIENTS_MARKER="${MARKER_DIR}/clients-${TODAY}.done"
 
 mkdir -p "$MARKER_DIR"
 
@@ -37,6 +38,12 @@ if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && ! -f "$DAILY_MARKER" ]]; then
   fi
   PARTS+=("$DAILY")
   touch "$DAILY_MARKER"
+fi
+
+# ── Clients en attente (lundi + jeudi) ─────────────────────────────
+if [[ ( "$DOW" -eq 1 || "$DOW" -eq 4 ) && "$HOUR" -ge 7 && ! -f "$CLIENTS_MARKER" ]]; then
+  PARTS+=($'RÉCAP CLIENTS EN ATTENTE : Appelle list_projects (projets actifs en attente d\'une action), list_intakes (demandes en statut "new" ou "reviewed" non converties), et list_quotes (devis en "draft" ou "to-validate"). Présente un récap en 3 sections :\n  1) Projets nécessitant une action client (status on-hold ou bloqué)\n  2) Intakes non traités (avec délai depuis création)\n  3) Devis en attente de signature (avec délai depuis création)\nPour chaque élément, indique le nombre de jours depuis le dernier mouvement.')
+  touch "$CLIENTS_MARKER"
 fi
 
 # ── Friday afternoon retro ──────────────────────────────────────────

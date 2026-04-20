@@ -108,10 +108,12 @@ export interface ObjectiveSession {
 }
 
 // ── Objectives ───────────────────────────────────────────────────
-export const listAdminObjectives    = ()                                              => call<ObjectiveSummary[]>("admin_todos.php");
-export const listPersonalObjectives = ()                                              => call<ObjectiveSummary[]>("personal_todos.php");
-export const updateAdminObjective   = (id: string, patch: Partial<ObjectiveSummary>)  => call<ObjectiveSummary>(`admin_todos.php?id=${id}`,    { method: "PUT", body: JSON.stringify(patch) });
-export const updatePersonalObjective= (id: string, patch: Partial<ObjectiveSummary>)  => call<ObjectiveSummary>(`personal_todos.php?id=${id}`, { method: "PUT", body: JSON.stringify(patch) });
+export const listAdminObjectives     = ()                                              => call<ObjectiveSummary[]>("admin_todos.php");
+export const listPersonalObjectives  = ()                                              => call<ObjectiveSummary[]>("personal_todos.php");
+export const createAdminObjective    = (data: Record<string, unknown>)                 => call<ObjectiveSummary>("admin_todos.php",    { method: "POST", body: JSON.stringify(data) });
+export const createPersonalObjective = (data: Record<string, unknown>)                 => call<ObjectiveSummary>("personal_todos.php", { method: "POST", body: JSON.stringify(data) });
+export const updateAdminObjective    = (id: string, patch: Partial<ObjectiveSummary>)  => call<ObjectiveSummary>(`admin_todos.php?id=${id}`,    { method: "PUT", body: JSON.stringify(patch) });
+export const updatePersonalObjective = (id: string, patch: Partial<ObjectiveSummary>)  => call<ObjectiveSummary>(`personal_todos.php?id=${id}`, { method: "PUT", body: JSON.stringify(patch) });
 
 // ── Subtasks ─────────────────────────────────────────────────────
 export const listSubtasks = (objectiveId: string, source: ObjectiveSource) =>
@@ -271,3 +273,8 @@ export const updateExpense   = (id: string, data: Record<string, unknown>) => ca
 export const listPersonalCosts  = ()                          => call<any[]>("personal_costs.php");
 export const createPersonalCost = (data: Record<string, unknown>) => call<any>("personal_costs.php", { method: "POST", body: JSON.stringify(data) });
 export const updatePersonalCost = (id: string, data: Record<string, unknown>) => call<any>(`personal_costs.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+// ── Phase 2 automations ───────────────────────────────────────────
+export const classifyPdf             = (docId: string)     => call<any>("auto/classify_pdf.php",       { method: "POST", body: JSON.stringify({ docId }) });
+export const generateBriefFromIntake = (intakeId: string)  => call<any>("auto/generate_brief.php",     { method: "POST", body: JSON.stringify({ intakeId }) });
+export const suggestQuoteLines       = (projectId: string) => call<any>(`auto/suggest_quote_lines.php?project_id=${projectId}`);

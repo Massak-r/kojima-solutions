@@ -8,15 +8,6 @@ import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
 import { getQueueSize } from "@/lib/offlineQueue";
 
-const ADMIN_NAV = [
-  { label: "Space",     to: "/space"                              },
-  { label: "Projets",   to: "/projects"                          },
-  { label: "Finance",   to: "/accounting"                        },
-  { label: "Admin",     to: "/admin"                             },
-  { label: "Personnel", to: "/personal", icon: "user" as const  },
-  { label: "Réglages",  to: "/settings", icon: "settings" as const },
-];
-
 const HOME_NAV = [
   { id: "methodology", fr: "Méthodologie", en: "Methodology" },
   { id: "services",    fr: "Services",     en: "Services"    },
@@ -112,8 +103,8 @@ const Header = () => {
     "/quotes": "Devis",
     "/clients": "Clients",
     "/accounting": "Finance",
-    "/personal": "Personnel",
-    "/admin": "Admin",
+    "/tresorerie": "Trésorerie",
+    "/documents": "Documents",
     "/settings": "Réglages",
   };
   const mobileTitle = isAdminPage
@@ -127,8 +118,8 @@ const Header = () => {
       location.pathname === to ||
       (to !== "/space" &&
         to !== "/accounting" &&
-        to !== "/personal" &&
-        to !== "/admin" &&
+        to !== "/tresorerie" &&
+        to !== "/documents" &&
         to !== "/settings" &&
         location.pathname.startsWith(
           to.replace("/quotes", "/quote").replace("/projects", "/project")
@@ -284,16 +275,16 @@ const Header = () => {
                       className="absolute right-0 top-full mt-1 w-40 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
                     >
                       <Link
-                        to="/admin"
+                        to="/documents"
                         onClick={() => setOverflowOpen(false)}
                         className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-colors ${
-                          location.pathname === "/admin"
+                          location.pathname === "/documents"
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                         }`}
                       >
                         <Shield size={15} />
-                        Admin
+                        Documents
                       </Link>
                       <Link
                         to="/settings"

@@ -2,7 +2,7 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuth();
 
-// Auto-migrate: objective workspace columns
+// Auto-migrate: objective workspace columns + updated_at
 try {
     $cols = array_column($pdo->query('SHOW COLUMNS FROM admin_todos')->fetchAll(), 'Field');
     if (!in_array('definition_of_done', $cols)) {
@@ -13,6 +13,12 @@ try {
     }
     if (!in_array('linked_client_id', $cols)) {
         $pdo->exec('ALTER TABLE admin_todos ADD COLUMN linked_client_id VARCHAR(36) DEFAULT NULL');
+    }
+    if (!in_array('updated_at', $cols)) {
+        // updated_at powers "untouched in N days" cues on /space. Backfill with
+        // created_at so existing rows get a sensible baseline.
+        $pdo->exec('ALTER TABLE admin_todos ADD COLUMN updated_at DATETIME DEFAULT NULL');
+        $pdo->exec('UPDATE admin_todos SET updated_at = created_at WHERE updated_at IS NULL');
     }
 } catch (Throwable $e) {}
 
@@ -40,6 +46,7 @@ function mapTodo(array $row): array {
         'linkedProjectId'  => $row['linked_project_id'] ?? null,
         'linkedClientId'   => $row['linked_client_id'] ?? null,
         'createdAt'        => $row['created_at'],
+        'updatedAt'        => $row['updated_at'] ?? $row['created_at'],
     ];
 }
 
@@ -69,7 +76,7 @@ if ($method === 'POST') {
     $isObj = (int)(!empty($data['isObjective']));
     $desc  = $data['description'] ?? null;
     $pdo->prepare(
-        'INSERT INTO admin_todos (id, text, completed, category, due_date, recurring, sort_order, is_objective, description, smart_specific, smart_measurable, smart_achievable, smart_relevant, priority, status, created_at) VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?,NOW())'
+        'INSERT INTO admin_todos (id, text, completed, category, due_date, recurring, sort_order, is_objective, description, smart_specific, smart_measurable, smart_achievable, smart_relevant, priority, status, created_at, updated_at) VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
     )->execute([
         $newId, $text, $cat, $due, $rec, $ord, $isObj, $desc,
         $data['smartSpecific'] ?? null,
@@ -117,6 +124,7 @@ if ($method === 'PUT' && $id) {
     }
 
     if (empty($fields)) fail('Nothing to update');
+    $fields[] = 'updated_at = NOW()';
     $params[] = $id;
     $pdo->prepare('UPDATE admin_todos SET ' . implode(', ', $fields) . ' WHERE id=?')->execute($params);
     $row = $pdo->prepare('SELECT * FROM admin_todos WHERE id=?');

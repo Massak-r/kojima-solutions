@@ -1,13 +1,16 @@
-import type { ObjectiveItem } from './objectives';
+import type { ObjectiveItem, TodoPriority, TodoStatus } from './objectives';
 import * as admin from './objectives';
 import * as personal from './personalTodos';
 import type { PersonalTodoItem } from './personalTodos';
 
 export type ObjectiveSource = 'personal' | 'admin';
 
+export const PERSONAL_VIRTUAL_CATEGORY = 'Perso';
+
 /**
  * Unified objective shape that works across personal_todos and admin_todos.
- * personal_todos has no 'category' column, so it's optional here.
+ * personal_todos has no 'category' column, so personal rows get a virtual
+ * PERSONAL_VIRTUAL_CATEGORY stamp at read time so the UI can group them.
  */
 export interface UnifiedObjective {
   id: string;
@@ -30,6 +33,7 @@ export interface UnifiedObjective {
   linkedClientId?: string | null;
   order: number;
   createdAt: string;
+  updatedAt?: string | null;
 }
 
 function toUnifiedFromAdmin(o: ObjectiveItem): UnifiedObjective {
@@ -46,7 +50,7 @@ function toUnifiedFromPersonal(o: PersonalTodoItem): UnifiedObjective {
   return {
     ...o,
     source: 'personal',
-    category: undefined,
+    category: PERSONAL_VIRTUAL_CATEGORY,
     definitionOfDone: (o as any).definitionOfDone ?? null,
     linkedProjectId:  (o as any).linkedProjectId ?? null,
     linkedClientId:   (o as any).linkedClientId ?? null,
@@ -73,4 +77,58 @@ export function updateObjectiveBySource(
     return admin.updateObjective(id, data as any);
   }
   return personal.updatePersonalTodo(id, data as any);
+}
+
+export type CreateObjectivePayload = {
+  text: string;
+  category?: string;
+  dueDate?: string;
+  recurring?: string;
+  isObjective?: boolean;
+  description?: string;
+  smartSpecific?: string;
+  smartMeasurable?: string;
+  smartAchievable?: string;
+  smartRelevant?: string;
+  priority?: TodoPriority;
+  status?: TodoStatus;
+};
+
+export async function createObjectiveBySource(
+  source: ObjectiveSource,
+  data: CreateObjectivePayload,
+): Promise<UnifiedObjective> {
+  if (source === 'admin') {
+    const created = await admin.createObjective(data);
+    return toUnifiedFromAdmin(created);
+  }
+  const { category: _ignored, ...rest } = data;
+  const created = await personal.createPersonalTodo(rest);
+  return toUnifiedFromPersonal(created);
+}
+
+export function deleteObjectiveBySource(source: ObjectiveSource, id: string) {
+  if (source === 'admin') {
+    return admin.deleteObjective(id);
+  }
+  return personal.deletePersonalTodo(id);
+}
+
+/**
+ * Fetch both admin and personal objectives in parallel and return them
+ * merged into a single list tagged with source. Personal rows are stamped
+ * with PERSONAL_VIRTUAL_CATEGORY so the UI can group them alongside admin
+ * categories without special-casing.
+ */
+export async function listAllUnified(
+  adminCategories?: readonly string[],
+): Promise<UnifiedObjective[]> {
+  const [adminList, personalList] = await Promise.all([
+    admin.listObjectives(adminCategories),
+    personal.listPersonalTodos(),
+  ]);
+  return [
+    ...adminList.map(toUnifiedFromAdmin),
+    ...personalList.map(toUnifiedFromPersonal),
+  ];
 }

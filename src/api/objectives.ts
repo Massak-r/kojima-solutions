@@ -24,6 +24,7 @@ export interface ObjectiveItem {
   linkedProjectId?:  string | null;
   linkedClientId?:   string | null;
   createdAt:       string;
+  updatedAt?:      string | null;
 }
 
 /** List objectives, optionally filtered by categories */

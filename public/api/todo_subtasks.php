@@ -17,7 +17,7 @@ try {
     ");
 } catch (Throwable $e) {}
 
-// Auto-migrate: parent_subtask_id (for 2-level nesting) + effort_size + estimated_minutes
+// Auto-migrate: parent_subtask_id (for 2-level nesting) + effort_size + estimated_minutes + flagged_at
 try {
     $cols = array_column($pdo->query('SHOW COLUMNS FROM todo_subtasks')->fetchAll(), 'Field');
     if (!in_array('parent_subtask_id', $cols)) {
@@ -29,6 +29,13 @@ try {
     }
     if (!in_array('estimated_minutes', $cols)) {
         $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN estimated_minutes INT DEFAULT NULL');
+    }
+    if (!in_array('flagged_at', $cols)) {
+        // flagged_at = when flagged_today flipped 0→1. NULL when not currently flagged.
+        // Enables true stale detection on /sprint (vs. proxying via created_at).
+        $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN flagged_at DATETIME DEFAULT NULL');
+        // Backfill: for any currently-flagged rows, stamp with created_at so stale calc has a baseline.
+        $pdo->exec('UPDATE todo_subtasks SET flagged_at = created_at WHERE flagged_today = 1 AND flagged_at IS NULL');
     }
 } catch (Throwable $e) {}
 
@@ -57,6 +64,7 @@ function mapSubtask(array $row): array {
         'priority'         => $row['priority'] ?? 'medium',
         'status'           => $row['status'] ?? 'not_started',
         'flaggedToday'     => (bool)($row['flagged_today'] ?? 0),
+        'flaggedAt'        => $row['flagged_at'] ?? null,
         'effortSize'       => $row['effort_size'] ?? null,
         'estimatedMinutes' => isset($row['estimated_minutes']) ? (int)$row['estimated_minutes'] : null,
         'createdAt'        => $row['created_at'],
@@ -155,6 +163,21 @@ if ($method === 'PUT') {
         if (array_key_exists($key, $data)) {
             $fields[] = $sql;
             $values[] = $cast($data[$key]);
+        }
+    }
+
+    // When flaggedToday flips, keep flagged_at in sync:
+    // - 0→1: stamp NOW() so stale calc can measure how long the flag has been alive
+    // - 1→0: clear, so a future re-flag starts the clock fresh
+    if (array_key_exists('flaggedToday', $data)) {
+        $nextFlagged = (int)(bool)$data['flaggedToday'];
+        $prevFlagged = (int)($prev['flagged_today'] ?? 0);
+        if ($nextFlagged !== $prevFlagged) {
+            if ($nextFlagged === 1) {
+                $fields[] = 'flagged_at = NOW()';
+            } else {
+                $fields[] = 'flagged_at = NULL';
+            }
         }
     }
 

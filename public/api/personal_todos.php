@@ -2,7 +2,7 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuth();
 
-// Auto-migrate: objective workspace columns
+// Auto-migrate: objective workspace columns + updated_at
 try {
     $cols = array_column($pdo->query('SHOW COLUMNS FROM personal_todos')->fetchAll(), 'Field');
     if (!in_array('definition_of_done', $cols)) {
@@ -13,6 +13,10 @@ try {
     }
     if (!in_array('linked_client_id', $cols)) {
         $pdo->exec('ALTER TABLE personal_todos ADD COLUMN linked_client_id VARCHAR(36) DEFAULT NULL');
+    }
+    if (!in_array('updated_at', $cols)) {
+        $pdo->exec('ALTER TABLE personal_todos ADD COLUMN updated_at DATETIME DEFAULT NULL');
+        $pdo->exec('UPDATE personal_todos SET updated_at = created_at WHERE updated_at IS NULL');
     }
 } catch (Throwable $e) {}
 
@@ -36,6 +40,7 @@ function mapTodo(array $row): array {
         'linkedProjectId'  => $row['linked_project_id'] ?? null,
         'linkedClientId'   => $row['linked_client_id'] ?? null,
         'createdAt'        => $row['created_at'],
+        'updatedAt'        => $row['updated_at'] ?? $row['created_at'],
     ];
 }
 
@@ -54,7 +59,7 @@ if ($method === 'POST') {
     $newId    = uuid();
     $maxOrder = (int)$pdo->query('SELECT COALESCE(MAX(sort_order), -1) FROM personal_todos')->fetchColumn();
 
-    $pdo->prepare('INSERT INTO personal_todos (id, text, completed, sort_order, due_date, recurring, is_objective, description, smart_specific, smart_measurable, smart_achievable, smart_relevant, priority, status) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    $pdo->prepare('INSERT INTO personal_todos (id, text, completed, sort_order, due_date, recurring, is_objective, description, smart_specific, smart_measurable, smart_achievable, smart_relevant, priority, status, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())')
         ->execute([
             $newId,
             $data['text'] ?? '',
@@ -110,6 +115,7 @@ if ($method === 'PUT') {
     }
 
     if (!empty($fields)) {
+        $fields[] = 'updated_at = NOW()';
         $values[] = $id;
         $pdo->prepare('UPDATE personal_todos SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
     }

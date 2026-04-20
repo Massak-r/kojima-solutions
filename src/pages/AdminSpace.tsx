@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +10,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle2, Circle, Trash2, Plus, FileText, Upload, ExternalLink,
-  Loader2, FolderOpen, Calendar, X, Pencil, Check, Target, Sun,
+  Trash2, Plus, FileText, Upload, ExternalLink,
+  Loader2, FolderOpen, Calendar, X, Pencil, Check,
   Search, FolderPlus, ChevronRight, Home, Link2, Link2Off, Folder, GripVertical,
-  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -34,20 +32,7 @@ import {
 } from "@/api/adminDocs";
 import type { AdminDocItem, DocFolder } from "@/api/adminDocs";
 
-import {
-  listObjectives, createObjective, updateObjective, deleteObjective,
-} from "@/api/objectives";
-// TemplateManager moved to ProjectFunnel (Sheet panel)
-import type { ObjectiveItem } from "@/api/objectives";
-import {
-  listSubtasks, createSubtask, updateSubtask, deleteSubtask, batchCompleteSubtasks,
-} from "@/api/todoSubtasks";
-import type { SubtaskItem } from "@/api/todoSubtasks";
-import { ADMIN_CATEGORIES, sortObjectives } from "@/lib/objectiveCategories";
-import { ObjectiveRow } from "@/components/todos/ObjectiveRow";
-import { CategorySection } from "@/components/todos/CategorySection";
 import { EcheancesTab } from "@/components/admin/EcheancesTab";
-// DailyFocus replaced with inline focus bar
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -61,14 +46,6 @@ const YEAR_OPTIONS = (() => {
   for (let y = current; y >= current - 6; y--) years.push(y);
   return years;
 })();
-
-const TODO_CATEGORIES = [
-  "Général", "Comptabilité", "Administratif", "Légal", "Impôts", "Assurances", "Divers",
-];
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + " o";
@@ -874,349 +851,6 @@ function DocumentsTab() {
   );
 }
 
-// ── Admin Todos Tab ───────────────────────────────────────────────────────────
-
-function AdminTodosTab() {
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const [todos,       setTodos]       = useState<ObjectiveItem[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [newText,     setNewText]     = useState("");
-  const [newCat,      setNewCat]      = useState("Général");
-  const [newDue,      setNewDue]      = useState("");
-  const [newIsObj,    setNewIsObj]    = useState(false);
-  const [catFilter,   setCatFilter]   = useState("all");
-  const [deleteId,    setDeleteId]    = useState<string | null>(null);
-  const [showDone,    setShowDone]    = useState(false);
-
-  // Subtasks state
-  const [subtasksMap, setSubtasksMap] = useState<Record<string, SubtaskItem[]>>({});
-
-  useEffect(() => {
-    Promise.all([
-      listObjectives([...ADMIN_CATEGORIES]),
-      listSubtasks(),
-    ]).then(([items, subs]) => {
-      setTodos(items);
-      const map: Record<string, SubtaskItem[]> = {};
-      for (const s of subs) (map[s.parentId] ??= []).push(s);
-      setSubtasksMap(map);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  async function addTodo() {
-    const text = newText.trim();
-    if (!text) return;
-    const isObjective = newIsObj;
-    setNewText(""); setNewDue(""); setNewIsObj(false);
-    try {
-      const item = await createObjective({ text, category: newCat, dueDate: newDue || undefined, isObjective });
-      setTodos(prev => [...prev, item]);
-    } catch {
-      const fake: ObjectiveItem = {
-        id: crypto.randomUUID(), text, completed: false, category: newCat,
-        dueDate: newDue || undefined, isObjective, order: todos.length, createdAt: new Date().toISOString(),
-        priority: "medium", status: "not_started",
-      };
-      setTodos(prev => [...prev, fake]);
-    }
-  }
-
-  async function toggle(id: string) {
-    const todo = todos.find(t => t.id === id)!;
-    const willComplete = !todo.completed;
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: willComplete } : t));
-    try { await updateObjective(id, { completed: willComplete }); } catch {}
-
-    // Auto-complete subtasks when completing an objective
-    if (willComplete && todo.isObjective) {
-      const subs = subtasksMap[id] || [];
-      if (subs.some(s => !s.completed)) {
-        setSubtasksMap(prev => ({ ...prev, [id]: subs.map(s => ({ ...s, completed: true })) }));
-        batchCompleteSubtasks(id, subs).catch(() => {});
-      }
-    }
-  }
-
-  async function remove(id: string) {
-    if (deleteId !== id) { setDeleteId(id); return; }
-    setTodos(prev => prev.filter(t => t.id !== id));
-    setSubtasksMap(prev => { const n = { ...prev }; delete n[id]; return n; });
-    setDeleteId(null);
-    try { await deleteObjective(id); } catch {}
-  }
-
-  async function swapOrder(idA: string, idB: string) {
-    const a = todos.find(t => t.id === idA);
-    const b = todos.find(t => t.id === idB);
-    if (!a || !b) return;
-    setTodos(prev => prev.map(t => t.id === idA ? { ...t, order: b.order } : t.id === idB ? { ...t, order: a.order } : t));
-    try { await updateObjective(idA, { order: b.order }); await updateObjective(idB, { order: a.order }); } catch {}
-  }
-
-  async function promote(id: string) {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, isObjective: true } : t));
-    try { await updateObjective(id, { isObjective: true }); } catch {}
-  }
-
-  async function saveDescription(id: string, desc: string) {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, description: desc || null } : t));
-    try { await updateObjective(id, { description: desc || undefined }); } catch {}
-  }
-
-  async function saveSmartField(id: string, field: string, value: string) {
-    if (field === "timebound") {
-      setTodos(prev => prev.map(t => t.id === id ? { ...t, dueDate: value || undefined } : t));
-      try { await updateObjective(id, { dueDate: value || undefined }); } catch {}
-      return;
-    }
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, [field]: value || null } : t));
-    try { await updateObjective(id, { [field]: value || undefined } as any); } catch {}
-  }
-
-  async function savePriority(id: string, priority: any) {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, priority } : t));
-    try { await updateObjective(id, { priority }); } catch {}
-  }
-
-  async function saveStatus(id: string, status: any) {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, status } : t));
-    try { await updateObjective(id, { status }); } catch {}
-  }
-
-  async function handleSubtaskToggle(parentId: string, subId: string) {
-    const subs = subtasksMap[parentId] || [];
-    const sub = subs.find(s => s.id === subId);
-    if (!sub) return;
-    setSubtasksMap(prev => ({
-      ...prev,
-      [parentId]: (prev[parentId] || []).map(s => s.id === subId ? { ...s, completed: !s.completed } : s),
-    }));
-    try { await updateSubtask(subId, { completed: !sub.completed }); } catch {}
-  }
-
-  async function handleSubtaskAdd(parentId: string, text: string, dueDate?: string) {
-    try {
-      const sub = await createSubtask({ parentId, text, dueDate });
-      setSubtasksMap(prev => ({ ...prev, [parentId]: [...(prev[parentId] || []), sub] }));
-    } catch {
-      toast({ title: "Erreur", description: "Impossible d'ajouter l'étape", variant: "destructive" });
-    }
-  }
-
-  async function handleSubtaskDelete(parentId: string, subId: string) {
-    setSubtasksMap(prev => ({ ...prev, [parentId]: (prev[parentId] || []).filter(s => s.id !== subId) }));
-    try { await deleteSubtask(subId); } catch {}
-  }
-
-  async function handleSubtaskUpdate(parentId: string, subId: string, data: any) {
-    setSubtasksMap(prev => ({
-      ...prev,
-      [parentId]: (prev[parentId] || []).map(s => s.id === subId ? { ...s, ...data } : s),
-    }));
-    try { await updateSubtask(subId, data); } catch {}
-  }
-
-  const today    = todayStr();
-  const pending  = todos.filter(t => !t.completed);
-  const done     = todos.filter(t =>  t.completed);
-  const dueSoonDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-
-  const filteredPending = (catFilter === "all" ? pending : pending.filter(t => t.category === catFilter))
-    .sort((a, b) => {
-      const da = a.dueDate ?? "9999-99-99";
-      const db = b.dueDate ?? "9999-99-99";
-      return da.localeCompare(db);
-    });
-
-  const categories = useMemo(() => {
-    const s = new Set(todos.map(t => t.category));
-    return Array.from(s).sort();
-  }, [todos]);
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      {/* Add form */}
-      <div className="glass-card rounded-2xl p-4 space-y-3">
-        <p className="text-sm font-body font-medium text-muted-foreground">
-          {newIsObj ? "Nouvel objectif administratif" : "Nouvelle tâche administrative"}
-        </p>
-        <div className="flex gap-2">
-          <Input
-            placeholder={newIsObj ? "Description de l'objectif…" : "Description de la tâche…"}
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && addTodo()}
-            className="font-body"
-          />
-          <Button onClick={addTodo} size="icon" variant="outline"><Plus size={16} /></Button>
-        </div>
-        <div className="flex gap-2 flex-wrap items-center">
-          <Select value={newCat} onValueChange={setNewCat}>
-            <SelectTrigger className="h-8 text-xs font-body w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TODO_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar size={13} />
-            <input
-              type="date"
-              value={newDue}
-              onChange={e => setNewDue(e.target.value)}
-              className="bg-transparent border border-border rounded-md px-2 py-1 text-xs font-body text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-8"
-              title="Échéance (optionnel)"
-            />
-          </div>
-          <button
-            onClick={() => setNewIsObj(o => !o)}
-            className={cn(
-              "flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors font-body h-8",
-              newIsObj
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-transparent text-muted-foreground border-border hover:border-primary/50",
-            )}
-            title="Créer comme objectif SMART"
-          >
-            <Target size={12} />
-            Objectif
-          </button>
-        </div>
-      </div>
-
-      {/* Focus du jour — compact bar */}
-      {(() => {
-        const allSubs = Object.values(subtasksMap).flat();
-        const flagged = allSubs.filter((s: any) => s.flaggedToday);
-        if (flagged.length === 0) return null;
-        const flagDone = flagged.filter(s => s.completed).length;
-        return (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50/60 border border-amber-200/40 mb-2">
-            <Sun size={14} className="text-amber-500 shrink-0" />
-            <span className="text-xs font-display font-bold text-amber-800">Focus du jour</span>
-            <span className="text-xs font-mono text-amber-600 font-semibold">{flagDone}/{flagged.length}</span>
-            <div className="flex-1 h-1.5 bg-amber-200/40 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${(flagDone / flagged.length) * 100}%` }} />
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Grouped by category */}
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
-      ) : (
-        <>
-          {[...ADMIN_CATEGORIES].filter(cat => todos.some(t => t.category === cat)).map(cat => {
-            const catTodos = todos.filter(t => t.category === cat);
-            const sorted = sortObjectives(catTodos, today);
-            const active = sorted.filter(t => !t.completed);
-            const catDone = sorted.filter(t => t.completed);
-
-            return (
-              <CategorySection key={cat} category={cat} count={active.length} completedCount={catDone.length}>
-                {active.map((todo, idx) => {
-                  const isOverdue = !!todo.dueDate && todo.dueDate < today;
-                  const isDueSoon = !!todo.dueDate && !isOverdue && todo.dueDate <= dueSoonDate;
-                  return todo.isObjective ? (
-                    <ObjectiveRow
-                      key={todo.id}
-                      id={todo.id}
-                      text={todo.text}
-                      completed={todo.completed}
-                      description={todo.description}
-                      dueDate={todo.dueDate}
-                      isOverdue={isOverdue}
-                      isDueSoon={isDueSoon}
-                      subtasks={subtasksMap[todo.id] || []}
-                      priority={todo.priority || "medium"}
-                      status={todo.status || "not_started"}
-                      smartSpecific={todo.smartSpecific}
-                      smartMeasurable={todo.smartMeasurable}
-                      smartAchievable={todo.smartAchievable}
-                      smartRelevant={todo.smartRelevant}
-                      categoryBadge={todo.category}
-                      categoryOptions={[...ADMIN_CATEGORIES]}
-                      onToggle={() => toggle(todo.id)}
-                      onDelete={() => remove(todo.id)}
-                      onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjective(todo.id, { text: title }); } catch {} } }}
-                      onCategoryChange={async (c) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, category: c } : t)); try { await updateObjective(todo.id, { category: c }); } catch {} }}
-                      onDescriptionSave={desc => saveDescription(todo.id, desc)}
-                      onSmartSave={(field, value) => saveSmartField(todo.id, field, value)}
-                      onPriorityChange={p => savePriority(todo.id, p)}
-                      onStatusChange={s => saveStatus(todo.id, s)}
-                      onSubtaskToggle={subId => handleSubtaskToggle(todo.id, subId)}
-                      onSubtaskAdd={(text, due) => handleSubtaskAdd(todo.id, text, due)}
-                      onSubtaskDelete={subId => handleSubtaskDelete(todo.id, subId)}
-                      onSubtaskUpdate={(subId, data) => handleSubtaskUpdate(todo.id, subId, data)}
-                      onMoveUp={idx > 0 ? () => swapOrder(todo.id, active[idx - 1].id) : undefined}
-                      onMoveDown={idx < active.length - 1 ? () => swapOrder(todo.id, active[idx + 1].id) : undefined}
-                      onOpenWorkspace={() => navigate(`/objective/admin/${todo.id}`, { state: { from: "/admin" } })}
-                      deleteConfirming={deleteId === todo.id}
-                      onDeleteConfirm={() => remove(todo.id)}
-                      onDeleteCancel={() => setDeleteId(null)}
-                    />
-                  ) : (
-                    <ObjectiveRow
-                      key={todo.id} id={todo.id} text={todo.text} completed={todo.completed}
-                      dueDate={todo.dueDate} isOverdue={isOverdue} isDueSoon={isDueSoon}
-                      subtasks={[]} priority={todo.priority || "medium"} status={todo.status || "not_started"}
-                      isSimpleTodo
-                      categoryBadge={todo.category}
-                      onToggle={() => toggle(todo.id)}
-                      onDelete={() => setDeleteId(todo.id)}
-                      onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjective(todo.id, { text: title }); } catch {} } }}
-                      onDescriptionSave={() => {}} onSmartSave={() => {}} onPriorityChange={() => {}} onStatusChange={() => {}}
-                      onSubtaskToggle={() => {}} onSubtaskAdd={() => {}} onSubtaskDelete={() => {}}
-                      deleteConfirming={deleteId === todo.id} onDeleteConfirm={() => remove(todo.id)} onDeleteCancel={() => setDeleteId(null)}
-                    />
-                  );
-                })}
-                {catDone.length > 0 && (
-                  <details className="pt-2 border-t border-border/20 mt-2">
-                    <summary className="text-xs font-body text-muted-foreground cursor-pointer py-1">{catDone.length} terminé{catDone.length > 1 ? "s" : ""}</summary>
-                    <div className="space-y-1.5 mt-2">
-                      {catDone.map(t => t.isObjective ? (
-                        <ObjectiveRow
-                          key={t.id} id={t.id} text={t.text} completed={true}
-                          description={t.description} dueDate={t.dueDate} isOverdue={false} isDueSoon={false}
-                          subtasks={subtasksMap[t.id] || []} priority={t.priority || "medium"} status={t.status || "done"}
-                          smartSpecific={t.smartSpecific} smartMeasurable={t.smartMeasurable}
-                          smartAchievable={t.smartAchievable} smartRelevant={t.smartRelevant}
-                          categoryBadge={t.category}
-                          onToggle={() => toggle(t.id)} onDelete={() => remove(t.id)}
-                          onDescriptionSave={() => {}} onSmartSave={() => {}} onPriorityChange={() => {}} onStatusChange={() => {}}
-                          onSubtaskToggle={subId => handleSubtaskToggle(t.id, subId)}
-                          onSubtaskAdd={(text, due) => handleSubtaskAdd(t.id, text, due)}
-                          onSubtaskDelete={subId => handleSubtaskDelete(t.id, subId)}
-                          onOpenWorkspace={() => navigate(`/objective/admin/${t.id}`, { state: { from: "/admin" } })}
-                          deleteConfirming={deleteId === t.id} onDeleteConfirm={() => remove(t.id)} onDeleteCancel={() => setDeleteId(null)}
-                        />
-                      ) : (
-                        <ObjectiveRow
-                          key={t.id} id={t.id} text={t.text} completed={true}
-                          dueDate={t.dueDate} isOverdue={false} isDueSoon={false}
-                          subtasks={[]} priority={t.priority || "medium"} status={t.status || "done"}
-                          isSimpleTodo
-                          categoryBadge={t.category}
-                          onToggle={() => toggle(t.id)} onDelete={() => setDeleteId(t.id)}
-                          onDescriptionSave={() => {}} onSmartSave={() => {}} onPriorityChange={() => {}} onStatusChange={() => {}}
-                          onSubtaskToggle={() => {}} onSubtaskAdd={() => {}} onSubtaskDelete={() => {}}
-                          deleteConfirming={deleteId === t.id} onDeleteConfirm={() => remove(t.id)} onDeleteCancel={() => setDeleteId(null)}
-                        />
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </CategorySection>
-            );
-          })}
-          {todos.length === 0 && <p className="text-sm text-muted-foreground font-body py-4 text-center">Aucune tâche en cours.</p>}
-        </>
-      )}
-    </div>
-  );
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -1226,30 +860,23 @@ export default function AdminSpace() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-12 py-8">
         <div className="mb-8">
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
-            Espace<span className="text-primary">.</span>Administratif
+            Documents <span className="text-primary">&amp;</span> Échéances
           </h1>
           <p className="text-muted-foreground text-sm font-body mt-1">
-            Documents, tâches et échéances.
+            Documents et échéances.
           </p>
         </div>
 
-        <Tabs defaultValue="tasks" className="w-full">
+        <Tabs defaultValue="echeances" className="w-full">
           <TabsList className="mb-6">
-            <TabsTrigger value="tasks" className="font-body gap-1.5">
-              <Target size={14} /> Tâches & Échéances
+            <TabsTrigger value="echeances" className="font-body gap-1.5">
+              <Calendar size={14} /> Échéances
             </TabsTrigger>
             <TabsTrigger value="documents" className="font-body gap-1.5">
               <FileText size={14} /> Documents
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="tasks">
-            <div className="space-y-10">
-              <EcheancesTab />
-              <div className="border-t border-border/40 pt-6">
-                <AdminTodosTab />
-              </div>
-            </div>
-          </TabsContent>
+          <TabsContent value="echeances"><EcheancesTab /></TabsContent>
           <TabsContent value="documents"><DocumentsTab /></TabsContent>
         </Tabs>
       </div>

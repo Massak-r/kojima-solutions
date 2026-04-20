@@ -15,8 +15,7 @@ import {
   FileText,
   Users,
   TrendingUp,
-  UserCircle,
-  Shield,
+  Wallet,
   ArrowLeft,
   LogOut,
   Plus,
@@ -24,13 +23,13 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 
 const NAV_ITEMS = [
-  { label: "Space",      to: "/space",      icon: LayoutDashboard, shortcut: "1" },
+  { label: "Espace",     to: "/space",      icon: LayoutDashboard, shortcut: "1" },
   { label: "Projects",   to: "/projects",   icon: FolderKanban,    shortcut: "2" },
   { label: "Quotes",     to: "/quotes",     icon: FileText,        shortcut: "3" },
   { label: "Clients",    to: "/clients",    icon: Users,           shortcut: "4" },
   { label: "Finance",    to: "/accounting", icon: TrendingUp,      shortcut: "5" },
-  { label: "Personnel",  to: "/personal",   icon: UserCircle,      shortcut: "6" },
-  { label: "Admin",      to: "/admin",      icon: Shield,          shortcut: "7" },
+  { label: "Trésorerie", to: "/tresorerie", icon: Wallet,          shortcut: "6" },
+  { label: "Documents",  to: "/documents",  icon: FileText,        shortcut: "7" },
 ];
 
 const ACTIONS = [

@@ -126,8 +126,8 @@ export default function ObjectiveWorkspace() {
 
   const goBack = useCallback(() => {
     if (fromRoute) navigate(fromRoute);
-    else navigate(source === "personal" ? "/personal" : "/space");
-  }, [fromRoute, navigate, source]);
+    else navigate("/space");
+  }, [fromRoute, navigate]);
 
   const applyObjectiveUpdate = useCallback(
     (patch: Partial<UnifiedObjective>) => {
