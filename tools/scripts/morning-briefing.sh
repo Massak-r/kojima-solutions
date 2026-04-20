@@ -32,7 +32,7 @@ PARTS=()
 
 # ── Daily morning briefing ──────────────────────────────────────────
 if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && ! -f "$DAILY_MARKER" ]]; then
-  DAILY=$'Bonjour. Voici ton brief du jour. Utilise les outils MCP kojima (list_objectives, get_week_stats, et les subtasks flaggées du jour via list_objectives + get_objective) pour me donner :\n  1) sur quoi me focaliser aujourd\'hui,\n  2) ce qui est à risque,\n  3) un fait surprenant si tu en vois un dans les stats.'
+  DAILY=$'Bonjour. Voici ton brief du jour. Utilise les outils MCP kojima (list_objectives, get_week_stats, et les subtasks flaggées du jour via list_objectives + get_objective) pour me donner :\n  1) sur quoi me focaliser aujourd\'hui,\n  2) ce qui est à risque,\n  3) un fait surprenant si tu en vois un dans les stats,\n  4) la liste complète des subtasks flaggées pour aujourd\'hui, regroupées par objectif. Demande-moi ensuite si je veux ajouter, modifier ou retirer des tâches du sprint du jour.'
   if [[ "$DOW" -eq 1 ]]; then
     DAILY+=$'\n\nBONUS LUNDI : appelle aussi list_quotes, filtre celles en invoiceStatus "validated" avec validityDate dépassée. Groupe par client et propose une formulation de relance par client.'
   fi
