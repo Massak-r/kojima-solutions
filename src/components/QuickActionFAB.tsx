@@ -52,6 +52,7 @@ export function QuickActionFAB() {
         {open && ACTIONS.map((action, i) => (
           <motion.button
             key={action.label}
+            aria-label={action.label}
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.8 }}
@@ -76,6 +77,8 @@ export function QuickActionFAB() {
       {/* Main FAB button */}
       <motion.button
         onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Fermer le menu d'actions rapides" : "Ouvrir le menu d'actions rapides"}
+        aria-expanded={open}
         className={cn(
           "w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors",
           open ? "bg-muted-foreground text-background" : "bg-primary text-primary-foreground hover:bg-primary/90"

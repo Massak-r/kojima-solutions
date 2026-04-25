@@ -1,4 +1,4 @@
-import { ProjectData, STATUS_LABELS } from "@/types/project";
+import { ProjectData, STATUS_LABELS, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -37,7 +37,10 @@ export function ProjectDetailsPanel({ project, onChange }: ProjectDetailsPanelPr
       />
       {expandedSections.basic && (
         <div className="flex flex-col gap-3">
-          <ClientSelector project={project} onChange={onChange} />
+          <KindSelector kind={project.kind ?? "client"} onChange={onChange} />
+          {(project.kind ?? "client") === "client" && (
+            <ClientSelector project={project} onChange={onChange} />
+          )}
           <Field label="Description du projet">
             <Textarea
               placeholder="Brève description du projet..."
@@ -371,6 +374,31 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
             )}
           </div>
         )}
+      </div>
+    </Field>
+  );
+}
+
+// ── Kind Selector ──────────────────────────────────────────────────────────────────────────────
+
+function KindSelector({ kind, onChange }: { kind: ProjectData["kind"]; onChange: (updates: Partial<ProjectData>) => void }) {
+  return (
+    <Field label="Catégorie">
+      <div className="inline-flex rounded-md border border-input bg-background p-0.5 gap-0.5">
+        {KIND_ORDER.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onChange({ kind: k })}
+            className={`flex-1 px-3 py-1.5 text-xs font-body font-medium rounded transition-colors ${
+              kind === k
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
+          >
+            {KIND_LABELS[k]}
+          </button>
+        ))}
       </div>
     </Field>
   );

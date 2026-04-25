@@ -2,6 +2,8 @@
 // server during development (e.g. https://kojima-solutions.ch).
 // In production the SPA and API live on the same origin so no prefix is needed.
 
+import { getClientSession } from "@/lib/auth";
+
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
@@ -14,9 +16,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (API_KEY) {
     headers['X-API-Key'] = API_KEY;
   }
+  // Forward the opaque client-portal session token if the user is logged in
+  // as a client. Admin session is HttpOnly cookie — sent automatically by the
+  // browser because we pass credentials: 'include'.
+  const clientSession = getClientSession();
+  if (clientSession?.token) {
+    headers['X-Client-Token'] = clientSession.token;
+  }
 
   const res = await fetch(`${BASE}/api/${path}`, {
     ...init,
+    credentials: 'include',
     headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
   });
 

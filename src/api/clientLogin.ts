@@ -11,6 +11,10 @@ export interface ClientLoginProject {
 export interface ClientLoginResult {
   client: { id: string; name: string; organization?: string };
   projects: ClientLoginProject[];
+  /** Opaque server-issued token (32 bytes hex). Store and send as X-Client-Token. */
+  sessionToken?: string;
+  /** ISO datetime after which the session token stops working. */
+  sessionExpiresAt?: string;
 }
 
 export function clientLogin(email: string) {

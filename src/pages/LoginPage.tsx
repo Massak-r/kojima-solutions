@@ -22,9 +22,9 @@ export default function LoginPage() {
     return <Navigate to={from} replace />;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const ok = loginAdmin(password);
+    const ok = await loginAdmin(password);
     if (ok) {
       navigate(from, { replace: true });
     } else {

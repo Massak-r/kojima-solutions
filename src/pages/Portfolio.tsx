@@ -11,6 +11,7 @@ interface PortfolioProject {
   client: string;
   description: string;
   status: string;
+  kind?: "client" | "internal" | "personal";
   startDate: string;
   endDate: string;
   deliveries?: Array<{
@@ -30,7 +31,7 @@ export default function Portfolio() {
   useEffect(() => {
     apiFetch<PortfolioProject[]>("projects.php")
       .then((all) => {
-        const completed = all.filter((p) => p.status === "completed");
+        const completed = all.filter((p) => p.status === "completed" && (p.kind ?? "client") === "client");
         setProjects(completed);
       })
       .catch(() => {})
@@ -60,7 +61,9 @@ export default function Portfolio() {
   function formatDate(dateStr: string): string {
     if (!dateStr) return "";
     try {
-      return new Date(dateStr).toLocaleDateString("fr-CH", { month: "short", year: "numeric" });
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return dateStr;
+      return `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
     } catch {
       return dateStr;
     }
@@ -109,23 +112,7 @@ export default function Portfolio() {
                   key={p.id}
                   className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-card-hover transition-all duration-300"
                 >
-                  {/* Image */}
-                  {img ? (
-                    <div className="aspect-video bg-secondary overflow-hidden">
-                      <img
-                        src={img}
-                        alt={p.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-video bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
-                      <span className="font-display text-2xl font-bold text-primary/20">
-                        {p.title.charAt(0)}
-                      </span>
-                    </div>
-                  )}
+                  <PortfolioImage src={img} title={p.title} />
 
                   {/* Content */}
                   <div className="p-5">
@@ -159,10 +146,10 @@ export default function Portfolio() {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground/50">
+                    <div className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground/50 whitespace-nowrap">
                       <Calendar size={10} />
                       {formatDate(p.startDate)}
-                      {p.endDate && ` — ${formatDate(p.endDate)}`}
+                      {p.endDate && ` – ${formatDate(p.endDate)}`}
                     </div>
                   </div>
                 </article>
@@ -173,6 +160,30 @@ export default function Portfolio() {
       </section>
 
       <Footer />
+    </div>
+  );
+}
+
+function PortfolioImage({ src, title }: { src: string | null; title: string }) {
+  const [errored, setErrored] = useState(false);
+  if (!src || errored) {
+    return (
+      <div className="aspect-video bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+        <span className="font-display text-3xl font-bold text-primary/40">
+          {title.charAt(0)}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="aspect-video bg-secondary overflow-hidden">
+      <img
+        src={src}
+        alt={title}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        loading="lazy"
+        onError={() => setErrored(true)}
+      />
     </div>
   );
 }

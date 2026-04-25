@@ -1,6 +1,10 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import type { Client } from "@/types/client";
 import * as api from "@/api/clients";
+
+const CLIENTS_KEY = ["clients"] as const;
 
 interface ClientsContextValue {
   clients: Client[];
@@ -11,48 +15,28 @@ interface ClientsContextValue {
   getClient: (id: string) => Client | undefined;
 }
 
-const ClientsContext = createContext<ClientsContextValue | null>(null);
-
+// Provider is now a no-op pass-through. The real cache lives in react-query
+// (QueryClientProvider in App.tsx) and `useClients()` reads from it directly.
 export function ClientsProvider({ children }: { children: ReactNode }) {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [apiAvailable, setApiAvailable] = useState(true);
+  return <>{children}</>;
+}
 
-  useEffect(() => {
-    api.listClients()
-      .then((data) => {
-        setClients(data);
-        setApiAvailable(true);
-      })
-      .catch(() => {
-        setApiAvailable(false);
-        try {
-          const raw = localStorage.getItem("clients_data");
-          setClients(raw ? JSON.parse(raw) : []);
-        } catch {
-          setClients([]);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+function notifyError(label: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? "Erreur inconnue");
+  toast({ title: label, description: message.slice(0, 240), variant: "destructive" });
+}
 
-  const persist = useCallback((updated: Client[]) => {
-    try { localStorage.setItem("clients_data", JSON.stringify(updated)); } catch {}
-  }, []);
+function setCache(qc: QueryClient, updater: (prev: Client[]) => Client[]) {
+  qc.setQueryData<Client[]>(CLIENTS_KEY, (prev) => updater(prev ?? []));
+}
 
-  const applyAndSync = useCallback(
-    (updater: (prev: Client[]) => Client[], apiCall?: () => Promise<unknown>) => {
-      setClients((prev) => {
-        const next = updater(prev);
-        persist(next);
-        return next;
-      });
-      if (apiCall && apiAvailable) {
-        apiCall().catch(() => {});
-      }
-    },
-    [persist, apiAvailable]
-  );
+export function useClients(): ClientsContextValue {
+  const qc = useQueryClient();
+  const { data: clients = [], isLoading } = useQuery({
+    queryKey: CLIENTS_KEY,
+    queryFn: () => api.listClients(),
+    staleTime: 30_000,
+  });
 
   const addClient = useCallback((data: Omit<Client, "id" | "createdAt">) => {
     const newClient: Client = {
@@ -60,41 +44,45 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
-    applyAndSync(
-      (prev) => [...prev, newClient],
-      () => api.createClient({ ...newClient })
-    );
+    setCache(qc, (prev) => [...prev, newClient]);
+    api.createClient(newClient)
+      .then(() => qc.invalidateQueries({ queryKey: CLIENTS_KEY }))
+      .catch((err) => {
+        setCache(qc, (prev) => prev.filter((c) => c.id !== newClient.id));
+        notifyError("Création client échouée", err);
+      });
     return newClient;
-  }, [applyAndSync]);
+  }, [qc]);
 
-  const updateClient = useCallback((id: string, data: Partial<Omit<Client, "id" | "createdAt">>) => {
-    applyAndSync(
-      (prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)),
-      () => api.updateClient(id, data)
-    );
-  }, [applyAndSync]);
+  const updateClient = useCallback(
+    (id: string, data: Partial<Omit<Client, "id" | "createdAt">>) => {
+      const prev = qc.getQueryData<Client[]>(CLIENTS_KEY) ?? [];
+      setCache(qc, (list) => list.map((c) => (c.id === id ? { ...c, ...data } : c)));
+      api.updateClient(id, data)
+        .then(() => qc.invalidateQueries({ queryKey: CLIENTS_KEY }))
+        .catch((err) => {
+          qc.setQueryData(CLIENTS_KEY, prev);
+          notifyError("Modification client échouée", err);
+        });
+    },
+    [qc],
+  );
 
   const deleteClient = useCallback((id: string) => {
-    applyAndSync(
-      (prev) => prev.filter((c) => c.id !== id),
-      () => api.deleteClient(id)
-    );
-  }, [applyAndSync]);
+    const prev = qc.getQueryData<Client[]>(CLIENTS_KEY) ?? [];
+    setCache(qc, (list) => list.filter((c) => c.id !== id));
+    api.deleteClient(id)
+      .then(() => qc.invalidateQueries({ queryKey: CLIENTS_KEY }))
+      .catch((err) => {
+        qc.setQueryData(CLIENTS_KEY, prev);
+        notifyError("Suppression client échouée", err);
+      });
+  }, [qc]);
 
   const getClient = useCallback(
     (id: string) => clients.find((c) => c.id === id),
-    [clients]
+    [clients],
   );
 
-  return (
-    <ClientsContext.Provider value={{ clients, loading, addClient, updateClient, deleteClient, getClient }}>
-      {children}
-    </ClientsContext.Provider>
-  );
-}
-
-export function useClients() {
-  const ctx = useContext(ClientsContext);
-  if (!ctx) throw new Error("useClients must be used within ClientsProvider");
-  return ctx;
+  return { clients, loading: isLoading, addClient, updateClient, deleteClient, getClient };
 }

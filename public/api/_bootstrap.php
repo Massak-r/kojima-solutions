@@ -13,11 +13,13 @@ $allowed = [
 ];
 if (in_array($origin, $allowed, true)) {
     header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
 } else {
     header('Access-Control-Allow-Origin: https://kojima-solutions.ch');
+    header('Access-Control-Allow-Credentials: true');
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+header('Access-Control-Allow-Headers: Content-Type, X-API-Key, X-Client-Token, X-Admin-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -97,6 +99,58 @@ function requireAuth(): void {
 function requireAuthForWrites(): void {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
         requireAuth();
+    }
+}
+
+/**
+ * Resolve the admin session from the HttpOnly cookie (preferred) and return
+ * ['sessionId' => …] if valid. Falls back to null.
+ */
+function validateAdminSession(): ?array {
+    global $pdo;
+    $token = $_COOKIE['kojima_admin_session'] ?? '';
+    if (!$token || !preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT token FROM admin_sessions
+             WHERE token = ? AND revoked_at IS NULL AND expires_at > NOW()'
+        );
+        $stmt->execute([$token]);
+        $row = $stmt->fetch();
+        return $row ? ['sessionId' => $row['token']] : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Accept either an admin session cookie (preferred) OR the legacy X-API-Key
+ * header so existing endpoints keep working during the cookie rollout.
+ */
+function requireAdminSession(): void {
+    if (validateAdminSession() !== null) return;
+    requireAuth();
+}
+
+/**
+ * Resolve the opaque client session token if present (header or query param)
+ * and return the associated client_id, or null if missing / invalid / expired.
+ * Used to let client-facing endpoints authenticate without leaking a raw email.
+ */
+function validateClientSession(): ?array {
+    global $pdo;
+    $token = $_SERVER['HTTP_X_CLIENT_TOKEN'] ?? $_GET['client_token'] ?? '';
+    if (!$token || !preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT client_id FROM client_sessions
+             WHERE token = ? AND revoked_at IS NULL AND expires_at > NOW()'
+        );
+        $stmt->execute([$token]);
+        $row = $stmt->fetch();
+        return $row ? ['clientId' => $row['client_id']] : null;
+    } catch (Throwable $e) {
+        return null;
     }
 }
 

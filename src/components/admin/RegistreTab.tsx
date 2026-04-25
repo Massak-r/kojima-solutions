@@ -19,7 +19,7 @@ import {
   listRegistryItems, createRegistryItem, updateRegistryItem, deleteRegistryItem,
 } from "@/api/adminRegistry";
 import { listFolders } from "@/api/adminDocs";
-import { createSubtask, updateSubtask } from "@/api/todoSubtasks";
+import { useCreateSubtask, useUpdateSubtask } from "@/hooks/useSubtasks";
 import type { DocFolder } from "@/api/adminDocs";
 import type {
   RegistryEntry, RegistryEntryType, RegistryScope, RegistryStatus,
@@ -214,6 +214,8 @@ type MetaState = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta;
 
 export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
   const { toast } = useToast();
+  const createSubtaskMut = useCreateSubtask();
+  const updateSubtaskMut = useUpdateSubtask();
 
   const [entries,  setEntries]  = useState<RegistryEntry[]>([]);
   const [folders,  setFolders]  = useState<DocFolder[]>([]);
@@ -354,16 +356,16 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     if (alertingId === entry.id) return;
     setAlertingId(entry.id);
     try {
-      const subtask = await createSubtask({
+      const subtask = await createSubtaskMut.mutateAsync({
         source:   'admin',
         parentId: ADMIN_OBJECTIVE_ID,
         text:     `Renouveler ${entry.name} — échéance : ${entry.nextActionDate ?? '?'}`,
         priority: 'high',
       });
-      await updateSubtask(subtask.id, { flaggedToday: true });
+      await updateSubtaskMut.mutateAsync({ id: subtask.id, patch: { flaggedToday: true } });
       toast({ title: "Alerte créée", description: `Subtask ajoutée sous l'objectif Admin.` });
     } catch {
-      toast({ title: "Erreur", description: "Impossible de créer l'alerte.", variant: "destructive" });
+      // Mutation hooks already toast the error; nothing more to do here.
     } finally {
       setAlertingId(null);
     }

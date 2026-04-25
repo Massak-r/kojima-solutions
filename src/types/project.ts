@@ -11,6 +11,8 @@ export interface Delivery {
   createdAt: string;
 }
 
+export type ProjectKind = "client" | "internal" | "personal";
+
 export interface ProjectData {
   title: string;
   client: string;
@@ -19,6 +21,7 @@ export interface ProjectData {
   startDate: string;
   endDate: string;
   status: "draft" | "in-progress" | "completed" | "on-hold";
+  kind: ProjectKind;
   initialQuote: string;
   revisedQuote: string;
   invoiceNumber: string;
@@ -36,6 +39,7 @@ export const DEFAULT_PROJECT: ProjectData = {
   startDate: "",
   endDate: "",
   status: "draft",
+  kind: "client",
   initialQuote: "",
   revisedQuote: "",
   invoiceNumber: "",
@@ -65,4 +69,19 @@ export const PAYMENT_LABELS: Record<ProjectData["paymentStatus"], string> = {
   unpaid: "Unpaid",
   partial: "Partially Paid",
   paid: "Paid",
+};
+
+export const KIND_LABELS: Record<ProjectKind, string> = {
+  client:   "Externe",
+  internal: "Interne",
+  personal: "Personnel",
+};
+
+export const KIND_ORDER: ProjectKind[] = ["client", "internal", "personal"];
+
+/** Tailwind classes for each kind badge (consistent with the subtask "Perso" violet and sky for recurring) */
+export const KIND_BADGE_CLASSES: Record<ProjectKind, string> = {
+  client:   "bg-muted text-muted-foreground border-border",
+  internal: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/30",
+  personal: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30",
 };

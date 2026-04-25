@@ -10,6 +10,7 @@ define('SITE_URL', 'https://kojima-solutions.ch'); // No trailing slash
 define('ADMIN_EMAIL', 'chraiti.massaki@gmail.com'); // Receives client feedback notifications
 define('CRON_KEY',   '');                          // Optional: secret key to protect digest.php URL (leave empty to disable check)
 define('API_SECRET', '');                          // Required: secret key sent by frontend as X-API-Key header
+define('ADMIN_PASSWORD', '');                      // Required for server-validated admin login. Set to the same value you put in .env VITE_ADMIN_PASSWORD during transition; rotate when the cookie flow is the only path.
 define('ANALYTICS_SECRET', '');                    // Secret for daily visitor hash (analytics privacy)
 
 // ── Web Push (VAPID) ────────────────────────────────────────────

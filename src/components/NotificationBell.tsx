@@ -89,6 +89,9 @@ export function NotificationBell() {
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
         title="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} non lue${unreadCount > 1 ? "s" : ""})` : "Notifications"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <Bell size={18} />
         {unreadCount > 0 && (

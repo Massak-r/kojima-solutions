@@ -4,6 +4,7 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { WebsitePreview } from "@/components/modules/WebsitePreview";
 import { getProjectModules, saveProjectModules } from "@/api/modules";
+import { getIntakeByProject, type Tier } from "@/api/funnels";
 import {
   MODULE_CATALOG,
   MODULE_CATEGORIES,
@@ -248,6 +249,7 @@ export default function ProjectModules() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [defaultComplexity, setDefaultComplexity] = useState<ModuleComplexity>("simple");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
 
@@ -270,15 +272,26 @@ export default function ProjectModules() {
   // Load data
   useEffect(() => {
     if (!id) return;
-    getProjectModules(id)
-      .then((data) => {
+    (async () => {
+      try {
+        const data = await getProjectModules(id);
         if (data) {
           setModules(Array.isArray(data.modules) ? data.modules : []);
           setMaintenance(data.maintenance || "none");
         }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+        // Seed the default complexity from intake.suggestedTier so new module
+        // additions match what the client already signalled.
+        try {
+          const intakes = await getIntakeByProject(id);
+          const tier = intakes?.[0]?.suggestedTier as Tier | null | undefined;
+          if (tier === "professional") setDefaultComplexity("advanced");
+          else if (tier === "custom") setDefaultComplexity("custom");
+        } catch {}
+      } catch {}
+      finally {
+        setLoading(false);
+      }
+    })();
   }, [id]);
 
   // Auto-save when dirty (debounced 1.5s)
@@ -326,10 +339,10 @@ export default function ProjectModules() {
   const addModule = useCallback((moduleId: string) => {
     setModules((prev) => {
       if (prev.some((m) => m.moduleId === moduleId)) return prev;
-      return [...prev, { moduleId, complexity: "simple" }];
+      return [...prev, { moduleId, complexity: defaultComplexity }];
     });
     setDirty(true);
-  }, []);
+  }, [defaultComplexity]);
 
   const removeModule = useCallback((moduleId: string) => {
     setModules((prev) => prev.filter((m) => m.moduleId !== moduleId));

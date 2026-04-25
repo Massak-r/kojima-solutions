@@ -5,6 +5,10 @@ export interface QuoteLineItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** Back-reference to the module that generated this line, for traceability. */
+  sourceModuleId?: string;
+  /** Complexity tier at the moment the line was generated. */
+  sourceComplexity?: "simple" | "advanced" | "custom";
 }
 
 export interface Quote {

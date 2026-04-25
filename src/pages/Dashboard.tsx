@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useProjects, StoredProject } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
+import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
-import { Plus, LayoutList, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff } from "lucide-react";
+import { Plus, LayoutList, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight } from "lucide-react";
+import { totalQuote } from "@/types/quote";
 import { Input } from "@/components/ui/input";
 import {
   DndContext,
@@ -16,8 +18,8 @@ import {
   useDraggable,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useMemo } from "react";
-import { ProjectData } from "@/types/project";
+import { useState, useMemo, memo } from "react";
+import { ProjectData, ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 
 const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
@@ -32,22 +34,49 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
   const { getClient } = useClients();
+  const { quotes } = useQuotes();
+  const toInvoice = useMemo(
+    () => quotes
+      .filter((q) => q.docType !== "invoice" && q.invoiceStatus === "validated")
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [quotes],
+  );
+  const toInvoiceTotal = useMemo(
+    () => toInvoice.reduce((sum, q) => sum + totalQuote(q), 0),
+    [toInvoice],
+  );
   const clientName = (p: StoredProject) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(() => {
-    try { return localStorage.getItem("dashboard_show_completed") === "true"; }
-    catch { return false; }
+    try {
+      const v = localStorage.getItem("dashboard_show_completed");
+      return v === null ? true : v === "true";
+    } catch { return true; }
   });
+  const [kindFilter, setKindFilter] = useState<ProjectKind | "all">(() => {
+    try {
+      const v = localStorage.getItem("dashboard_kind_filter");
+      return v === "client" || v === "internal" || v === "personal" ? v : "all";
+    } catch { return "all"; }
+  });
+
+  function setKindFilterPersist(k: ProjectKind | "all") {
+    setKindFilter(k);
+    try { localStorage.setItem("dashboard_kind_filter", k); } catch {}
+  }
 
   const filteredProjects = useMemo(() => {
     let list = projects.filter(p => p && p.id);
+    if (kindFilter !== "all") {
+      list = list.filter((p) => (p.kind ?? "client") === kindFilter);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) => (p.title || "").toLowerCase().includes(q) || (p.client || "").toLowerCase().includes(q));
     }
     return list;
-  }, [projects, search]);
+  }, [projects, search, kindFilter]);
 
   const visibleColumns = useMemo(
     () => showCompleted ? COLUMNS : COLUMNS.filter((c) => c.status !== "completed"),
@@ -151,6 +180,56 @@ export default function Dashboard() {
 
       {/* Kanban Board */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {toInvoice.length > 0 && (
+          <section className="mb-6 rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/5 via-card/40 to-card/30 p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <ArrowRightLeft size={14} className="text-accent" />
+              <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">
+                À facturer
+              </span>
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
+                · {toInvoice.length} devis validé{toInvoice.length > 1 ? "s" : ""}
+              </span>
+              <span className="ml-auto text-xs font-body font-semibold text-foreground/80 tabular-nums">
+                {toInvoiceTotal.toLocaleString("fr-CH", { minimumFractionDigits: 0 })} CHF
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {toInvoice.slice(0, 3).map((q) => {
+                const ageDays = Math.max(0, Math.floor((Date.now() - new Date(q.createdAt).getTime()) / 86400000));
+                const target = q.projectId
+                  ? `/project/${q.projectId}/documents`
+                  : `/quotes/${q.id}`;
+                return (
+                  <li key={q.id}>
+                    <button
+                      onClick={() => navigate(target)}
+                      className="w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-center gap-2 px-3 py-2 group"
+                    >
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-primary/40 text-primary shrink-0">DEV</span>
+                      <span className="text-xs font-mono text-muted-foreground/60 shrink-0">{q.quoteNumber || "—"}</span>
+                      <span className="text-sm font-body text-foreground truncate flex-1 min-w-0">
+                        {q.clientName || q.projectTitle || "Sans client"}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums shrink-0 hidden sm:inline">
+                        {ageDays}j
+                      </span>
+                      <span className="text-xs font-body font-semibold text-foreground/80 tabular-nums shrink-0">
+                        {totalQuote(q).toLocaleString("fr-CH", { minimumFractionDigits: 0 })} CHF
+                      </span>
+                      <ChevronRight size={13} className="text-muted-foreground/30 group-hover:text-accent transition-colors shrink-0" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {toInvoice.length > 3 && (
+              <div className="mt-2 pt-2 border-t border-border/40 text-[11px] font-body text-muted-foreground">
+                + {toInvoice.length - 3} autre{toInvoice.length - 3 > 1 ? "s" : ""}
+              </div>
+            )}
+          </section>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 size={24} className="animate-spin text-muted-foreground" />
@@ -172,14 +251,43 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="relative max-w-sm mb-6">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un projet..."
-                className="pl-9 font-body text-sm"
-              />
+            <div className="flex items-center gap-3 flex-wrap mb-6">
+              <div className="relative max-w-sm flex-1 min-w-[200px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Rechercher un projet..."
+                  className="pl-9 font-body text-sm"
+                />
+              </div>
+              <div className="inline-flex rounded-md border border-border bg-background p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setKindFilterPersist("all")}
+                  className={`px-3 py-1.5 text-xs font-body font-medium rounded transition-colors ${
+                    kindFilter === "all"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  Tous
+                </button>
+                {KIND_ORDER.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKindFilterPersist(k)}
+                    className={`px-3 py-1.5 text-xs font-body font-medium rounded transition-colors ${
+                      kindFilter === k
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    {KIND_LABELS[k]}
+                  </button>
+                ))}
+              </div>
             </div>
             {search.trim() && filteredProjects.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground font-body text-sm">
@@ -309,15 +417,7 @@ function DraggableCard({
   );
 }
 
-function ProjectCard({
-  project,
-  clientDisplayName,
-  onClick,
-  onDelete,
-  onCopyLink,
-  dragHandleProps,
-  isOverlay,
-}: {
+interface ProjectCardProps {
   project: StoredProject;
   clientDisplayName?: string | null;
   onClick: () => void;
@@ -325,7 +425,17 @@ function ProjectCard({
   onCopyLink: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isOverlay?: boolean;
-}) {
+}
+
+const ProjectCard = memo(function ProjectCard({
+  project,
+  clientDisplayName,
+  onClick,
+  onDelete,
+  onCopyLink,
+  dragHandleProps,
+  isOverlay,
+}: ProjectCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Count client responses (resolved requests that the client has answered)
@@ -337,7 +447,7 @@ function ProjectCard({
     <div
       onClick={onClick}
       className={`bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative ${
-        isOverlay ? "rotate-2 shadow-xl scale-105 opacity-95" : ""
+        isOverlay ? "rotate-1 shadow-xl scale-105 opacity-95" : ""
       }`}
     >
       {/* Drag handle */}
@@ -419,4 +529,4 @@ function ProjectCard({
       </div>
     </div>
   );
-}
+});

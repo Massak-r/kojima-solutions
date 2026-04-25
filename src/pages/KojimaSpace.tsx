@@ -15,17 +15,16 @@ import {
   Trash2, CheckCircle2, Circle, Target, Sun, X, AlertTriangle, Hourglass,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
+import type { UnifiedObjective, ObjectiveSource } from "@/api/objectiveSource";
 import {
-  listAllUnified, createObjectiveBySource, updateObjectiveBySource, deleteObjectiveBySource,
-  type UnifiedObjective, type ObjectiveSource,
-} from "@/api/objectiveSource";
+  useObjectives, useCreateObjective, useUpdateObjective, useDeleteObjective,
+} from "@/hooks/useObjectives";
+import {
+  useAllSubtasks, useCreateSubtask, useUpdateSubtask, useDeleteSubtask, useBatchCompleteSubtasks,
+} from "@/hooks/useSubtasks";
 import { listCosts, type PersonalCostItem } from "@/api/personalCosts";
 import { FREQUENCY_DAYS } from "@/types/personalCost";
 import { Calendar, Wallet } from "lucide-react";
-import {
-  listSubtasks, createSubtask, updateSubtask, deleteSubtask, batchCompleteSubtasks,
-} from "@/api/todoSubtasks";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 import { ObjectiveRow } from "@/components/todos/ObjectiveRow";
 import { CategorySection } from "@/components/todos/CategorySection";
@@ -110,18 +109,31 @@ export default function KojimaSpace() {
   const navigate   = useNavigate();
   const { projects, loading: projectsLoading, createProject } = useProjects();
   const { quotes } = useQuotes();
-  const { clients, getClient } = useClients();
-  const { toast } = useToast();
+  const { getClient } = useClients();
   const clientName = (p: { clientId?: string; client: string }) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
 
   // Calendar — now using Google Calendar API via CalendarWidget component
 
   // Invoice list
 
-  // Unified objectives (admin + personal)
-  const [todos, setTodos] = useState<UnifiedObjective[]>([]);
-  const [subtasksMap, setSubtasksMap] = useState<Record<string, SubtaskItem[]>>({});
-  const [todosLoading, setTodosLoading] = useState(true);
+  // Unified objectives (admin + personal) via react-query
+  const { data: todos = [], isLoading: objLoading } = useObjectives();
+  const { data: allSubtasks = [], isLoading: subLoading } = useAllSubtasks();
+  const todosLoading = objLoading || subLoading;
+  const createObjectiveMut = useCreateObjective();
+  const updateObjectiveMut = useUpdateObjective();
+  const deleteObjectiveMut = useDeleteObjective();
+  const createSubtaskMut = useCreateSubtask();
+  const updateSubtaskMut = useUpdateSubtask();
+  const deleteSubtaskMut = useDeleteSubtask();
+  const batchCompleteMut = useBatchCompleteSubtasks();
+
+  const subtasksMap = useMemo(() => {
+    const map: Record<string, SubtaskItem[]> = {};
+    for (const s of allSubtasks) (map[s.parentId] ??= []).push(s);
+    return map;
+  }, [allSubtasks]);
+
   const [newTodo, setNewTodo] = useState("");
   const [newIsObj, setNewIsObj] = useState(true);
   const [newCat, setNewCat] = useState("Kojima-Solutions");
@@ -163,89 +175,59 @@ export default function KojimaSpace() {
   );
 
   useEffect(() => {
-    Promise.all([
-      listAllUnified(),
-      listSubtasks(undefined, 'admin'),
-      listSubtasks(undefined, 'personal'),
-    ]).then(([items, adminSubs, personalSubs]) => {
-      setTodos(items);
-      const map: Record<string, SubtaskItem[]> = {};
-      for (const s of [...adminSubs, ...personalSubs]) (map[s.parentId] ??= []).push(s);
-      setSubtasksMap(map);
-    }).catch(() => {}).finally(() => setTodosLoading(false));
-
     listCosts().then(setPersonalCosts).catch(() => {});
   }, []);
 
-  async function addTodo() {
+  function addTodo() {
     if (!newTodo.trim()) return;
     const text = newTodo.trim();
     const isObjective = newIsObj;
     setNewTodo(""); setNewIsObj(false);
-    try {
-      const item = await createObjectiveBySource('admin', { text, category: newCat, isObjective });
-      setTodos(prev => [...prev, item]);
-    } catch {
-      setTodos(prev => [...prev, {
-        id: crypto.randomUUID(), source: 'admin', text, completed: false, category: newCat,
-        isObjective, order: todos.length, createdAt: new Date().toISOString(),
-        priority: "medium", status: "not_started",
-      }]);
-    }
+    createObjectiveMut.mutate({ source: 'admin', data: { text, category: newCat, isObjective } });
   }
 
-  async function toggleTodo(id: string) {
-    const todo = todos.find(t => t.id === id)!;
+  function toggleTodo(id: string) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
     const willComplete = !todo.completed;
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: willComplete } : t));
-    try { await updateObjectiveBySource(todo.source, id, { completed: willComplete }); } catch {}
+    updateObjectiveMut.mutate({ source: todo.source, id, patch: { completed: willComplete } });
     if (willComplete && todo.isObjective) {
       const subs = subtasksMap[id] || [];
       if (subs.some(s => !s.completed)) {
-        setSubtasksMap(prev => ({ ...prev, [id]: subs.map(s => ({ ...s, completed: true })) }));
-        batchCompleteSubtasks(id, subs).catch(() => {});
+        batchCompleteMut.mutate({ parentId: id, subtasks: subs });
       }
     }
   }
 
-  async function swapObjectiveOrder(idA: string, idB: string) {
+  function swapObjectiveOrder(idA: string, idB: string) {
     const a = todos.find(t => t.id === idA);
     const b = todos.find(t => t.id === idB);
     if (!a || !b) return;
-    setTodos(prev => prev.map(t => t.id === idA ? { ...t, order: b.order } : t.id === idB ? { ...t, order: a.order } : t));
-    try { await updateObjectiveBySource(a.source, idA, { order: b.order }); await updateObjectiveBySource(b.source, idB, { order: a.order }); } catch {}
+    updateObjectiveMut.mutate({ source: a.source, id: idA, patch: { order: b.order } });
+    updateObjectiveMut.mutate({ source: b.source, id: idB, patch: { order: a.order } });
   }
 
-  async function deleteTodo(id: string) {
+  function deleteTodo(id: string) {
     const src = sourceOf(id);
-    setTodos(prev => prev.filter(t => t.id !== id));
     setTodoDeleteId(null);
-    try { await deleteObjectiveBySource(src, id); } catch {}
+    deleteObjectiveMut.mutate({ source: src, id });
   }
 
   // Subtask handlers
-  async function handleSubtaskAdd(parentId: string, text: string, dueDate?: string) {
-    try {
-      const sub = await createSubtask({ parentId, text, dueDate, source: sourceOf(parentId) });
-      setSubtasksMap(prev => ({ ...prev, [parentId]: [...(prev[parentId] || []), sub] }));
-    } catch {
-      toast({ title: "Erreur lors de l'ajout de l'étape", variant: "destructive" });
-    }
+  function handleSubtaskAdd(parentId: string, text: string, dueDate?: string) {
+    createSubtaskMut.mutate({ parentId, text, dueDate, source: sourceOf(parentId) });
   }
-  async function handleSubtaskToggle(parentId: string, subId: string) {
+  function handleSubtaskToggle(parentId: string, subId: string) {
     const subs = subtasksMap[parentId] || [];
     const sub = subs.find(s => s.id === subId);
     if (!sub) return;
-    setSubtasksMap(prev => ({ ...prev, [parentId]: subs.map(s => s.id === subId ? { ...s, completed: !s.completed } : s) }));
-    try { await updateSubtask(subId, { completed: !sub.completed }); } catch {}
+    updateSubtaskMut.mutate({ id: subId, patch: { completed: !sub.completed } });
   }
-  async function handleSubtaskDelete(parentId: string, subId: string) {
-    setSubtasksMap(prev => ({ ...prev, [parentId]: (prev[parentId] || []).filter(s => s.id !== subId) }));
-    try { await deleteSubtask(subId); } catch {}
+  function handleSubtaskDelete(_parentId: string, subId: string) {
+    deleteSubtaskMut.mutate(subId);
   }
-  async function handleSubtaskUpdate(parentId: string, subId: string, data: any) {
-    setSubtasksMap(prev => ({ ...prev, [parentId]: (prev[parentId] || []).map(s => s.id === subId ? { ...s, ...data } : s) }));
-    try { await updateSubtask(subId, data); } catch {}
+  function handleSubtaskUpdate(_parentId: string, subId: string, data: Partial<SubtaskItem>) {
+    updateSubtaskMut.mutate({ id: subId, patch: data });
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -942,12 +924,18 @@ export default function KojimaSpace() {
                           categoryOptions={[...ALL_CATEGORIES]}
                           onToggle={() => toggleTodo(todo.id)}
                           onDelete={() => setTodoDeleteId(todo.id)}
-                          onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { text: title }); } catch {} } }}
-                          onCategoryChange={async (c) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, category: c } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { category: c }); } catch {} }}
-                          onDescriptionSave={async (desc) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, description: desc || null } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { description: desc || undefined }); } catch {} }}
-                          onSmartSave={async (field, value) => { if (field === "timebound") { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: value || undefined } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { dueDate: value || undefined }); } catch {} } else { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, [field]: value || null } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { [field]: value || undefined } as any); } catch {} } }}
-                          onPriorityChange={async (p) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, priority: p } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { priority: p }); } catch {} }}
-                          onStatusChange={async (s) => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, status: s } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { status: s }); } catch {} }}
+                          onTitleSave={(title) => { if (title) updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { text: title } }); }}
+                          onCategoryChange={(c) => updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { category: c } })}
+                          onDescriptionSave={(desc) => updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { description: desc || null } })}
+                          onSmartSave={(field, value) => {
+                            if (field === "timebound") {
+                              updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { dueDate: value || null } });
+                            } else {
+                              updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { [field]: value || null } as Partial<UnifiedObjective> });
+                            }
+                          }}
+                          onPriorityChange={(p) => updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { priority: p } })}
+                          onStatusChange={(s) => updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { status: s } })}
                           onSubtaskToggle={subId => handleSubtaskToggle(todo.id, subId)}
                           onSubtaskAdd={(text, due) => handleSubtaskAdd(todo.id, text, due)}
                           onSubtaskDelete={subId => handleSubtaskDelete(todo.id, subId)}
@@ -968,7 +956,7 @@ export default function KojimaSpace() {
                           categoryBadge={todo.category} parentCategory={cat}
                           onToggle={() => toggleTodo(todo.id)}
                           onDelete={() => setTodoDeleteId(todo.id)}
-                          onTitleSave={async (title) => { if (title) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, text: title } : t)); try { await updateObjectiveBySource(todo.source, todo.id, { text: title }); } catch {} } }}
+                          onTitleSave={(title) => { if (title) updateObjectiveMut.mutate({ source: todo.source, id: todo.id, patch: { text: title } }); }}
                           onDescriptionSave={() => {}} onSmartSave={() => {}} onPriorityChange={() => {}} onStatusChange={() => {}}
                           onSubtaskToggle={() => {}} onSubtaskAdd={() => {}} onSubtaskDelete={() => {}}
                           deleteConfirming={todoDeleteId === todo.id} onDeleteConfirm={() => deleteTodo(todo.id)} onDeleteCancel={() => setTodoDeleteId(null)}
@@ -998,7 +986,7 @@ export default function KojimaSpace() {
                             parentCategory={cat}
                             onToggle={() => toggleTodo(t.id)}
                             onDelete={() => deleteTodo(t.id)}
-                            onDescriptionSave={async (desc) => { setTodos(prev => prev.map(x => x.id === t.id ? { ...x, description: desc || null } : x)); try { await updateObjectiveBySource(t.source, t.id, { description: desc || undefined }); } catch {} }}
+                            onDescriptionSave={(desc) => updateObjectiveMut.mutate({ source: t.source, id: t.id, patch: { description: desc || null } })}
                             onSmartSave={() => {}}
                             onPriorityChange={() => {}}
                             onStatusChange={() => {}}

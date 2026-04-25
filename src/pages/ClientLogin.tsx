@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { clientLogin, type ClientLoginProject } from "@/api/clientLogin";
-import { setClientAuth } from "@/lib/auth";
+import { setClientAuth, setClientSession } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { User, Loader2, FolderOpen, ArrowRight } from "lucide-react";
@@ -31,9 +31,17 @@ const ClientLogin = () => {
     try {
       const data = await clientLogin(email.trim());
       setResult(data);
-      // Pre-authorize all projects for this email
+      // Pre-authorize all projects for this email (legacy)
       for (const p of data.projects) {
         setClientAuth(p.id, email.trim());
+      }
+      // Persist the opaque server-issued session alongside the email.
+      if (data.sessionToken) {
+        setClientSession({
+          token: data.sessionToken,
+          clientId: data.client.id,
+          expiresAt: data.sessionExpiresAt,
+        });
       }
     } catch {
       setError(t("Aucun projet trouvé pour cet email.", "No projects found for this email."));

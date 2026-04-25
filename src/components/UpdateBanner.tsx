@@ -30,10 +30,8 @@ export function UpdateBanner() {
     setTimeout(() => window.location.reload(), 1000);
   }
 
-  // Only show in PWA standalone mode (not regular browser) and only to admins
-  const isPWA = window.matchMedia("(display-mode: standalone)").matches
-    || (navigator as any).standalone === true;
-  if (!isAdmin || !isPWA) return null;
+  // Admins only — web users also benefit from knowing to refresh.
+  if (!isAdmin) return null;
 
   return (
     <AnimatePresence>

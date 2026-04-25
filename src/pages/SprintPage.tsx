@@ -1,24 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2, Hourglass, CalendarPlus, Repeat,
+  Target, Play, Square, ChevronRight, Clock, Star, Sparkles, CornerDownRight, Sun, CalendarCheck2, Hourglass, CalendarPlus, Repeat, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listObjectives } from "@/api/objectives";
-import type { ObjectiveItem } from "@/api/objectives";
-import { listPersonalTodos } from "@/api/personalTodos";
-import type { PersonalTodoItem } from "@/api/personalTodos";
-import { listSubtasks, updateSubtask } from "@/api/todoSubtasks";
 import type { SubtaskItem } from "@/api/todoSubtasks";
+import { useObjectives } from "@/hooks/useObjectives";
+import { useAllSubtasks, useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useFocusSession, formatElapsed } from "@/components/objective/useFocusSession";
 import { GlobalWeekSummary } from "@/components/objective/GlobalWeekSummary";
 import { DailyCommitDialog } from "@/components/objective/DailyCommitDialog";
 import { WeeklyReviewDialog } from "@/components/objective/WeeklyReviewDialog";
 import { EFFORT_CONFIG } from "@/components/todos/SubtaskCard";
-import type { ObjectiveSource } from "@/api/objectiveSource";
+import { WeekPlanner } from "@/components/sprint/WeekPlanner";
+import type { ObjectiveSource, UnifiedObjective } from "@/api/objectiveSource";
 import { STATUS_CONFIG, PRIORITY_BORDER } from "@/lib/objectiveConstants";
+
+type SprintViewMode = "today" | "week";
+const VIEW_MODE_KEY = "sprint-view-mode";
 
 const DAILY_COMMIT_KEY_PREFIX = "kojima-daily-commit-";
 function todayKey() {
@@ -49,8 +50,6 @@ function isoWeekKey(d: Date): string {
 }
 const WEEKLY_REVIEW_KEY_PREFIX = "kojima-weekly-review-";
 
-type SprintObjective = (ObjectiveItem | PersonalTodoItem) & { source: ObjectiveSource };
-
 function findActiveSessionKey(): { source: ObjectiveSource; objectiveId: string } | null {
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -65,14 +64,37 @@ function findActiveSessionKey(): { source: ObjectiveSource; objectiveId: string 
 
 export default function SprintPage() {
   const navigate = useNavigate();
-  const [objectives, setObjectives] = useState<SprintObjective[]>([]);
-  const [allSubtasks, setAllSubtasks] = useState<SubtaskItem[]>([]);
-  const [subtasksMap, setSubtasksMap] = useState<Record<string, SubtaskItem[]>>({});
-  const [loading, setLoading] = useState(true);
+  const { data: allObjectives = [], isLoading: objLoading } = useObjectives();
+  const { data: allSubtasks = [], isLoading: subLoading } = useAllSubtasks();
+  const updateSubtaskMut = useUpdateSubtask();
+  const loading = objLoading || subLoading;
+
+  const objectives = useMemo<UnifiedObjective[]>(
+    () => allObjectives.filter(o => o.isObjective && !o.completed),
+    [allObjectives],
+  );
+
+  const subtasksMap = useMemo(() => {
+    const map: Record<string, SubtaskItem[]> = {};
+    for (const s of allSubtasks) (map[s.parentId] ??= []).push(s);
+    return map;
+  }, [allSubtasks]);
+
   const [activeKey, setActiveKey] = useState<{ source: ObjectiveSource; objectiveId: string } | null>(() => findActiveSessionKey());
   const [showCommit, setShowCommit] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showFullDashboard, setShowFullDashboard] = useState(false);
+  const [viewMode, setViewMode] = useState<SprintViewMode>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_MODE_KEY);
+      return v === "week" ? "week" : "today";
+    } catch { return "today"; }
+  });
+
+  function changeViewMode(m: SprintViewMode) {
+    setViewMode(m);
+    try { localStorage.setItem(VIEW_MODE_KEY, m); } catch {}
+  }
 
   // Auto-trigger Friday review on Friday afternoons (>= 14h local), once per ISO week
   useEffect(() => {
@@ -94,54 +116,26 @@ export default function SprintPage() {
     if (!activeKey) setShowFullDashboard(false);
   }, [activeKey]);
 
+  // Auto-open the daily commit ritual once per day if there are pending flagged items
+  const hasCheckedCommitRef = useRef(false);
   useEffect(() => {
-    Promise.all([
-      listObjectives(),
-      listPersonalTodos(),
-      listSubtasks(undefined, "admin"),
-      listSubtasks(undefined, "personal"),
-    ])
-      .then(([adminObjs, personalObjs, adminSubs, personalSubs]) => {
-        const tagged: SprintObjective[] = [
-          ...adminObjs.map(o => ({ ...o, source: "admin" as const })),
-          ...personalObjs.map(o => ({ ...o, source: "personal" as const })),
-        ];
-        const activeObjs = tagged.filter(o => o.isObjective && !o.completed);
-        setObjectives(activeObjs);
-
-        const subs = [...adminSubs, ...personalSubs];
-        setAllSubtasks(subs);
-        const map: Record<string, SubtaskItem[]> = {};
-        for (const s of subs) (map[s.parentId] ??= []).push(s);
-        setSubtasksMap(map);
-
-        // Auto-open the daily commit ritual once per day if there are pending flagged items
-        try {
-          if (!localStorage.getItem(todayKey())) {
-            const pendingFlagged = subs.some(
-              s => s.flaggedToday && !s.completed && activeObjs.some(o => o.id === s.parentId)
-            );
-            if (pendingFlagged) setShowCommit(true);
-          }
-        } catch {}
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function handleCommit(kept: Set<string>, deferred: Set<string>) {
-    // Persist locally first for snappy UI
-    setAllSubtasks(prev => prev.map(s => deferred.has(s.id) ? { ...s, flaggedToday: false } : s));
-    setSubtasksMap(prev => {
-      const next: Record<string, SubtaskItem[]> = {};
-      for (const [k, arr] of Object.entries(prev)) {
-        next[k] = arr.map(s => deferred.has(s.id) ? { ...s, flaggedToday: false } : s);
+    if (loading || hasCheckedCommitRef.current) return;
+    hasCheckedCommitRef.current = true;
+    try {
+      if (!localStorage.getItem(todayKey())) {
+        const pendingFlagged = allSubtasks.some(
+          s => s.flaggedToday && !s.completed && objectives.some(o => o.id === s.parentId),
+        );
+        if (pendingFlagged) setShowCommit(true);
       }
-      return next;
-    });
+    } catch {}
+  }, [loading, allSubtasks, objectives]);
+
+  function handleCommit(kept: Set<string>, deferred: Set<string>) {
     try { localStorage.setItem(todayKey(), "done"); } catch {}
-    // Fire-and-forget server updates
-    await Promise.all([...deferred].map(id => updateSubtask(id, { flaggedToday: false }).catch(() => {})));
+    for (const id of deferred) {
+      updateSubtaskMut.mutate({ id, patch: { flaggedToday: false } });
+    }
     void kept;
   }
 
@@ -149,42 +143,42 @@ export default function SprintPage() {
     try { localStorage.setItem(todayKey(), "skipped"); } catch {}
   }
 
-  async function completeSubtask(subId: string) {
-    setAllSubtasks(prev => prev.map(s => s.id === subId ? { ...s, completed: true } : s));
-    setSubtasksMap(prev => {
-      const next: Record<string, SubtaskItem[]> = {};
-      for (const [k, arr] of Object.entries(prev)) {
-        next[k] = arr.map(s => s.id === subId ? { ...s, completed: true } : s);
-      }
-      return next;
-    });
-    try { await updateSubtask(subId, { completed: true }); } catch {}
+  function completeSubtask(subId: string) {
+    updateSubtaskMut.mutate({ id: subId, patch: { completed: true } });
   }
 
-  async function postponeSubtask(subId: string) {
+  function postponeSubtask(subId: string) {
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const patch = { flaggedToday: false, scheduledFor: tomorrow };
-    setAllSubtasks(prev => prev.map(s => s.id === subId ? { ...s, ...patch } : s));
-    setSubtasksMap(prev => {
-      const next: Record<string, SubtaskItem[]> = {};
-      for (const [k, arr] of Object.entries(prev)) {
-        next[k] = arr.map(s => s.id === subId ? { ...s, ...patch } : s);
-      }
-      return next;
-    });
-    try { await updateSubtask(subId, patch); } catch {}
+    updateSubtaskMut.mutate({ id: subId, patch: { flaggedToday: false, scheduledFor: tomorrow } });
+  }
+
+  function updateSubtaskOptimistic(subId: string, patch: Partial<SubtaskItem>) {
+    updateSubtaskMut.mutate({ id: subId, patch });
   }
 
   useEffect(() => {
-    const id = window.setInterval(() => {
+    function refresh() {
       const curr = findActiveSessionKey();
       setActiveKey(prev => {
         if (!prev && !curr) return prev;
         if (prev && curr && prev.source === curr.source && prev.objectiveId === curr.objectiveId) return prev;
         return curr;
       });
-    }, 4000);
-    return () => window.clearInterval(id);
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key && !/^focus_session_(admin|personal)_/.test(e.key)) return;
+      refresh();
+    }
+    // Same-tab: useFocusSession dispatches this when it writes/clears localStorage.
+    // Cross-tab: storage event. Also re-check when the tab regains focus.
+    window.addEventListener("focus-session-change", refresh);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("focus-session-change", refresh);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
 
   const activeObjective = activeKey
@@ -192,7 +186,7 @@ export default function SprintPage() {
     : null;
 
   const objectivesById = useMemo(() => {
-    const map: Record<string, SprintObjective> = {};
+    const map: Record<string, UnifiedObjective> = {};
     for (const o of objectives) map[o.id] = o;
     return map;
   }, [objectives]);
@@ -246,7 +240,10 @@ export default function SprintPage() {
   const inRadicalFocus = !!(activeKey && activeObjective && !showFullDashboard);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+    <div className={cn(
+      "mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 transition-[max-width]",
+      viewMode === "week" && !inRadicalFocus ? "max-w-7xl" : "max-w-5xl",
+    )}>
       <header className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
           <Target size={22} className="text-primary" />
@@ -326,57 +323,99 @@ export default function SprintPage() {
             <EmptyFocusHint hasBacklog={backlogPending > 0} />
           )}
 
-          {/* Cross-objective sprint backlog */}
-          {loading ? (
-            <Skeleton className="h-40 rounded-2xl" />
-          ) : sprintBacklog.length > 0 ? (
-            <SprintBacklog
-              items={sprintBacklog}
-              subtaskById={subtaskById}
-              objectivesById={objectivesById}
-              backlogPending={backlogPending}
-              backlogDone={backlogDone}
-              onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
-              onPostpone={postponeSubtask}
-            />
-          ) : null}
-
-          <GlobalWeekSummary objectivesById={objectivesById} />
-
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <h2 className="text-xs font-display font-bold text-foreground/60 uppercase tracking-wider">
-                Objectifs actifs {!loading && `· ${objectives.length}`}
-              </h2>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <Skeleton className="h-36 rounded-2xl" />
-                <Skeleton className="h-36 rounded-2xl" />
-                <Skeleton className="h-36 rounded-2xl" />
-              </div>
-            ) : sorted.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/40 p-8 text-center">
-                <Target size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                <div className="text-sm font-body text-muted-foreground">Aucun objectif actif.</div>
-                <div className="text-xs font-body text-muted-foreground/50 mt-1">
-                  Créez un objectif depuis Kojima Space ou Personnel pour entrer en sprint.
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {sorted.map(obj => (
-                  <ObjectiveCard
-                    key={`${obj.source}:${obj.id}`}
-                    objective={obj}
-                    subtasks={subtasksMap[obj.id] || []}
-                    onOpen={() => navigate(`/objective/${obj.source}/${obj.id}`, { state: { from: "/sprint" } })}
-                  />
-                ))}
-              </div>
-            )}
+          {/* View mode toggle */}
+          <div className="flex gap-1 p-0.5 bg-muted/40 rounded-full w-fit">
+            <button
+              onClick={() => changeViewMode("today")}
+              className={cn(
+                "px-3 py-1 text-[11px] font-body font-semibold rounded-full transition-colors",
+                viewMode === "today"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Aujourd'hui
+            </button>
+            <button
+              onClick={() => changeViewMode("week")}
+              className={cn(
+                "px-3 py-1 text-[11px] font-body font-semibold rounded-full transition-colors",
+                viewMode === "week"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Semaine
+            </button>
           </div>
+
+          {viewMode === "week" ? (
+            loading ? (
+              <Skeleton className="h-96 rounded-2xl" />
+            ) : (
+              <WeekPlanner
+                objectives={objectives}
+                allSubtasks={allSubtasks}
+                objectivesById={objectivesById}
+                onUpdateSubtask={updateSubtaskOptimistic}
+                onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
+              />
+            )
+          ) : (
+            <>
+              {/* Cross-objective sprint backlog */}
+              {loading ? (
+                <Skeleton className="h-40 rounded-2xl" />
+              ) : sprintBacklog.length > 0 ? (
+                <SprintBacklog
+                  items={sprintBacklog}
+                  subtaskById={subtaskById}
+                  objectivesById={objectivesById}
+                  backlogPending={backlogPending}
+                  backlogDone={backlogDone}
+                  onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
+                  onPostpone={postponeSubtask}
+                />
+              ) : null}
+
+              <GlobalWeekSummary objectivesById={objectivesById} />
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h2 className="text-xs font-display font-bold text-foreground/60 uppercase tracking-wider">
+                    Objectifs actifs {!loading && `· ${objectives.length}`}
+                  </h2>
+                </div>
+
+                {loading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <Skeleton className="h-36 rounded-2xl" />
+                    <Skeleton className="h-36 rounded-2xl" />
+                    <Skeleton className="h-36 rounded-2xl" />
+                  </div>
+                ) : sorted.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/40 p-8 text-center">
+                    <Target size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+                    <div className="text-sm font-body text-muted-foreground">Aucun objectif actif.</div>
+                    <div className="text-xs font-body text-muted-foreground/50 mt-1">
+                      Créez un objectif depuis Kojima Space ou Personnel pour entrer en sprint.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {sorted.map(obj => (
+                      <ObjectiveCard
+                        key={`${obj.source}:${obj.id}`}
+                        objective={obj}
+                        subtasks={subtasksMap[obj.id] || []}
+                        onOpen={() => navigate(`/objective/${obj.source}/${obj.id}`, { state: { from: "/sprint" } })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -407,7 +446,7 @@ function SprintBacklog({
 }: {
   items: SubtaskItem[];
   subtaskById: Record<string, SubtaskItem>;
-  objectivesById: Record<string, SprintObjective>;
+  objectivesById: Record<string, UnifiedObjective>;
   backlogPending: number;
   backlogDone: number;
   onJump: (source: ObjectiveSource, objectiveId: string) => void;
@@ -525,7 +564,7 @@ function RunningSessionBanner({
   source, objective, subtasks, onOpen,
 }: {
   source: ObjectiveSource;
-  objective: SprintObjective;
+  objective: UnifiedObjective;
   subtasks: SubtaskItem[];
   onOpen: () => void;
 }) {
@@ -585,11 +624,11 @@ function RunningSessionBanner({
 function ObjectiveCard({
   objective, subtasks, onOpen,
 }: {
-  objective: SprintObjective;
+  objective: UnifiedObjective;
   subtasks: SubtaskItem[];
   onOpen: () => void;
 }) {
-  const category = "category" in objective ? objective.category : undefined;
+  const category = objective.source === "admin" ? objective.category : undefined;
   const flagged   = subtasks.find(s => s.flaggedToday && !s.completed);
   const pending   = subtasks.filter(s => !s.completed);
   const completed = subtasks.filter(s => s.completed);
@@ -663,9 +702,9 @@ function RadicalFocusView({
   source, objective, subtasks, onComplete, onShowDashboard, onOpenWorkspace,
 }: {
   source: ObjectiveSource;
-  objective: SprintObjective;
+  objective: UnifiedObjective;
   subtasks: SubtaskItem[];
-  onComplete: (subId: string) => Promise<void>;
+  onComplete: (subId: string) => void;
   onShowDashboard: () => void;
   onOpenWorkspace: () => void;
 }) {
@@ -673,8 +712,31 @@ function RadicalFocusView({
   const focused = subtasks.find(s => s.flaggedToday && !s.completed);
   const remainingFlagged = subtasks.filter(s => s.flaggedToday && !s.completed).length;
 
+  // Esc exits radical focus mode back to the full dashboard
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      onShowDashboard();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onShowDashboard]);
+
   return (
-    <section className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/5 via-card/40 to-card/30 p-8 sm:p-12 min-h-[60vh] flex flex-col items-center justify-center text-center">
+    <section className="relative rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/5 via-card/40 to-card/30 p-8 sm:p-12 min-h-[60vh] flex flex-col items-center justify-center text-center">
+      <button
+        onClick={onShowDashboard}
+        className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-body font-medium bg-background/60 backdrop-blur-sm border border-border/60 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+        aria-label="Quitter le mode focus radical (Esc)"
+        title="Quitter (Esc)"
+      >
+        <ArrowLeft size={13} />
+        <span className="hidden sm:inline">Retour</span>
+        <kbd className="ml-1 px-1 py-px text-[9px] font-mono font-semibold rounded bg-muted/60 text-muted-foreground border border-border/40 hidden sm:inline-block">Esc</kbd>
+      </button>
       <div className="flex items-center gap-2 mb-6">
         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
         <span className="text-[10px] font-display font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">

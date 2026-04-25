@@ -9,6 +9,8 @@ import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "l
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { KIND_LABELS, KIND_BADGE_CLASSES } from "@/types/project";
+import { cn } from "@/lib/utils";
 
 const TIER_LABELS: Record<Tier, { label: string; color: string }> = {
   essential: { label: "Essentiel", color: "bg-muted text-muted-foreground" },
@@ -87,6 +89,16 @@ export default function ProjectBrief() {
           ) : (
             <div className="flex items-center gap-2 group">
               <h1 className="text-lg font-heading font-semibold">{project.title}</h1>
+              {(project.kind ?? "client") !== "client" && (
+                <span
+                  className={cn(
+                    "text-[10px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                    KIND_BADGE_CLASSES[project.kind ?? "client"],
+                  )}
+                >
+                  {KIND_LABELS[project.kind ?? "client"]}
+                </span>
+              )}
               <button
                 onClick={() => { setDraftTitle(project.title); setEditingTitle(true); }}
                 className="md:opacity-0 md:group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"

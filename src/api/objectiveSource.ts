@@ -40,9 +40,9 @@ function toUnifiedFromAdmin(o: ObjectiveItem): UnifiedObjective {
   return {
     ...o,
     source: 'admin',
-    definitionOfDone: (o as any).definitionOfDone ?? null,
-    linkedProjectId:  (o as any).linkedProjectId ?? null,
-    linkedClientId:   (o as any).linkedClientId ?? null,
+    definitionOfDone: o.definitionOfDone ?? null,
+    linkedProjectId:  o.linkedProjectId  ?? null,
+    linkedClientId:   o.linkedClientId   ?? null,
   };
 }
 
@@ -51,9 +51,9 @@ function toUnifiedFromPersonal(o: PersonalTodoItem): UnifiedObjective {
     ...o,
     source: 'personal',
     category: PERSONAL_VIRTUAL_CATEGORY,
-    definitionOfDone: (o as any).definitionOfDone ?? null,
-    linkedProjectId:  (o as any).linkedProjectId ?? null,
-    linkedClientId:   (o as any).linkedClientId ?? null,
+    definitionOfDone: o.definitionOfDone ?? null,
+    linkedProjectId:  o.linkedProjectId  ?? null,
+    linkedClientId:   o.linkedClientId   ?? null,
   };
 }
 
@@ -73,10 +73,14 @@ export function updateObjectiveBySource(
   id: string,
   data: Partial<UnifiedObjective>,
 ) {
+  // Strip the fields that don't exist on the underlying row shape (source is
+  // our synthesized discriminator, category is virtual for personal todos).
+  const { source: _source, ...rest } = data;
   if (source === 'admin') {
-    return admin.updateObjective(id, data as any);
+    return admin.updateObjective(id, rest);
   }
-  return personal.updatePersonalTodo(id, data as any);
+  const { category: _category, ...personalRest } = rest;
+  return personal.updatePersonalTodo(id, personalRest);
 }
 
 export type CreateObjectivePayload = {

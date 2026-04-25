@@ -28,8 +28,6 @@ import QuoteEdit from "./pages/QuoteEdit";
 import QuotePrintPage from "./pages/QuotePrintPage";
 import Dashboard from "./pages/Dashboard";
 import KojimaSpace from "./pages/KojimaSpace";
-import ProjectDetails from "./pages/ProjectDetails";
-import ProjectTasks from "./pages/ProjectTasks";
 import ProjectSteps from "./pages/ProjectSteps";
 import ClientDashboard from "./pages/ClientDashboard";
 import ProjectDocuments from "./pages/ProjectDocuments";
@@ -42,7 +40,6 @@ import ObjectiveWorkspace from "./pages/ObjectiveWorkspace";
 import SprintPage from "./pages/SprintPage";
 
 import SharedFolder from "./pages/SharedFolder";
-import ProjectFunnel from "./pages/ProjectFunnel";
 import ProjectBrief from "./pages/ProjectBrief";
 import ProjectCadrage from "./pages/ProjectCadrage";
 import ProjectModules from "./pages/ProjectModules";
@@ -57,7 +54,18 @@ import ClientLogin from "./pages/ClientLogin";
 import Portfolio from "./pages/Portfolio";
 import GateDecisionPage from "./pages/GateDecisionPage";
 import FeedbackDecisionPage from "./pages/FeedbackDecisionPage";
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 function AdminContentWrapper({ children }: { children: React.ReactNode }) {
   const isAdmin = useIsAdminPage();

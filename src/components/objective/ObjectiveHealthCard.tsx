@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Target, Star, Clock, ChevronRight, Loader2 } from "lucide-react";
-import { listObjectives } from "@/api/objectives";
-import { listPersonalTodos } from "@/api/personalTodos";
-import { listSubtasks } from "@/api/todoSubtasks";
+import { useObjectives } from "@/hooks/useObjectives";
+import { useAllSubtasks } from "@/hooks/useSubtasks";
 import { getGlobalWeekSummary } from "@/api/objectiveSessions";
 
 function formatDuration(sec: number): string {
@@ -15,34 +14,23 @@ function formatDuration(sec: number): string {
 }
 
 export function ObjectiveHealthCard() {
-  const [activeCount, setActiveCount] = useState(0);
-  const [flaggedCount, setFlaggedCount] = useState(0);
+  const { data: objectives = [], isLoading: objLoading } = useObjectives();
+  const { data: subtasks = [], isLoading: subLoading } = useAllSubtasks();
   const [weekSec, setWeekSec] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [weekLoading, setWeekLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      listObjectives(),
-      listPersonalTodos(),
-      listSubtasks(undefined, "admin"),
-      listSubtasks(undefined, "personal"),
-      getGlobalWeekSummary().catch(() => null),
-    ])
-      .then(([adminObjs, personalObjs, adminSubs, personalSubs, week]) => {
-        if (cancelled) return;
-        const allObjs = [...adminObjs, ...personalObjs];
-        const active = allObjs.filter(o => o.isObjective && !o.completed).length;
-        const allSubs = [...adminSubs, ...personalSubs];
-        const flagged = allSubs.filter(s => s.flaggedToday && !s.completed).length;
-        setActiveCount(active);
-        setFlaggedCount(flagged);
-        setWeekSec(week?.totalSec ?? 0);
-      })
+    getGlobalWeekSummary()
+      .then((w) => { if (!cancelled) setWeekSec(w?.totalSec ?? 0); })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setWeekLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  const loading = objLoading || subLoading || weekLoading;
+  const activeCount = objectives.filter((o) => o.isObjective && !o.completed).length;
+  const flaggedCount = subtasks.filter((s) => s.flaggedToday && !s.completed).length;
 
   return (
     <RouterLink

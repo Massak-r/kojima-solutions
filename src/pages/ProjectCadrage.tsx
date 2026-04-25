@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { getCadrage, saveCadrage, type Cadrage } from "@/api/cadrage";
+import { getIntakeByProject } from "@/api/funnels";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -20,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Blocks } from "lucide-react";
 import { getProjectModules } from "@/api/modules";
-import { generateDeliverablesFromModules } from "@/lib/moduleGenerators";
+import { ModuleResolver } from "@/lib/moduleResolver";
 
 const SECTIONS = [
   { key: "objectives", label: "Objectifs du projet", icon: Target, placeholder: "Quels sont les objectifs principaux de ce projet ?" },
@@ -55,8 +56,9 @@ export default function ProjectCadrage() {
 
   useEffect(() => {
     if (!id) return;
-    getCadrage(id)
-      .then((c) => {
+    (async () => {
+      try {
+        const c = await getCadrage(id);
         if (c) {
           setData({
             objectives: c.objectives,
@@ -67,10 +69,24 @@ export default function ProjectCadrage() {
             constraints: c.constraints,
             budgetValidated: c.budgetValidated,
           });
+          return;
         }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+        // First-time load: seed budgetValidated from intake if one is linked.
+        try {
+          const intakes = await getIntakeByProject(id);
+          const intake = intakes?.[0];
+          const raw = intake?.responses as Record<string, unknown> | undefined;
+          const budget = raw?.budget ?? raw?.budgetValidated;
+          if (budget !== undefined && budget !== null && String(budget).trim() !== "") {
+            setData((prev) => ({ ...prev, budgetValidated: String(budget) }));
+            setDirty(true);
+          }
+        } catch {}
+      } catch {}
+      finally {
+        setLoading(false);
+      }
+    })();
   }, [id]);
 
   const handleChange = useCallback((key: CadrageField, value: string) => {
@@ -85,7 +101,7 @@ export default function ProjectCadrage() {
       toast({ title: "Aucun module sélectionné", variant: "destructive" });
       return;
     }
-    const text = generateDeliverablesFromModules(mods.modules);
+    const text = new ModuleResolver(mods.modules).toDeliverables();
     const current = data.deliverables.trim();
     // Check if deliverables text is already present
     if (current && current.includes(text.trim())) {

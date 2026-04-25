@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import { ProjectData, DEFAULT_PROJECT, Delivery } from "@/types/project";
-import { TimelineTask, SubTask, FeedbackRequest, StepComment, StepStatus } from "@/types/timeline";
+import type { SubTask, FeedbackRequest, StepComment, StepStatus } from "@/types/timeline";
 import type { ProjectPhase } from "@/types/phase";
 import * as api from "@/api/projects";
 import { addStepComment as apiAddStepComment } from "@/api/steps";
@@ -45,53 +47,56 @@ interface ProjectsContextValue {
   updateProjectPhases: (projectId: string, phases: ProjectPhase[]) => void;
   setShareToken: (projectId: string, token: string | null) => void;
 }
-const ProjectsContext = createContext<ProjectsContextValue | null>(null);
 
+const PROJECTS_KEY = ["projects"] as const;
+
+// Provider is now a no-op pass-through. The cache lives in react-query
+// (QueryClientProvider in App.tsx); `useProjects()` reads from it directly.
 export function ProjectsProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<StoredProject[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [apiAvailable, setApiAvailable] = useState(true);
+  return <>{children}</>;
+}
 
-  // Load from API on mount
-  useEffect(() => {
-    api.listProjects()
-      .then((data) => {
-        setProjects(data);
-        setApiAvailable(true);
-      })
-      .catch(() => {
-        setApiAvailable(false);
-        try {
-          const raw = localStorage.getItem("projects_data");
-          setProjects(raw ? JSON.parse(raw) : []);
-        } catch {
-          setProjects([]);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+function notifyError(label: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? "Erreur inconnue");
+  toast({ title: label, description: message.slice(0, 240), variant: "destructive" });
+}
 
-  // localStorage fallback persist
-  const persist = useCallback((updated: StoredProject[]) => {
-    try { localStorage.setItem("projects_data", JSON.stringify(updated)); } catch {}
-  }, []);
+function setCache(qc: QueryClient, updater: (prev: StoredProject[]) => StoredProject[]) {
+  qc.setQueryData<StoredProject[]>(PROJECTS_KEY, (prev) => updater(prev ?? []));
+}
 
-  // Optimistic update + async API sync
-  const applyAndSync = useCallback(
-    (updater: (prev: StoredProject[]) => StoredProject[], apiCall?: () => Promise<unknown>) => {
-      setProjects((prev) => {
-        const next = updater(prev);
-        persist(next);
-        return next;
-      });
-      if (apiCall && apiAvailable) {
-        apiCall().catch(() => {});
-      }
-    },
-    [persist, apiAvailable]
-  );
+function snapshot(qc: QueryClient): StoredProject[] {
+  return qc.getQueryData<StoredProject[]>(PROJECTS_KEY) ?? [];
+}
 
-  // Project CRUD
+/**
+ * Apply an optimistic local update + sync to the API. On error, rolls the
+ * cache back to the snapshot taken before the update and surfaces a toast.
+ */
+function applyAndSync(
+  qc: QueryClient,
+  updater: (prev: StoredProject[]) => StoredProject[],
+  apiCall: (() => Promise<unknown>) | undefined,
+  errorLabel: string,
+) {
+  const before = snapshot(qc);
+  setCache(qc, updater);
+  if (!apiCall) return;
+  apiCall()
+    .then(() => qc.invalidateQueries({ queryKey: PROJECTS_KEY }))
+    .catch((err) => {
+      qc.setQueryData(PROJECTS_KEY, before);
+      notifyError(errorLabel, err);
+    });
+}
+
+export function useProjects(): ProjectsContextValue {
+  const qc = useQueryClient();
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: PROJECTS_KEY,
+    queryFn: () => api.listProjects(),
+    staleTime: 30_000,
+  });
 
   const createProject = useCallback((title?: string) => {
     const newProject: StoredProject = {
@@ -103,102 +108,113 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       feedbacks: [],
     };
     applyAndSync(
+      qc,
       (prev) => [...prev, newProject],
-      () => api.createProject(newProject)
+      () => api.createProject(newProject),
+      "Création projet échouée",
     );
     return newProject;
-  }, [applyAndSync]);
+  }, [qc]);
 
   const updateProject = useCallback((id: string, updates: Partial<ProjectData>) => {
     applyAndSync(
+      qc,
       (prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-      () => api.updateProject(id, updates as Partial<StoredProject>)
+      () => api.updateProject(id, updates as Partial<StoredProject>),
+      "Mise à jour projet échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const deleteProject = useCallback((id: string) => {
     applyAndSync(
+      qc,
       (prev) => prev.filter((p) => p.id !== id),
-      () => api.deleteProject(id)
+      () => api.deleteProject(id),
+      "Suppression projet échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const addFeedback = useCallback((projectId: string, taskId: string, feedback: Omit<TaskFeedback, "id" | "createdAt">) => {
     const newFeedback: TaskFeedback = { ...feedback, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
-        p.id === projectId ? { ...p, feedbacks: [...(p.feedbacks || []), newFeedback] } : p
+        p.id === projectId ? { ...p, feedbacks: [...(p.feedbacks || []), newFeedback] } : p,
       ),
-      () => api.createReview({ ...newFeedback, projectId })
+      () => api.createReview({ ...newFeedback, projectId }),
+      "Ajout retour échoué",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const updateFeedback = useCallback((projectId: string, feedbackId: string, updates: Partial<Pick<TaskFeedback, "comment" | "status" | "author">>) => {
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? { ...p, feedbacks: (p.feedbacks || []).map((f) => f.id === feedbackId ? { ...f, ...updates } : f) }
-          : p
+          : p,
       ),
-      () => api.updateReview(feedbackId, updates as Pick<TaskFeedback, "comment" | "status">)
+      () => api.updateReview(feedbackId, updates as Pick<TaskFeedback, "comment" | "status">),
+      "Mise à jour retour échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const deleteFeedback = useCallback((projectId: string, feedbackId: string) => {
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? { ...p, feedbacks: (p.feedbacks || []).filter((f) => f.id !== feedbackId) }
-          : p
+          : p,
       ),
-      () => api.deleteReview(feedbackId)
+      () => api.deleteReview(feedbackId),
+      "Suppression retour échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const updateTaskSubtasks = useCallback((projectId: string, taskId: string, subtasks: SubTask[]) => {
-    applyAndSync(
-      (prev) => {
-        const next = prev.map((p) =>
-          p.id === projectId
-            ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? { ...t, subtasks } : t) }
-            : p
-        );
-        if (apiAvailable) {
-          const updated = next.find((p) => p.id === projectId);
-          if (updated) {
-            api.updateProject(projectId, { tasks: updated.tasks } as Partial<StoredProject>)
-              .catch(() => {});
-          }
-        }
-        return next;
-      }
+    const before = snapshot(qc);
+    const next = before.map((p) =>
+      p.id === projectId
+        ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? { ...t, subtasks } : t) }
+        : p,
     );
-  }, [applyAndSync, apiAvailable]);
+    setCache(qc, () => next);
+    const updated = next.find((p) => p.id === projectId);
+    if (updated) {
+      api.updateProject(projectId, { tasks: updated.tasks } as Partial<StoredProject>)
+        .then(() => qc.invalidateQueries({ queryKey: PROJECTS_KEY }))
+        .catch((err) => {
+          qc.setQueryData(PROJECTS_KEY, before);
+          notifyError("Mise à jour étape échouée", err);
+        });
+    }
+    void taskId;
+  }, [qc]);
 
   const toggleTaskComplete = useCallback((projectId: string, taskId: string) => {
-    applyAndSync(
-      (prev) => {
-        const next = prev.map((p) =>
-          p.id === projectId
-            ? {
-                ...p,
-                tasks: p.tasks.map((t) =>
-                  t.id === taskId ? { ...t, completed: !t.completed } : t
-                ),
-              }
-            : p
-        );
-        if (apiAvailable) {
-          const updated = next.find((p) => p.id === projectId);
-          if (updated) {
-            api.updateProject(projectId, { tasks: updated.tasks } as Partial<StoredProject>)
-              .catch(() => {});
+    const before = snapshot(qc);
+    const next = before.map((p) =>
+      p.id === projectId
+        ? {
+            ...p,
+            tasks: p.tasks.map((t) =>
+              t.id === taskId ? { ...t, completed: !t.completed } : t,
+            ),
           }
-        }
-        return next;
-      }
+        : p,
     );
-  }, [applyAndSync, apiAvailable]);
+    setCache(qc, () => next);
+    const updated = next.find((p) => p.id === projectId);
+    if (updated) {
+      api.updateProject(projectId, { tasks: updated.tasks } as Partial<StoredProject>)
+        .then(() => qc.invalidateQueries({ queryKey: PROJECTS_KEY }))
+        .catch((err) => {
+          qc.setQueryData(PROJECTS_KEY, before);
+          notifyError("Mise à jour étape échouée", err);
+        });
+    }
+  }, [qc]);
 
   const addFeedbackRequest = useCallback((projectId: string, taskId: string, request: Omit<FeedbackRequest, "id" | "createdAt" | "resolved">) => {
     const newReq: FeedbackRequest = {
@@ -208,17 +224,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       resolved: false,
     };
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? { ...t, feedbackRequests: [...(t.feedbackRequests || []), newReq] } : t) }
-          : p
+          : p,
       ),
-      () => api.createFeedbackRequest({ ...newReq, taskId })
+      () => api.createFeedbackRequest({ ...newReq, taskId }),
+      "Demande de retour échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const deleteFeedbackRequest = useCallback((projectId: string, taskId: string, requestId: string) => {
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? {
@@ -226,14 +245,15 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
               tasks: p.tasks.map((t) =>
                 t.id === taskId
                   ? { ...t, feedbackRequests: (t.feedbackRequests || []).filter((r) => r.id !== requestId) }
-                  : t
+                  : t,
               ),
             }
-          : p
+          : p,
       ),
-      () => api.deleteFeedbackRequest(requestId)
+      () => api.deleteFeedbackRequest(requestId),
+      "Suppression demande échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const respondToFeedbackRequest = useCallback((projectId: string, taskId: string, requestId: string, response: string) => {
     const isApproval = response === "approved";
@@ -241,6 +261,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const now = new Date().toISOString();
 
     applyAndSync(
+      qc,
       (prev) => prev.map((p) => {
         if (p.id !== projectId) return p;
 
@@ -270,34 +291,32 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                   };
                 }),
               }
-            : t
+            : t,
         );
 
-        // Sequential locking: if approved, check if all requests on this step are resolved
-        // If so, mark step as completed and open the next locked step
+        // Sequential locking: if approved, check if all requests on this step are resolved.
+        // If so, mark step as completed and open the next locked step.
         if (isApproval) {
           const currentTask = updatedTasks.find((t) => t.id === taskId);
           const allResolved = currentTask?.feedbackRequests?.every((r) => r.resolved) ?? true;
 
           if (allResolved && currentTask) {
-            // Mark current step as completed
             updatedTasks = updatedTasks.map((t) =>
               t.id === taskId
                 ? { ...t, status: "completed" as const, completed: true, completedAt: now }
-                : t
+                : t,
             );
 
-            // Find the next locked step (by order) and open it
             const sortedTasks = [...updatedTasks].sort((a, b) => a.order - b.order);
             const currentOrder = currentTask.order;
             const nextLocked = sortedTasks.find(
-              (t) => t.order > currentOrder && t.status === "locked"
+              (t) => t.order > currentOrder && t.status === "locked",
             );
             if (nextLocked) {
               updatedTasks = updatedTasks.map((t) =>
                 t.id === nextLocked.id
                   ? { ...t, status: "open" as const }
-                  : t
+                  : t,
               );
             }
           }
@@ -305,18 +324,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
         return { ...p, tasks: updatedTasks };
       }),
-      () => api.resolveFeedbackRequest(requestId, response)
+      () => api.resolveFeedbackRequest(requestId, response),
+      "Réponse retour échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const toggleStakeholderHighlight = useCallback((projectId: string, taskId: string, requestId: string) => {
-    // Find current value to compute the toggled state for the API call
-    const project = projects.find((p) => p.id === projectId);
+    const current = snapshot(qc);
+    const project = current.find((p) => p.id === projectId);
     const task = project?.tasks.find((t) => t.id === taskId);
     const req = task?.feedbackRequests?.find((r) => r.id === requestId);
     const newValue = !req?.stakeholderHighlight;
 
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? {
@@ -328,17 +349,18 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                       feedbackRequests: (t.feedbackRequests || []).map((r) =>
                         r.id === requestId
                           ? { ...r, stakeholderHighlight: newValue }
-                          : r
+                          : r,
                       ),
                     }
-                  : t
+                  : t,
               ),
             }
-          : p
+          : p,
       ),
-      () => api.updateFeedbackRequest(requestId, { stakeholderHighlight: newValue })
+      () => api.updateFeedbackRequest(requestId, { stakeholderHighlight: newValue }),
+      "Mise à jour surlignage échouée",
     );
-  }, [applyAndSync, projects]);
+  }, [qc]);
 
   const addDelivery = useCallback((projectId: string, delivery: Omit<Delivery, "id" | "createdAt">) => {
     const newDelivery: Delivery = {
@@ -346,40 +368,36 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
+    const before = snapshot(qc);
+    const updated = before.find((p) => p.id === projectId);
+    const updatedDeliveries = [...(updated?.deliveries || []), newDelivery];
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? { ...p, deliveries: [...(p.deliveries || []), newDelivery] }
-          : p
+          : p,
       ),
-      () => {
-        const updated = projects.find((p) => p.id === projectId);
-        if (updated) {
-          const updatedDeliveries = [...(updated.deliveries || []), newDelivery];
-          return api.updateProject(projectId, { deliveries: updatedDeliveries } as Partial<StoredProject>);
-        }
-        return Promise.resolve();
-      }
+      () => api.updateProject(projectId, { deliveries: updatedDeliveries } as Partial<StoredProject>),
+      "Ajout livrable échoué",
     );
-  }, [applyAndSync, projects]);
+  }, [qc]);
 
   const deleteDelivery = useCallback((projectId: string, deliveryId: string) => {
+    const before = snapshot(qc);
+    const updated = before.find((p) => p.id === projectId);
+    const updatedDeliveries = (updated?.deliveries || []).filter((d) => d.id !== deliveryId);
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? { ...p, deliveries: (p.deliveries || []).filter((d) => d.id !== deliveryId) }
-          : p
+          : p,
       ),
-      () => {
-        const updated = projects.find((p) => p.id === projectId);
-        if (updated) {
-          const updatedDeliveries = (updated.deliveries || []).filter((d) => d.id !== deliveryId);
-          return api.updateProject(projectId, { deliveries: updatedDeliveries } as Partial<StoredProject>);
-        }
-        return Promise.resolve();
-      }
+      () => api.updateProject(projectId, { deliveries: updatedDeliveries } as Partial<StoredProject>),
+      "Suppression livrable échouée",
     );
-  }, [applyAndSync, projects]);
+  }, [qc]);
 
   const addStepComment = useCallback((projectId: string, taskId: string, comment: { message: string; authorName?: string; authorEmail?: string; authorRole?: "client" | "admin" | "stakeholder" }) => {
     const newComment: StepComment = {
@@ -392,6 +410,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? {
@@ -399,18 +418,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
               tasks: p.tasks.map((t) =>
                 t.id === taskId
                   ? { ...t, comments: [...(t.comments || []), newComment] }
-                  : t
+                  : t,
               ),
             }
-          : p
+          : p,
       ),
-      () => apiAddStepComment(taskId, comment)
+      () => apiAddStepComment(taskId, comment),
+      "Ajout commentaire échoué",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const updateStepStatus = useCallback((projectId: string, taskId: string, status: StepStatus) => {
     const now = new Date().toISOString();
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
         p.id === projectId
           ? {
@@ -423,70 +444,59 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                       completed: status === "completed",
                       completedAt: status === "completed" ? now : undefined,
                     }
-                  : t
+                  : t,
               ),
             }
-          : p
+          : p,
       ),
-      () => api.updateProject(projectId, {} as Partial<StoredProject>).then(() => {
-        // Status update is sent via the project sync
-      })
+      () => api.updateProject(projectId, {} as Partial<StoredProject>),
+      "Mise à jour statut échouée",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const updateProjectPhases = useCallback((projectId: string, phases: ProjectPhase[]) => {
-    applyAndSync(
-      (prev) => prev.map((p) =>
-        p.id === projectId ? { ...p, phases } : p
-      )
-    );
-  }, [applyAndSync]);
+    setCache(qc, (prev) => prev.map((p) =>
+      p.id === projectId ? { ...p, phases } : p,
+    ));
+  }, [qc]);
 
   const setShareToken = useCallback((projectId: string, token: string | null) => {
     applyAndSync(
+      qc,
       (prev) => prev.map((p) =>
-        p.id === projectId ? { ...p, shareToken: token } : p
+        p.id === projectId ? { ...p, shareToken: token } : p,
       ),
-      () => api.updateProject(projectId, { shareToken: token } as Partial<StoredProject>)
+      () => api.updateProject(projectId, { shareToken: token } as Partial<StoredProject>),
+      "Partage projet échoué",
     );
-  }, [applyAndSync]);
+  }, [qc]);
 
   const getProject = useCallback(
     (id: string) => projects.find((p) => p.id === id || p.clientSlug === id),
-    [projects]
+    [projects],
   );
 
-  return (
-    <ProjectsContext.Provider value={{
-      projects,
-      loading,
-      createProject,
-      updateProject,
-      deleteProject,
-      getProject,
-      addFeedback,
-      updateFeedback,
-      deleteFeedback,
-      updateTaskSubtasks,
-      toggleTaskComplete,
-      addFeedbackRequest,
-      deleteFeedbackRequest,
-      respondToFeedbackRequest,
-      toggleStakeholderHighlight,
-      addDelivery,
-      deleteDelivery,
-      addStepComment,
-      updateStepStatus,
-      updateProjectPhases,
-      setShareToken,
-    }}>
-      {children}
-    </ProjectsContext.Provider>
-  );
-}
-
-export function useProjects() {
-  const ctx = useContext(ProjectsContext);
-  if (!ctx) throw new Error("useProjects must be used within ProjectsProvider");
-  return ctx;
+  return {
+    projects,
+    loading: isLoading,
+    createProject,
+    updateProject,
+    deleteProject,
+    getProject,
+    addFeedback,
+    updateFeedback,
+    deleteFeedback,
+    updateTaskSubtasks,
+    toggleTaskComplete,
+    addFeedbackRequest,
+    deleteFeedbackRequest,
+    respondToFeedbackRequest,
+    toggleStakeholderHighlight,
+    addDelivery,
+    deleteDelivery,
+    addStepComment,
+    updateStepStatus,
+    updateProjectPhases,
+    setShareToken,
+  };
 }

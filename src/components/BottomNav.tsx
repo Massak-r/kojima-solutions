@@ -42,6 +42,7 @@ export default function BottomNav() {
     <>
       {/* ── Mobile bottom nav ── */}
       <nav
+        aria-label="Navigation principale"
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden glass-card border-b-0 border-x-0 rounded-none no-print"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
@@ -56,6 +57,8 @@ export default function BottomNav() {
               <Link
                 key={to}
                 to={to}
+                aria-current={active ? "page" : undefined}
+                aria-label={showBadge ? `${label} · session en cours` : label}
                 className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-colors ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
@@ -86,7 +89,7 @@ export default function BottomNav() {
       </nav>
 
       {/* ── Desktop sidebar nav ── */}
-      <nav className="hidden md:flex fixed top-16 left-0 bottom-0 z-40 w-16 flex-col items-center py-4 gap-1 bg-card/80 backdrop-blur-lg border-r border-border no-print">
+      <nav aria-label="Navigation latérale" className="hidden md:flex fixed top-16 left-0 bottom-0 z-40 w-16 flex-col items-center py-4 gap-1 bg-card/80 backdrop-blur-lg border-r border-border no-print">
         {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
           const active =
             pathname === to ||
@@ -97,6 +100,8 @@ export default function BottomNav() {
             <Link
               key={to}
               to={to}
+              aria-current={active ? "page" : undefined}
+              aria-label={sprintActive && to === "/sprint" ? `${label} · session en cours` : label}
               className={`relative flex flex-col items-center justify-center gap-0.5 w-14 py-2.5 rounded-lg transition-colors ${
                 active
                   ? "text-primary bg-primary/10"

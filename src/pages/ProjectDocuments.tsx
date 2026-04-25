@@ -14,7 +14,7 @@ import {
   Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft, ListTodo,
 } from "lucide-react";
 import { getProjectModules } from "@/api/modules";
-import { generateQuoteLinesFromModules, generateQuoteLinesFromSteps } from "@/lib/moduleGenerators";
+import { ModuleResolver, generateQuoteLinesFromSteps } from "@/lib/moduleResolver";
 import { MAINTENANCE_OPTIONS } from "@/data/moduleCatalog";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
@@ -86,7 +86,7 @@ export default function ProjectDocuments() {
       toast({ title: "Aucun module sélectionné", variant: "destructive" });
       return;
     }
-    const lines = generateQuoteLinesFromModules(data.modules);
+    const lines = new ModuleResolver(data.modules).toQuoteLines();
     const maint = MAINTENANCE_OPTIONS.find((o) => o.tier === data.maintenance);
     if (maint && maint.price > 0) {
       lines.push({
@@ -289,20 +289,24 @@ export default function ProjectDocuments() {
                         {formatCHF(totalQuote(q))}
                       </span>
 
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {!isInv && (q.invoiceStatus === "validated" || q.invoiceStatus === "paid") && (
-                          <button
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!isInv && q.invoiceStatus === "validated" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={(e) => { e.stopPropagation(); handleConvertToInvoice(q); }}
-                            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-accent hover:bg-accent/10 transition-colors"
+                            className="h-7 px-2 gap-1 border-accent/40 text-accent hover:bg-accent hover:text-accent-foreground text-[10px] font-semibold"
                             title="Convertir en facture"
                           >
-                            <ArrowRightLeft size={13} />
-                          </button>
+                            <ArrowRightLeft size={12} />
+                            <span className="hidden sm:inline">Facturer</span>
+                          </Button>
                         )}
                         <button
                           onClick={() => setMode(`edit:${q.id}`)}
                           className="p-1.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-secondary/50 transition-colors"
                           title="Modifier"
+                          aria-label="Modifier"
                         >
                           <Pencil size={13} />
                         </button>

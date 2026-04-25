@@ -182,7 +182,8 @@ if ($method === 'POST') {
     }
     $maxOrder = (int)$maxStmt->fetchColumn();
 
-    $pdo->prepare('INSERT INTO todo_subtasks (id, source, parent_id, parent_subtask_id, text, completed, due_date, sort_order, description, priority, status, effort_size, estimated_minutes) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)')
+    $flaggedToday = !empty($data['flaggedToday']) ? 1 : 0;
+    $pdo->prepare('INSERT INTO todo_subtasks (id, source, parent_id, parent_subtask_id, text, completed, due_date, sort_order, description, priority, status, effort_size, estimated_minutes, flagged_today, flagged_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ' . ($flaggedToday ? 'NOW()' : 'NULL') . ')')
         ->execute([
             $newId, $src, $pid, $psid, $text,
             $data['dueDate'] ?? null,
@@ -192,6 +193,7 @@ if ($method === 'POST') {
             $data['status'] ?? 'not_started',
             $data['effortSize'] ?? null,
             isset($data['estimatedMinutes']) ? (int)$data['estimatedMinutes'] : null,
+            $flaggedToday,
         ]);
 
     $stmt = $pdo->prepare('SELECT * FROM todo_subtasks WHERE id = ?');

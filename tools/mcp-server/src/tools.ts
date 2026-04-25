@@ -113,7 +113,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "update_subtask",
     description:
-      "Patch one subtask. Use this to mark complete, flag for today, change effort size, or rename. Always pass only the fields you intend to change.",
+      "Patch one subtask. Use this to mark complete, flag for today, change effort size, set recurrence, schedule for a specific day, or rename. Always pass only the fields you intend to change.",
     inputSchema: {
       type: "object",
       properties: {
@@ -126,6 +126,9 @@ export const TOOLS: ToolDefinition[] = [
         priority:          { type: "string", enum: ["low", "medium", "high"] },
         status:            { type: "string", enum: ["not_started", "in_progress", "done", "blocked"] },
         due_date:          { type: "string" },
+        recurrence:        { type: "string", enum: ["daily", "weekdays", "weekly", "monthly"], description: "Recurrence pattern. Pass empty string to clear." },
+        recurrence_day:    { type: "number", description: "For weekly: ISO weekday 1=Mon…7=Sun. For monthly: day-of-month 1–31. Ignored for daily/weekdays." },
+        scheduled_for:     { type: "string", description: "ISO date YYYY-MM-DD to plan the task for. Pass empty string to unschedule." },
       },
       required: ["id"],
     },
@@ -313,9 +316,9 @@ export const TOOLS: ToolDefinition[] = [
   // ── Projects ───────────────────────────────────────────────────
   { name: "list_projects", description: "List every project (title, client, status, dates, paymentStatus).",  inputSchema: { type: "object", properties: {} } },
   { name: "get_project",   description: "Fetch one project with full data (steps, modules selection, etc.).", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "create_project",description: "Create a new project. Common fields: title, client, clientId, status (draft|in-progress|completed|on-hold), startDate, endDate, paymentStatus.",
+  { name: "create_project",description: "Create a new project. Common fields: title, client, clientId, status (draft|in-progress|completed|on-hold), kind (client|internal|personal — defaults to client), startDate, endDate, paymentStatus.",
     inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
-  { name: "update_project",description: "Patch a project (title, status, dates, client link, payment, notes, …).",
+  { name: "update_project",description: "Patch a project (title, status, kind (client|internal|personal), dates, client link, payment, notes, …).",
     inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
 
   // ── Project modules (selection of which modules are in a project's scope) ─
@@ -482,6 +485,9 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
       if ("priority"          in rest) patch.priority         = rest.priority;
       if ("status"            in rest) patch.status           = rest.status;
       if ("due_date"          in rest) patch.dueDate          = rest.due_date;
+      if ("recurrence"        in rest) patch.recurrence       = rest.recurrence || null;
+      if ("recurrence_day"    in rest) patch.recurrenceDay    = rest.recurrence_day === null || rest.recurrence_day === "" ? null : Number(rest.recurrence_day);
+      if ("scheduled_for"     in rest) patch.scheduledFor     = rest.scheduled_for || null;
       return await updateSubtask(id, patch);
     }
 

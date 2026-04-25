@@ -9,7 +9,7 @@ import {
   listTemplates, getTemplate, deleteTemplate,
   type ObjectiveTemplate, type ObjectiveTemplateItem,
 } from "@/api/objectiveTemplates";
-import { createSubtask } from "@/api/todoSubtasks";
+import { useCreateSubtask } from "@/hooks/useSubtasks";
 import type { ObjectiveSource } from "@/api/objectiveSource";
 
 interface TemplatePickerProps {
@@ -46,6 +46,7 @@ function substitute(text: string, values: Record<string, string>): string {
 
 export function TemplatePicker({ open, onOpenChange, source, objectiveId, onApplied }: TemplatePickerProps) {
   const { toast } = useToast();
+  const createSubtaskMut = useCreateSubtask();
   const [templates, setTemplates] = useState<ObjectiveTemplate[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [selected,  setSelected]  = useState<string | null>(null);
@@ -150,7 +151,7 @@ export function TemplatePicker({ open, onOpenChange, source, objectiveId, onAppl
         // If parent was excluded (no idMap entry), skip the child too
         if (it.parentItemId && !parentSubtaskId) continue;
         try {
-          const real = await createSubtask({
+          const real = await createSubtaskMut.mutateAsync({
             parentId: objectiveId,
             parentSubtaskId,
             text,

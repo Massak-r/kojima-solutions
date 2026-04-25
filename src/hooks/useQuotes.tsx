@@ -1,9 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import type { Quote } from "@/types/quote";
 import * as api from "@/api/quotes";
-import * as storage from "@/lib/quoteStorage";
 
-type QuotesContextType = {
+const QUOTES_KEY = ["quotes"] as const;
+
+interface QuotesContextType {
   quotes: Quote[];
   loading: boolean;
   addQuote: (quote: Quote) => void;
@@ -11,87 +14,76 @@ type QuotesContextType = {
   deleteQuote: (id: string) => void;
   getQuote: (id: string) => Quote | undefined;
   refresh: () => void;
-};
+}
 
-const QuotesContext = createContext<QuotesContextType | null>(null);
-
+// Provider is now a no-op pass-through. Cache lives in react-query
+// (QueryClientProvider in App.tsx); `useQuotes()` reads it directly.
 export function QuotesProvider({ children }: { children: ReactNode }) {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [apiAvailable, setApiAvailable] = useState(true);
+  return <>{children}</>;
+}
 
-  useEffect(() => {
-    setLoading(true);
-    api.listQuotes()
-      .then((data) => {
-        setQuotes(data);
-        setApiAvailable(true);
-      })
-      .catch(() => {
-        setApiAvailable(false);
-        setQuotes(storage.loadQuotes());
-      })
-      .finally(() => setLoading(false));
-  }, []);
+function notifyError(label: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? "Erreur inconnue");
+  toast({ title: label, description: message.slice(0, 240), variant: "destructive" });
+}
 
-  const persist = useCallback((updated: Quote[]) => {
-    try { storage.saveQuotes(updated); } catch {}
-  }, []);
+function setCache(qc: QueryClient, updater: (prev: Quote[]) => Quote[]) {
+  qc.setQueryData<Quote[]>(QUOTES_KEY, (prev) => updater(prev ?? []));
+}
 
-  const applyAndSync = useCallback(
-    (updater: (prev: Quote[]) => Quote[], apiCall?: () => Promise<unknown>) => {
-      setQuotes((prev) => {
-        const next = updater(prev);
-        persist(next);
-        return next;
+function snapshot(qc: QueryClient): Quote[] {
+  return qc.getQueryData<Quote[]>(QUOTES_KEY) ?? [];
+}
+
+export function useQuotes(): QuotesContextType {
+  const qc = useQueryClient();
+  const { data: quotes = [], isLoading, refetch } = useQuery({
+    queryKey: QUOTES_KEY,
+    queryFn: () => api.listQuotes(),
+    staleTime: 30_000,
+  });
+
+  const addQuote = useCallback((quote: Quote) => {
+    const before = snapshot(qc);
+    setCache(qc, (prev) => [quote, ...prev]);
+    api.createQuote(quote)
+      .then(() => qc.invalidateQueries({ queryKey: QUOTES_KEY }))
+      .catch((err) => {
+        qc.setQueryData(QUOTES_KEY, before);
+        notifyError("Création devis échouée", err);
       });
-      if (apiCall && apiAvailable) {
-        apiCall().catch(() => {});
-      }
-    },
-    [persist, apiAvailable]
+  }, [qc]);
+
+  const updateQuote = useCallback((id: string, updated: Quote) => {
+    const before = snapshot(qc);
+    setCache(qc, (prev) => prev.map((q) => (q.id === id ? updated : q)));
+    api.updateQuote(id, updated)
+      .then(() => qc.invalidateQueries({ queryKey: QUOTES_KEY }))
+      .catch((err) => {
+        qc.setQueryData(QUOTES_KEY, before);
+        notifyError("Mise à jour devis échouée", err);
+      });
+  }, [qc]);
+
+  const deleteQuote = useCallback((id: string) => {
+    const before = snapshot(qc);
+    setCache(qc, (prev) => prev.filter((q) => q.id !== id));
+    api.deleteQuote(id)
+      .then(() => qc.invalidateQueries({ queryKey: QUOTES_KEY }))
+      .catch((err) => {
+        qc.setQueryData(QUOTES_KEY, before);
+        notifyError("Suppression devis échouée", err);
+      });
+  }, [qc]);
+
+  const getQuote = useCallback(
+    (id: string) => quotes.find((q) => q.id === id),
+    [quotes],
   );
 
   const refresh = useCallback(() => {
-    if (apiAvailable) {
-      api.listQuotes().then(setQuotes).catch(() => setQuotes(storage.loadQuotes()));
-    } else {
-      setQuotes(storage.loadQuotes());
-    }
-  }, [apiAvailable]);
+    void refetch();
+  }, [refetch]);
 
-  const addQuote = useCallback((quote: Quote) => {
-    applyAndSync(
-      (prev) => [quote, ...prev],
-      () => api.createQuote(quote)
-    );
-  }, [applyAndSync]);
-
-  const updateQuote = useCallback((id: string, updated: Quote) => {
-    applyAndSync(
-      (prev) => prev.map((q) => q.id === id ? updated : q),
-      () => api.updateQuote(id, updated)
-    );
-  }, [applyAndSync]);
-
-  const deleteQuote = useCallback((id: string) => {
-    applyAndSync(
-      (prev) => prev.filter((q) => q.id !== id),
-      () => api.deleteQuote(id)
-    );
-  }, [applyAndSync]);
-
-  const getQuote = useCallback((id: string) => quotes.find((q) => q.id === id), [quotes]);
-
-  return (
-    <QuotesContext.Provider value={{ quotes, loading, addQuote, updateQuote, deleteQuote, getQuote, refresh }}>
-      {children}
-    </QuotesContext.Provider>
-  );
-}
-
-export function useQuotes() {
-  const ctx = useContext(QuotesContext);
-  if (!ctx) throw new Error("useQuotes must be used within QuotesProvider");
-  return ctx;
+  return { quotes, loading: isLoading, addQuote, updateQuote, deleteQuote, getQuote, refresh };
 }

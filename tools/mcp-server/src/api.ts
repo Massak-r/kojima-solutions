@@ -91,6 +91,9 @@ export interface SubtaskItem {
   flaggedToday: boolean;
   effortSize?: "rapide" | "moyen" | "complexe" | null;
   estimatedMinutes?: number | null;
+  recurrence?: "daily" | "weekdays" | "weekly" | "monthly" | null;
+  recurrenceDay?: number | null;
+  scheduledFor?: string | null;
   description?: string | null;
   createdAt: string;
 }

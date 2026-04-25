@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus, Link2, Check, Loader2, Blocks, Download, BookTemplate, Save,
-  Printer, X, ArrowLeft, Users,
+  Printer, X, ArrowLeft, Users, Share2,
 } from "lucide-react";
+import { ProjectShareDialog } from "@/components/ProjectShareDialog";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { TaskFormPanel, type FunnelPhaseOption } from "@/components/TaskFormPanel";
 import { SubtaskManager } from "@/components/SubtaskManager";
@@ -16,10 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useToast } from "@/hooks/use-toast";
-import { shareProject, unshareProject } from "@/api/stakeholder";
 import { createPhase as apiCreatePhase, updatePhase as apiUpdatePhase, deletePhase as apiDeletePhase, listProjectPhases } from "@/api/phases";
 import { getProjectModules } from "@/api/modules";
-import { generateTasksFromModules } from "@/lib/moduleGenerators";
+import { ModuleResolver } from "@/lib/moduleResolver";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { TimelineTask, SubTask, FeedbackRequest } from "@/types/timeline";
 import type { ProjectPhase } from "@/types/phase";
@@ -42,8 +42,6 @@ export default function ProjectSteps() {
   const [editingTask, setEditingTask] = useState<TimelineTask | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addingRequestForTask, setAddingRequestForTask] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedClientLink, setCopiedClientLink] = useState(false);
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
   const [addingPhase, setAddingPhase] = useState(false);
   const [newPhaseTitle, setNewPhaseTitle] = useState("");
@@ -51,6 +49,7 @@ export default function ProjectSteps() {
   const [loadingPhases, setLoadingPhases] = useState(true);
   const [showModuleImport, setShowModuleImport] = useState(false);
   const [showStakeholders, setShowStakeholders] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [moduleTaskPreview, setModuleTaskPreview] = useState<TimelineTask[]>([]);
 
   // Load phases
@@ -147,28 +146,6 @@ export default function ProjectSteps() {
     addStepComment(id!, taskId, data);
   }
 
-  async function handleShareLink() {
-    try {
-      if (project!.shareToken) {
-        const url = `${window.location.origin}/project/s/${project!.shareToken}`;
-        await navigator.clipboard.writeText(url);
-        setCopiedLink(true);
-        toast({ title: "Lien stakeholder copie" });
-        setTimeout(() => setCopiedLink(false), 2000);
-      } else {
-        const token = await shareProject(id!);
-        setShareToken(id!, token);
-        const url = `${window.location.origin}/project/s/${token}`;
-        await navigator.clipboard.writeText(url);
-        setCopiedLink(true);
-        toast({ title: "Lien stakeholder cree et copie" });
-        setTimeout(() => setCopiedLink(false), 2000);
-      }
-    } catch {
-      toast({ title: "Erreur", variant: "destructive" });
-    }
-  }
-
   async function handleAddPhase() {
     if (!newPhaseTitle.trim()) return;
     try {
@@ -220,7 +197,7 @@ export default function ProjectSteps() {
       toast({ title: "Aucun module selectionne", variant: "destructive" });
       return;
     }
-    const generated = generateTasksFromModules(data.modules);
+    const generated = new ModuleResolver(data.modules).toTasks();
     const existingTitles = new Set(tasks.map((t) => t.title));
     const fresh = generated.filter((t) => !existingTitles.has(t.title));
     if (fresh.length === 0) {
@@ -281,19 +258,12 @@ export default function ProjectSteps() {
           </h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                const slug = project!.clientSlug || id;
-                const url = `${window.location.origin}/client/${slug}`;
-                await navigator.clipboard.writeText(url);
-                setCopiedClientLink(true);
-                toast({ title: "Lien portail client copie" });
-                setTimeout(() => setCopiedClientLink(false), 2000);
-              }}
+              onClick={() => setShowShareDialog(true)}
               className="flex items-center gap-1.5 text-xs font-body text-muted-foreground hover:text-primary transition-colors px-2.5 py-1.5 rounded-lg border border-border/60 hover:border-primary/40"
-              title="Copier le lien portail client"
+              title="Partage du projet"
             >
-              {copiedClientLink ? <Check size={13} className="text-emerald-500" /> : <Link2 size={13} />}
-              <span className="hidden sm:inline">Lien client</span>
+              <Share2 size={13} />
+              <span className="hidden sm:inline">Partage</span>
             </button>
             <button
               onClick={() => setShowStakeholders(!showStakeholders)}
@@ -308,14 +278,6 @@ export default function ProjectSteps() {
               <Users size={13} />
               <span className="hidden sm:inline">Stakeholders</span>
             </button>
-            <button
-              onClick={handleShareLink}
-              className="flex items-center gap-1.5 text-xs font-body text-muted-foreground hover:text-primary transition-colors px-2.5 py-1.5 rounded-lg border border-border/60 hover:border-primary/40"
-              title="Copier le lien stakeholder"
-            >
-              {copiedLink ? <Check size={13} className="text-emerald-500" /> : <Link2 size={13} />}
-              <span className="hidden sm:inline">Lien</span>
-            </button>
             <Button
               variant="outline" size="sm"
               onClick={() => window.print()}
@@ -325,6 +287,14 @@ export default function ProjectSteps() {
               <span className="hidden sm:inline">Export PDF</span>
             </Button>
           </div>
+          {project && (
+            <ProjectShareDialog
+              project={project}
+              open={showShareDialog}
+              onOpenChange={setShowShareDialog}
+              onShareTokenChange={setShareToken}
+            />
+          )}
         </div>
 
         {/* Stakeholder management panel */}

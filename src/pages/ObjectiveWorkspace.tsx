@@ -1,16 +1,27 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  Loader2, AlertCircle, StickyNote, Paperclip, Link as LinkIcon, GitBranch, Activity,
+  AlertCircle, StickyNote, Paperclip, Link as LinkIcon, GitBranch, Activity,
   Sparkles, BookmarkPlus, Keyboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { getObjective, updateObjectiveBySource, type ObjectiveSource, type UnifiedObjective } from "@/api/objectiveSource";
-import { listSubtasks, createSubtask, updateSubtask, deleteSubtask } from "@/api/todoSubtasks";
+import type { ObjectiveSource, UnifiedObjective } from "@/api/objectiveSource";
 import { listSessions, type ObjectiveSession } from "@/api/objectiveSessions";
 import type { SubtaskItem } from "@/api/todoSubtasks";
+import {
+  useObjective,
+  useUpdateObjective,
+  objectivesQueryKey,
+} from "@/hooks/useObjectives";
+import {
+  useObjectiveSubtasks,
+  useCreateSubtask,
+  useUpdateSubtask,
+  useDeleteSubtask,
+} from "@/hooks/useSubtasks";
 import { ObjectiveHeader } from "@/components/objective/ObjectiveHeader";
 import { ObjectiveSmartPanel } from "@/components/objective/ObjectiveSmartPanel";
 import { LinkedItemsPanel } from "@/components/objective/LinkedItemsPanel";
@@ -34,13 +45,22 @@ export default function ObjectiveWorkspace() {
   const navigate = useNavigate();
   const location = useLocation();
   const fromRoute = (location.state as { from?: string } | null)?.from;
+  const queryClient = useQueryClient();
 
-  const [objective, setObjective] = useState<UnifiedObjective | null>(null);
-  const [subtasks,  setSubtasks]  = useState<SubtaskItem[]>([]);
-  const [sessions,  setSessions]  = useState<ObjectiveSession[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
+  const validSource = source === "personal" || source === "admin";
+  const src = source as ObjectiveSource;
 
+  const { data: objective, isLoading: objLoading, error: objError } = useObjective(
+    validSource ? src : undefined,
+    validSource ? id : undefined,
+  );
+  const { data: subtasks = [], isLoading: subLoading } = useObjectiveSubtasks(id);
+  const updateObjectiveMut = useUpdateObjective();
+  const createSubtaskMut   = useCreateSubtask();
+  const updateSubtaskMut   = useUpdateSubtask();
+  const deleteSubtaskMut   = useDeleteSubtask();
+
+  const [sessions, setSessions] = useState<ObjectiveSession[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [showSave,   setShowSave]   = useState(false);
   const [showAI,     setShowAI]     = useState(false);
@@ -49,13 +69,13 @@ export default function ObjectiveWorkspace() {
   const { projects } = useProjects();
   const { clients }  = useClients();
 
-  const validSource = source === "personal" || source === "admin";
-  const src = source as ObjectiveSource;
+  const loading = objLoading || subLoading;
+  const error = objError ? (objError as Error).message : (!loading && objective === null ? "Objectif introuvable" : null);
 
   const reloadSubtasks = useCallback(async () => {
     if (!id) return;
-    try { setSubtasks(await listSubtasks(id, src)); } catch {}
-  }, [id, src]);
+    queryClient.invalidateQueries({ queryKey: objectivesQueryKey });
+  }, [id, queryClient]);
 
   // Compute actuals per subtask from sessions
   const actualsMap = useMemo(() => {
@@ -67,24 +87,14 @@ export default function ObjectiveWorkspace() {
     return map;
   }, [sessions]);
 
-  // Load objective + subtasks + sessions in parallel
+  // Load sessions for actuals (objective + subtasks come from cached queries)
   useEffect(() => {
     if (!validSource || !id) return;
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      getObjective(src, id),
-      listSubtasks(id, src),
-      listSessions(src, id).catch(() => [] as ObjectiveSession[]),
-    ])
-      .then(([o, subs, sess]) => {
-        if (!o) { setError("Objectif introuvable"); return; }
-        setObjective(o);
-        setSubtasks(subs);
-        setSessions(sess);
-      })
-      .catch(e => setError(e?.message ?? "Erreur de chargement"))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    listSessions(src, id)
+      .then(sess => { if (!cancelled) setSessions(sess); })
+      .catch(() => { if (!cancelled) setSessions([]); });
+    return () => { cancelled = true; };
   }, [src, id, validSource]);
 
   // Refetch sessions when a focus session ends in the background (cross-tab or this tab)
@@ -132,100 +142,49 @@ export default function ObjectiveWorkspace() {
   const applyObjectiveUpdate = useCallback(
     (patch: Partial<UnifiedObjective>) => {
       if (!objective) return;
-      const next = { ...objective, ...patch };
-      setObjective(next);
-      updateObjectiveBySource(src, objective.id, patch).catch(() => {});
+      updateObjectiveMut.mutate({ source: src, id: objective.id, patch });
     },
-    [objective, src],
+    [objective, src, updateObjectiveMut],
   );
 
   // Add subtask (top-level if parentSubtaskId is null, sub-subtask otherwise)
   const handleSubtaskAdd = useCallback((text: string, dueDate: string | undefined, parentSubtaskId: string | null) => {
     if (!objective) return;
-    // Compute order scoped to siblings at the same level
-    const siblings = subtasks.filter(s => (s.parentSubtaskId ?? null) === parentSubtaskId);
-    const nextOrder = siblings.length === 0 ? 0 : Math.max(...siblings.map(s => s.order)) + 1;
-
-    const temp: SubtaskItem = {
-      id: crypto.randomUUID(),
-      source: src,
-      parentId: objective.id,
-      parentSubtaskId,
-      text,
-      completed: false,
-      dueDate,
-      order: nextOrder,
-      priority: "medium",
-      status: "not_started",
-      flaggedToday: false,
-      createdAt: new Date().toISOString(),
-    };
-    setSubtasks(prev => [...prev, temp]);
-    createSubtask({
+    createSubtaskMut.mutate({
       parentId: objective.id,
       parentSubtaskId: parentSubtaskId ?? undefined,
       text,
       dueDate,
       source: src,
-    })
-      .then(real => setSubtasks(prev => prev.map(s => s.id === temp.id ? real : s)))
-      .catch(() => {});
-  }, [objective, src, subtasks]);
+    });
+  }, [objective, src, createSubtaskMut]);
 
   const handleSubtaskToggle = useCallback((id: string) => {
     const target = subtasks.find(s => s.id === id);
     if (!target) return;
-    const nextCompleted = !target.completed;
-    setSubtasks(prev => prev.map(s => s.id === id ? { ...s, completed: nextCompleted } : s));
-    updateSubtask(id, { completed: nextCompleted }).catch(() => {});
-  }, [subtasks]);
+    updateSubtaskMut.mutate({ id, patch: { completed: !target.completed } });
+  }, [subtasks, updateSubtaskMut]);
 
   const handleSubtaskDelete = useCallback((id: string) => {
-    // Cascade locally: also drop any children
-    setSubtasks(prev => prev.filter(s => s.id !== id && s.parentSubtaskId !== id));
-    deleteSubtask(id).catch(() => {});
-  }, []);
+    deleteSubtaskMut.mutate(id);
+  }, [deleteSubtaskMut]);
 
   const handleSubtaskUpdate = useCallback((id: string, data: Partial<SubtaskItem>) => {
-    setSubtasks(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
-    updateSubtask(id, data as any).catch(() => {});
-  }, []);
+    updateSubtaskMut.mutate({ id, patch: data });
+  }, [updateSubtaskMut]);
 
   const handleAIImport = useCallback(async (items: ParsedSubtask[]) => {
     if (!objective || items.length === 0) return;
-    const topLevel = subtasks.filter(s => (s.parentSubtaskId ?? null) === null);
-    const baseOrder = topLevel.length === 0 ? 0 : Math.max(...topLevel.map(s => s.order)) + 1;
-
-    const temps: SubtaskItem[] = items.map((it, i) => ({
-      id: crypto.randomUUID(),
-      source: src,
-      parentId: objective.id,
-      parentSubtaskId: null,
-      text: it.text,
-      completed: false,
-      order: baseOrder + i,
-      priority: "medium",
-      status: "not_started",
-      flaggedToday: false,
-      effortSize: it.effortSize ?? null,
-      estimatedMinutes: it.estimatedMinutes ?? null,
-      createdAt: new Date().toISOString(),
-    }));
-    setSubtasks(prev => [...prev, ...temps]);
-
-    await Promise.all(temps.map((t, i) => {
-      const it = items[i];
-      return createSubtask({
+    for (const it of items) {
+      createSubtaskMut.mutate({
         parentId: objective.id,
-        text: t.text,
+        text: it.text,
         source: src,
         effortSize: it.effortSize,
         estimatedMinutes: it.estimatedMinutes,
-      })
-        .then(real => setSubtasks(prev => prev.map(s => s.id === t.id ? real : s)))
-        .catch(() => {});
-    }));
-  }, [objective, src, subtasks]);
+      });
+    }
+  }, [objective, src, createSubtaskMut]);
 
   const completedSubs = subtasks.filter(s => s.completed).length;
 
@@ -337,10 +296,14 @@ export default function ObjectiveWorkspace() {
           size="sm"
           variant="ghost"
           onClick={() => setShowShortcuts(v => !v)}
-          className="h-8 rounded-full text-muted-foreground ml-auto hidden sm:inline-flex"
+          aria-expanded={showShortcuts}
+          aria-label="Raccourcis clavier"
+          className="h-8 rounded-full text-muted-foreground ml-auto gap-1.5"
           title="Raccourcis clavier (?)"
         >
-          <Keyboard size={13} className="mr-1.5" /> Raccourcis
+          <Keyboard size={13} />
+          <span className="hidden sm:inline">Raccourcis</span>
+          <kbd className="px-1 py-px text-[9px] font-mono font-semibold rounded bg-muted/60 border border-border/40">?</kbd>
         </Button>
       </div>
 

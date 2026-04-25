@@ -15,7 +15,7 @@ import {
   listIntakeResponses, updateIntakeResponse,
   type IntakeResponse, type Tier,
 } from "@/api/funnels";
-import { generateQuoteLinesFromModules } from "@/lib/moduleGenerators";
+import { ModuleResolver } from "@/lib/moduleResolver";
 import { getModuleById } from "@/data/moduleCatalog";
 import type { ModuleComplexity } from "@/types/module";
 import { createEmptyQuote } from "@/types/quote";
@@ -104,12 +104,12 @@ export function IntakeManager() {
 
     // Build quote line items from intake modules
     const moduleLines = selectedModules.length > 0
-      ? generateQuoteLinesFromModules(
+      ? new ModuleResolver(
           selectedModules.map((m) => ({
             moduleId: m.id,
             complexity: m.complexity as ModuleComplexity,
           }))
-        )
+        ).toQuoteLines()
       : [];
 
     // Add base project line

@@ -37,6 +37,9 @@ try {
             $pdo->exec('UPDATE projects p JOIN project_funnels pf ON p.id = pf.project_id SET p.share_token = pf.share_token WHERE pf.share_token IS NOT NULL');
         } catch (Throwable $e2) {}
     }
+    if (!in_array('kind', $cols)) {
+        $pdo->exec("ALTER TABLE projects ADD COLUMN kind ENUM('client','internal','personal') NOT NULL DEFAULT 'client' AFTER status");
+    }
 } catch (Throwable $e) {}
 
 try {
@@ -73,6 +76,7 @@ function mapProject(array $row): array {
         'client'        => $row['client'] ?? '',
         'description'   => $row['description'] ?? '',
         'status'        => $row['status'],
+        'kind'          => $row['kind'] ?? 'client',
         'startDate'     => $row['start_date'] ?? '',
         'endDate'       => $row['end_date'] ?? '',
         'initialQuote'  => $row['initial_quote'] ?? '',
@@ -267,9 +271,9 @@ if ($method === 'POST') {
     // If no id is provided, generate one server-side.
     $newId = !empty($data['id']) ? $data['id'] : uuid();
     $pdo->prepare('
-        INSERT INTO projects (id, title, client, client_slug, client_id, description, status, start_date, end_date,
+        INSERT INTO projects (id, title, client, client_slug, client_id, description, status, kind, start_date, end_date,
             initial_quote, revised_quote, invoice_number, payment_status, notes, deliveries)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['title']         ?? 'Untitled Project',
@@ -278,6 +282,7 @@ if ($method === 'POST') {
         $data['clientId']      ?? null,
         $data['description']   ?? null,
         $data['status']        ?? 'draft',
+        in_array($data['kind'] ?? '', ['client','internal','personal'], true) ? $data['kind'] : 'client',
         $data['startDate']     ?: null,
         $data['endDate']       ?: null,
         $data['initialQuote']  ?? null,
@@ -326,6 +331,10 @@ if ($method === 'PUT') {
     if (array_key_exists('shareToken', $data)) {
         $fields[] = "share_token = ?";
         $values[] = $data['shareToken'];
+    }
+    if (array_key_exists('kind', $data)) {
+        $fields[] = "kind = ?";
+        $values[] = in_array($data['kind'] ?? '', ['client','internal','personal'], true) ? $data['kind'] : 'client';
     }
     if (!empty($fields)) {
         $values[] = $id;
