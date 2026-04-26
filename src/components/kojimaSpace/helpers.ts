@@ -5,18 +5,10 @@ export function formatCHF(value: number): string {
   }).format(value).replace(/(?<=\d)[\s  ](?=\d)/g, "'");
 }
 
-export const PROJECT_STATUS = {
-  draft:        { label: "Draft",    cls: "bg-muted text-muted-foreground border-border" },
-  "in-progress":{ label: "Active",   cls: "bg-primary/15 text-primary border-primary/30" },
-  completed:    { label: "Done",     cls: "bg-palette-sage/15 text-palette-sage border-palette-sage/30" },
-  "on-hold":    { label: "On Hold",  cls: "bg-palette-amber/15 text-palette-amber border-palette-amber/30" },
-} as const;
-
-export const PAYMENT_STATUS = {
-  unpaid:  { label: "Unpaid",  cls: "bg-destructive/10 text-destructive border-destructive/30" },
-  partial: { label: "Partial", cls: "bg-palette-amber/15 text-palette-amber border-palette-amber/30" },
-  paid:    { label: "Paid",    cls: "bg-palette-sage/15 text-palette-sage border-palette-sage/30" },
-} as const;
+// PROJECT_STATUS / PAYMENT_STATUS now live in @/lib/statusColors. Re-exported
+// here so LatestProjects.tsx (the only consumer) doesn't need an import-path
+// change. New code should import from @/lib/statusColors directly.
+export { PROJECT_STATUS, PAYMENT_STATUS } from "@/lib/statusColors";
 
 // Active objectives untouched longer than this get a muted/stale treatment.
 // Uses updated_at (refreshed on every field edit) so fresh edits reset the clock.
