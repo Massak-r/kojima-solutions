@@ -42,48 +42,10 @@ import {
   batchImportExpenses,
 } from "@/api/expenses";
 
-// ── Helpers ───────────────────────────────────────────────────
 
-function formatCHF(value: number): string {
-  return new Intl.NumberFormat("fr-CH", {
-    style: "currency", currency: "CHF",
-    minimumFractionDigits: 0, maximumFractionDigits: 2,
-  }).format(value).replace(/(?<=\d)[\s\u00A0\u202F](?=\d)/g, "'");
-}
+import { formatCHF, todayISO, MONTHS_FR, TVA_RATE } from "@/components/accounting/utils";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
-const TVA_RATE = 0.081;
-
-// ── Stat card ─────────────────────────────────────────────────
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: string;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-xl p-5 shadow-card">
-      <div className={`inline-flex items-center justify-center w-9 h-9 rounded-lg mb-3 ${accent ?? "bg-primary/10"}`}>
-        <Icon size={17} className={accent ? "text-white" : "text-primary"} />
-      </div>
-      <p className="font-body text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-      <p className="font-display text-2xl font-bold text-foreground">{value}</p>
-      {sub && <p className="font-body text-xs text-muted-foreground mt-1">{sub}</p>}
-    </div>
-  );
-}
+import { StatCard } from "@/components/accounting/StatCard";
 
 // ── Main page ─────────────────────────────────────────────────
 
