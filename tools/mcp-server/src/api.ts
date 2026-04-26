@@ -36,7 +36,27 @@ if (!KEY) {
   console.error("[kojima-mcp] WARNING: KOJIMA_API_KEY env is empty. PHP API will reject requests if API_SECRET is configured.");
 }
 
+// In-memory TTL cache for GET responses. Mutations (POST/PUT/DELETE/PATCH)
+// clear the entire cache — aggressive but correct. The short TTL bounds
+// the worst case if some other client mutates state between our reads.
+const CACHE_TTL_MS = 5_000;
+const CACHE_MAX = 200;
+const cache = new Map<string, { value: unknown; expiresAt: number }>();
+
+function isMutation(init?: RequestInit): boolean {
+  const m = (init?.method ?? "GET").toUpperCase();
+  return m !== "GET" && m !== "HEAD";
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const cacheable = !isMutation(init);
+
+  if (cacheable) {
+    const hit = cache.get(path);
+    if (hit && hit.expiresAt > Date.now()) return hit.value as T;
+    if (hit) cache.delete(path);
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -50,8 +70,19 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.text().catch(() => "");
     throw new Error(`API ${path} → HTTP ${res.status}: ${body.slice(0, 300)}`);
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const result: T = res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+
+  if (cacheable) {
+    if (cache.size >= CACHE_MAX) {
+      // Evict the oldest entry (Map preserves insertion order).
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    cache.set(path, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
+  } else {
+    cache.clear();
+  }
+  return result;
 }
 
 export type ObjectiveSource = "admin" | "personal";
