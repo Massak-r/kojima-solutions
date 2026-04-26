@@ -30,6 +30,13 @@ echo "▶  Ensuring uploads/ directory exists on server ..."
 ssh -p ${SSH_PORT} "${SSH_USER}@${SSH_HOST}" "mkdir -p ${REMOTE_PATH}/uploads && chmod 755 ${REMOTE_PATH}/uploads"
 
 echo ""
+echo "▶  Syncing database/migrations/ (not part of Vite dist) ..."
+ssh -p ${SSH_PORT} "${SSH_USER}@${SSH_HOST}" "mkdir -p ${REMOTE_PATH}/database/migrations"
+if compgen -G "database/migrations/*" > /dev/null; then
+    scp -P ${SSH_PORT} -r database/migrations/* "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/database/migrations/"
+fi
+
+echo ""
 echo "✅  Deployed successfully!"
 echo "    https://kojima-solutions.ch"
 echo ""
