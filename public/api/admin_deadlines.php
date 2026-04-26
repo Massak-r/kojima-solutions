@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 // Auto-create table
 $pdo->exec("CREATE TABLE IF NOT EXISTS admin_deadlines (

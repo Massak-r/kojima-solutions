@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 // Migrate bundle_id CHAR(36) → TEXT if needed (for JSON array storage)
 try { $pdo->exec('ALTER TABLE consumables MODIFY COLUMN bundle_id TEXT NULL'); } catch (\Exception $e) {}

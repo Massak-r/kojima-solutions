@@ -54,7 +54,7 @@ $action = $_GET['action'] ?? null;
 // ── Phase CRUD (admin) ──────────────────────────────────────
 
 if ($method === 'POST' && ($action === 'phase')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $funnelId = $data['funnelId'] ?? '';
     if (!$funnelId) fail('funnelId required');
@@ -70,7 +70,7 @@ if ($method === 'POST' && ($action === 'phase')) {
 }
 
 if ($method === 'PUT' && $id && ($action === 'phase')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $sets = [];
     $vals = [];
@@ -96,7 +96,7 @@ if ($method === 'PUT' && $id && ($action === 'phase')) {
 }
 
 if ($method === 'DELETE' && $id && ($action === 'phase')) {
-    requireAuth();
+    requireAdminSession();
     $pdo->prepare('DELETE FROM funnel_phases WHERE id = ?')->execute([$id]);
     ok();
 }
@@ -104,7 +104,7 @@ if ($method === 'DELETE' && $id && ($action === 'phase')) {
 // ── Gate CRUD (admin) ───────────────────────────────────────
 
 if ($method === 'POST' && ($action === 'gate')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $phaseId = $data['phaseId'] ?? '';
     if (!$phaseId) fail('phaseId required');
@@ -119,7 +119,7 @@ if ($method === 'POST' && ($action === 'gate')) {
 }
 
 if ($method === 'PUT' && $id && ($action === 'gate')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $sets = [];
     $vals = [];
@@ -143,7 +143,7 @@ if ($method === 'PUT' && $id && ($action === 'gate')) {
 }
 
 if ($method === 'DELETE' && $id && ($action === 'gate')) {
-    requireAuth();
+    requireAdminSession();
     $pdo->prepare('DELETE FROM funnel_gates WHERE id = ?')->execute([$id]);
     ok();
 }
@@ -151,7 +151,7 @@ if ($method === 'DELETE' && $id && ($action === 'gate')) {
 // ── Gate Option CRUD (admin) ────────────────────────────────
 
 if ($method === 'POST' && ($action === 'option')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $gateId = $data['gateId'] ?? '';
     if (!$gateId) fail('gateId required');
@@ -167,7 +167,7 @@ if ($method === 'POST' && ($action === 'option')) {
 }
 
 if ($method === 'PUT' && $id && ($action === 'option')) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $sets = [];
     $vals = [];
@@ -191,7 +191,7 @@ if ($method === 'PUT' && $id && ($action === 'option')) {
 }
 
 if ($method === 'DELETE' && $id && ($action === 'option')) {
-    requireAuth();
+    requireAdminSession();
     $pdo->prepare('DELETE FROM gate_options WHERE id = ?')->execute([$id]);
     ok();
 }

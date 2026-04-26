@@ -63,7 +63,7 @@ if ($method === 'POST') {
 
 // ── GET: aggregated data (auth required) ─────────────────────────
 if ($method === 'GET') {
-    requireAuth();
+    requireAdminSession();
 
     $period = $_GET['period'] ?? '7d';
     $days = match ($period) {

@@ -3,7 +3,7 @@
 // Claude reads the output, suggests title/category/tags, then calls update_admin_doc.
 // GET /api/auto/classify_pdf.php?doc_id=uuid
 require_once __DIR__ . '/../_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 $docId = $_GET['doc_id'] ?? (body()['docId'] ?? null);
 if (!$docId) fail('doc_id required');

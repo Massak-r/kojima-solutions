@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 // Ensure objective_activity exists (we emit into it)
 try {

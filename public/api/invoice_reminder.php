@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/_queue_email.php';
-requireAuth();
+requireAdminSession();
 
 $method = $_SERVER['REQUEST_METHOD'];
 

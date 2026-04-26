@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST only', 405);
 

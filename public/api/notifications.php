@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 function mapNotification(array $row): array {
     return [

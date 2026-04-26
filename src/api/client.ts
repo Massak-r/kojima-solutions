@@ -5,7 +5,6 @@
 import { getClientSession } from "@/lib/auth";
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
-const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
@@ -13,12 +12,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     ? {}                                    // let browser set multipart boundary
     : { 'Content-Type': 'application/json' };
 
-  if (API_KEY) {
-    headers['X-API-Key'] = API_KEY;
-  }
-  // Forward the opaque client-portal session token if the user is logged in
-  // as a client. Admin session is HttpOnly cookie — sent automatically by the
-  // browser because we pass credentials: 'include'.
+  // Admin auth is the HttpOnly session cookie — the browser sends it
+  // automatically because of credentials: 'include' below.
   const clientSession = getClientSession();
   if (clientSession?.token) {
     headers['X-Client-Token'] = clientSession.token;

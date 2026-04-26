@@ -1,11 +1,7 @@
 // ── Admin auth ────────────────────────────────────────────────
-const envAdminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
-if (!envAdminPassword && typeof window !== "undefined") {
-  // Fail closed: without an env-provided password, admin login cannot succeed.
-  // eslint-disable-next-line no-console
-  console.error("[auth] VITE_ADMIN_PASSWORD is not set. Admin login is disabled.");
-}
-export const ADMIN_PASSWORD: string = envAdminPassword ?? "";
+// The real auth state is the HttpOnly session cookie set by admin_login.php.
+// This localStorage flag is just a UI hint so we can render admin chrome
+// before any request round-trip — server-side checks remain authoritative.
 export const ADMIN_KEY = "kojima-admin-session";
 
 export const isAdminAuthenticated = () =>

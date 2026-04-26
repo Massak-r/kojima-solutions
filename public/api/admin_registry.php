@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS admin_registry (
   id               VARCHAR(36)   NOT NULL,

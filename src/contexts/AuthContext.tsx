@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import {
-  ADMIN_PASSWORD,
   isAdminAuthenticated,
   setAdminAuth,
   clearAdminAuth,
@@ -21,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(() => isAdminAuthenticated());
 
   async function loginAdmin(password: string): Promise<boolean> {
-    // Try server-validated login first (sets HttpOnly cookie).
+    // Server validates and issues the HttpOnly session cookie.
     try {
       const res = await fetch(`${API_URL}/api/admin_login.php`, {
         method: "POST",
@@ -29,26 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      if (res.ok) {
-        setAdminAuth();
-        setIsAdmin(true);
-        if (isPushSupported()) subscribeToPush().catch(() => {});
-        return true;
-      }
-      // 401 = wrong password → trust the server and don't fall through
-      if (res.status === 401 || res.status === 429) return false;
-    } catch {
-      // Network or endpoint unreachable — fall back to local check so a
-      // misconfigured server doesn't lock the admin out mid-rollout.
-    }
-    // Fallback: local env-based check (fails closed when env missing).
-    if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+      if (!res.ok) return false;
       setAdminAuth();
       setIsAdmin(true);
       if (isPushSupported()) subscribeToPush().catch(() => {});
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 
   // Auto-subscribe on mount if already authenticated

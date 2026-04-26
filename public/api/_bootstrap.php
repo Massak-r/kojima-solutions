@@ -98,7 +98,7 @@ function requireAuth(): void {
  */
 function requireAuthForWrites(): void {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-        requireAuth();
+        requireAdminSession();
     }
 }
 

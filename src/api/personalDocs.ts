@@ -11,7 +11,6 @@ export interface PersonalDocItem {
 }
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
-const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 export function listPersonalDocs() {
   return apiFetch<PersonalDocItem[]>('personal_docs.php');
@@ -22,9 +21,11 @@ export async function uploadPersonalDoc(file: File, title: string, category: str
   form.append('file', file);
   form.append('title', title);
   form.append('category', category);
-  const headers: Record<string, string> = {};
-  if (API_KEY) headers['X-API-Key'] = API_KEY;
-  const res = await fetch(`${BASE}/api/personal_docs.php`, { method: 'POST', body: form, headers });
+  const res = await fetch(`${BASE}/api/personal_docs.php`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Upload failed: ${text}`);
@@ -43,8 +44,8 @@ export function deletePersonalDoc(id: string) {
   return apiFetch<void>(`personal_docs.php?id=${id}`, { method: 'DELETE' });
 }
 
-/** Returns the URL to view/download a PDF by its stored filename */
+/** Returns the URL to view/download a PDF by its stored filename. The HttpOnly
+ * session cookie is auto-sent by the browser on same-origin navigations. */
 export function getPersonalDocViewUrl(filename: string): string {
-  const url = `${BASE}/api/personal_files.php?file=${encodeURIComponent(filename)}`;
-  return API_KEY ? `${url}&key=${encodeURIComponent(API_KEY)}` : url;
+  return `${BASE}/api/personal_files.php?file=${encodeURIComponent(filename)}`;
 }

@@ -29,7 +29,7 @@ function mapModules(array $r): array {
 
 // GET — fetch modules for project
 if ($method === 'GET') {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM project_modules WHERE project_id = ?');
     $stmt->execute([$projectId]);
     $row = $stmt->fetch();
@@ -38,7 +38,7 @@ if ($method === 'GET') {
 
 // PUT — create or update modules
 if ($method === 'PUT') {
-    requireAuth();
+    requireAdminSession();
     $data = body();
 
     $modulesJson = json_encode($data['modules'] ?? []);

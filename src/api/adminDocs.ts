@@ -31,7 +31,6 @@ export interface DocFolder {
 }
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
-const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 // ── Documents ──────────────────────────────────────────────
 
@@ -52,9 +51,11 @@ export async function uploadDoc(
   form.append('category', category);
   if (folderId) form.append('folderId', folderId);
   if (year != null) form.append('year', String(year));
-  const headers: Record<string, string> = {};
-  if (API_KEY) headers['X-API-Key'] = API_KEY;
-  const res = await fetch(`${BASE}/api/admin_docs.php`, { method: 'POST', body: form, headers });
+  const res = await fetch(`${BASE}/api/admin_docs.php`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Upload failed: ${text}`);
@@ -87,10 +88,10 @@ export function deleteDoc(id: string) {
   return apiFetch<void>(`admin_docs.php?id=${id}`, { method: 'DELETE' });
 }
 
-/** Returns the URL to view/download a PDF by its stored filename */
+/** Returns the URL to view/download a PDF by its stored filename. The HttpOnly
+ * session cookie is auto-sent by the browser on same-origin navigations. */
 export function getDocViewUrl(filename: string): string {
-  const url = `${BASE}/api/admin_files.php?file=${encodeURIComponent(filename)}`;
-  return API_KEY ? `${url}&key=${encodeURIComponent(API_KEY)}` : url;
+  return `${BASE}/api/admin_files.php?file=${encodeURIComponent(filename)}`;
 }
 
 /** Returns the public share URL for a document */

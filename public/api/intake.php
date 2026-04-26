@@ -22,7 +22,7 @@ $projectIdFilter = $_GET['project_id'] ?? null;
 
 // GET — by project_id (admin only)
 if ($method === 'GET' && !$id && $projectIdFilter) {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM intake_responses WHERE project_id = ? ORDER BY created_at DESC');
     $stmt->execute([$projectIdFilter]);
     $rows = $stmt->fetchAll();
@@ -31,14 +31,14 @@ if ($method === 'GET' && !$id && $projectIdFilter) {
 
 // GET — list all (admin only)
 if ($method === 'GET' && !$id) {
-    requireAuth();
+    requireAdminSession();
     $rows = $pdo->query('SELECT * FROM intake_responses ORDER BY created_at DESC')->fetchAll();
     ok(array_map('mapIntake', $rows));
 }
 
 // GET — single (admin only)
 if ($method === 'GET' && $id) {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM intake_responses WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
@@ -110,7 +110,7 @@ if ($method === 'POST' && !$id) {
 
 // PUT — update status / link to project (admin)
 if ($method === 'PUT' && $id) {
-    requireAuth();
+    requireAdminSession();
     $data = body();
     $sets = [];
     $vals = [];
@@ -132,7 +132,7 @@ if ($method === 'PUT' && $id) {
 
 // DELETE (admin)
 if ($method === 'DELETE' && $id) {
-    requireAuth();
+    requireAdminSession();
     $pdo->prepare('DELETE FROM intake_responses WHERE id = ?')->execute([$id]);
     ok();
 }

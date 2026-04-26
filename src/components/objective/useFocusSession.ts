@@ -107,13 +107,9 @@ export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): F
       const s = readStored(key);
       if (!s) return;
       const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
-      const apiKey  = import.meta.env.VITE_API_KEY ?? "";
       const url = `${apiBase}/api/objective_sessions.php?id=${s.sessionId}&action=stop`;
-      try {
-        const fd = new FormData();
-        if (apiKey) fd.append("api_key", apiKey);
-        navigator.sendBeacon(url, fd);
-      } catch {}
+      // sendBeacon includes cookies on same-origin requests automatically.
+      try { navigator.sendBeacon(url); } catch {}
     }
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);

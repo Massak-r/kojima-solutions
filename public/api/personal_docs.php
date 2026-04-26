@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 $method     = $_SERVER['REQUEST_METHOD'];
 $id         = $_GET['id'] ?? null;

@@ -4,7 +4,7 @@
  * Templates are stored in DB. If not set, defaults are used.
  */
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 // Auto-migrate
 try {

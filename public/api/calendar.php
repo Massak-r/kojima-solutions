@@ -8,7 +8,7 @@
  *   GOOGLE_CALENDAR_ID — e.g. 'chraiti.massaki@gmail.com'
  */
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 // ── Config check ───────────────────────────────────────────────────────────────
 if (!defined('GOOGLE_SA_KEY_PATH') || !defined('GOOGLE_CALENDAR_ID')) {

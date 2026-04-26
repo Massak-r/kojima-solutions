@@ -33,7 +33,7 @@ $action = $_GET['action'] ?? null;
 
 // GET — list queued emails (admin only)
 if ($method === 'GET') {
-    requireAuth();
+    requireAdminSession();
     $status = $_GET['status'] ?? 'pending';
     $stmt = $pdo->prepare('SELECT * FROM email_queue WHERE status = ? ORDER BY created_at DESC LIMIT 100');
     $stmt->execute([$status]);
@@ -42,7 +42,7 @@ if ($method === 'GET') {
 
 // POST — queue a new email (internal use, auth required)
 if ($method === 'POST' && !$action) {
-    requireAuth();
+    requireAdminSession();
     $d = body();
     $emailId = uuid();
     $pdo->prepare('
@@ -63,7 +63,7 @@ if ($method === 'POST' && !$action) {
 
 // PUT ?id=X&action=send — send a specific queued email
 if ($method === 'PUT' && $id && $action === 'send') {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM email_queue WHERE id = ? AND status = "pending"');
     $stmt->execute([$id]);
     $email = $stmt->fetch();
@@ -78,7 +78,7 @@ if ($method === 'PUT' && $id && $action === 'send') {
 
 // PUT ?action=send-all — send all pending emails
 if ($method === 'PUT' && $action === 'send-all') {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->query('SELECT * FROM email_queue WHERE status = "pending" ORDER BY created_at ASC');
     $pending = $stmt->fetchAll();
     $sent = 0;
@@ -94,14 +94,14 @@ if ($method === 'PUT' && $action === 'send-all') {
 
 // PUT ?id=X&action=discard — discard a queued email
 if ($method === 'PUT' && $id && $action === 'discard') {
-    requireAuth();
+    requireAdminSession();
     $pdo->prepare('UPDATE email_queue SET status = "discarded" WHERE id = ? AND status = "pending"')->execute([$id]);
     ok();
 }
 
 // PUT ?id=X&action=update — edit a queued email before sending
 if ($method === 'PUT' && $id && $action === 'update') {
-    requireAuth();
+    requireAdminSession();
     $d = body();
     $sets = [];
     $vals = [];

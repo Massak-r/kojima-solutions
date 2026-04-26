@@ -3,7 +3,7 @@
 require_once __DIR__ . '/_bootstrap.php';
 // Accept API key via query param (files are opened via direct browser navigation, not fetch)
 if (isset($_GET['key'])) $_SERVER['HTTP_X_API_KEY'] = $_GET['key'];
-requireAuth();
+requireAdminSession();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') fail('GET only', 405);
 

@@ -4,7 +4,7 @@
 // create_quote if the user approves.
 // GET /api/auto/suggest_quote_lines.php?project_id=uuid
 require_once __DIR__ . '/../_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 $projectId = $_GET['project_id'] ?? (body()['projectId'] ?? null);
 if (!$projectId) fail('project_id required');

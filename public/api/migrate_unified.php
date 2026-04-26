@@ -5,7 +5,7 @@
  * Then DELETE this file from server.
  */
 require_once __DIR__ . '/_bootstrap.php';
-requireAuth();
+requireAdminSession();
 header('Content-Type: text/plain');
 
 $steps = [];

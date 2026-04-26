@@ -39,7 +39,7 @@ function mapCadrage(array $r): array {
 
 // GET — fetch cadrage for project
 if ($method === 'GET') {
-    requireAuth();
+    requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM project_cadrage WHERE project_id = ?');
     $stmt->execute([$projectId]);
     $row = $stmt->fetch();
@@ -48,7 +48,7 @@ if ($method === 'GET') {
 
 // PUT — create or update cadrage
 if ($method === 'PUT') {
-    requireAuth();
+    requireAdminSession();
     $data = body();
 
     $stmt = $pdo->prepare('SELECT id FROM project_cadrage WHERE project_id = ?');

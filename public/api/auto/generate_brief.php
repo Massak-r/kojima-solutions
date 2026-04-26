@@ -3,7 +3,7 @@
 // Claude reads the output, writes the brief, then calls create_note to save it.
 // GET /api/auto/generate_brief.php?intake_id=uuid
 require_once __DIR__ . '/../_bootstrap.php';
-requireAuth();
+requireAdminSession();
 
 $intakeId = $_GET['intake_id'] ?? (body()['intakeId'] ?? null);
 if (!$intakeId) fail('intake_id required');
