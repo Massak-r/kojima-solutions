@@ -126,10 +126,38 @@ function validateAdminSession(): ?array {
 /**
  * Accept either an admin session cookie (preferred) OR the legacy X-API-Key
  * header so existing endpoints keep working during the cookie rollout.
+ *
+ * For state-changing requests (anything other than GET/HEAD/OPTIONS) we
+ * additionally require a matching CSRF token via the double-submit
+ * cookie pattern: the JS-readable `kojima_csrf` cookie value must equal
+ * the X-CSRF-Token header (or `csrf` query/body param for sendBeacon and
+ * file-form-post paths that can't set headers). SameSite=Lax already
+ * blocks the cookie on cross-site POSTs, but this is defence-in-depth.
  */
 function requireAdminSession(): void {
-    if (validateAdminSession() !== null) return;
-    requireAuth();
+    if (validateAdminSession() === null) {
+        requireAuth();
+        return;
+    }
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($method === 'GET' || $method === 'HEAD' || $method === 'OPTIONS') return;
+    if (!validateCsrfToken()) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Invalid or missing CSRF token']);
+        exit;
+    }
+}
+
+/**
+ * Double-submit cookie check: header (or query/body fallback) must match
+ * the kojima_csrf cookie value. Falls back to false if either side is
+ * missing — caller decides whether to enforce.
+ */
+function validateCsrfToken(): bool {
+    $cookie = $_COOKIE['kojima_csrf'] ?? '';
+    $sent   = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_GET['csrf'] ?? $_POST['csrf'] ?? '';
+    if ($cookie === '' || $sent === '') return false;
+    return hash_equals($cookie, $sent);
 }
 
 /**

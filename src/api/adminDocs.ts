@@ -51,10 +51,12 @@ export async function uploadDoc(
   form.append('category', category);
   if (folderId) form.append('folderId', folderId);
   if (year != null) form.append('year', String(year));
+  const csrf = (typeof document !== 'undefined' && document.cookie.match(/(?:^|; )kojima_csrf=([^;]*)/)?.[1]) || '';
   const res = await fetch(`${BASE}/api/admin_docs.php`, {
     method: 'POST',
     body: form,
     credentials: 'include',
+    headers: csrf ? { 'X-CSRF-Token': decodeURIComponent(csrf) } : undefined,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

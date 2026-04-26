@@ -11,11 +11,17 @@ if ($token && preg_match('/^[a-f0-9]{64}$/', $token)) {
     } catch (Throwable $e) {}
 }
 
-// Clear the cookie regardless
+// Clear both cookies regardless
 setcookie('kojima_admin_session', '', [
     'expires'  => 1,
     'path'     => '/',
     'httponly' => true,
+    'samesite' => 'Lax',
+]);
+setcookie('kojima_csrf', '', [
+    'expires'  => 1,
+    'path'     => '/',
+    'httponly' => false,
     'samesite' => 'Lax',
 ]);
 

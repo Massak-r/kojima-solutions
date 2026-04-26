@@ -107,8 +107,12 @@ export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): F
       const s = readStored(key);
       if (!s) return;
       const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
-      const url = `${apiBase}/api/objective_sessions.php?id=${s.sessionId}&action=stop`;
-      // sendBeacon includes cookies on same-origin requests automatically.
+      // sendBeacon can't set custom headers, so the CSRF token rides as a
+      // URL query param. Server-side validateCsrfToken accepts header OR
+      // ?csrf=. The kojima_csrf cookie itself is sent automatically.
+      const csrf = (typeof document !== "undefined" && document.cookie.match(/(?:^|; )kojima_csrf=([^;]*)/)?.[1]) || "";
+      const csrfQ = csrf ? `&csrf=${csrf}` : "";
+      const url = `${apiBase}/api/objective_sessions.php?id=${s.sessionId}&action=stop${csrfQ}`;
       try { navigator.sendBeacon(url); } catch {}
     }
     window.addEventListener("beforeunload", onBeforeUnload);

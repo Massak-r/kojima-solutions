@@ -6,6 +6,12 @@ import { getClientSession } from "@/lib/auth";
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
+function readCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
   const headers: Record<string, string> = isFormData
@@ -13,7 +19,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     : { 'Content-Type': 'application/json' };
 
   // Admin auth is the HttpOnly session cookie — the browser sends it
-  // automatically because of credentials: 'include' below.
+  // automatically because of credentials: 'include' below. State-changing
+  // requests additionally need a CSRF token (double-submit pattern).
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    const csrf = readCookie('kojima_csrf');
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
   const clientSession = getClientSession();
   if (clientSession?.token) {
     headers['X-Client-Token'] = clientSession.token;

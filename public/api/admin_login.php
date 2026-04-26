@@ -100,4 +100,15 @@ setcookie('kojima_admin_session', $token, [
     'samesite' => 'Lax',
 ]);
 
+// CSRF double-submit cookie: JS-readable so the SPA can echo it back as the
+// X-CSRF-Token header on writes. Same expiry as the session.
+$csrfToken = bin2hex(random_bytes(32));
+setcookie('kojima_csrf', $csrfToken, [
+    'expires'  => strtotime($expiresAt),
+    'path'     => '/',
+    'secure'   => $secure,
+    'httponly' => false,
+    'samesite' => 'Lax',
+]);
+
 ok(['ok' => true, 'expiresAt' => $expiresAt]);
