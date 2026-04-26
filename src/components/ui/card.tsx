@@ -1,9 +1,19 @@
+// Single canonical Card primitive. Default styling matches the project's
+// dominant elevated-panel pattern (`bg-card border border-border rounded-2xl`)
+// rather than shadcn's stock `rounded-lg shadow-sm`.
+//
+// Inline `<div className="bg-card border border-border rounded-2xl …">`
+// patterns across the app still work and shouldn't break — but new code
+// should reach for `<Card>` instead, and existing sites can migrate as
+// they're touched. The translucent `glass-card` utility (defined in
+// src/index.css) is a separate visual variant and stays as a class.
+
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
+  <div ref={ref} className={cn("rounded-2xl border bg-card text-card-foreground", className)} {...props} />
 ));
 Card.displayName = "Card";
 
