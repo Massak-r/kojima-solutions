@@ -13,8 +13,8 @@ import { WeeklyReviewDialog } from "@/components/objective/WeeklyReviewDialog";
 import { WeekPlanner } from "@/components/sprint/WeekPlanner";
 import type { ObjectiveSource, UnifiedObjective } from "@/api/objectiveSource";
 import {
-  todayKey, isoWeekKey, findActiveSessionKey,
-  WEEKLY_REVIEW_KEY_PREFIX, VIEW_MODE_KEY,
+  todayKey, weeklyReviewKey, findActiveSessionKey,
+  VIEW_MODE_KEY,
   type SprintViewMode,
 } from "@/components/sprintPage/helpers";
 import { EmptyFocusHint } from "@/components/sprintPage/EmptyFocusHint";
@@ -62,14 +62,13 @@ export default function SprintPage() {
     const now = new Date();
     const isFriday = now.getDay() === 5;
     if (!isFriday || now.getHours() < 14) return;
-    const wk = isoWeekKey(now);
     try {
-      if (!localStorage.getItem(WEEKLY_REVIEW_KEY_PREFIX + wk)) setShowReview(true);
+      if (!localStorage.getItem(weeklyReviewKey(now))) setShowReview(true);
     } catch {}
   }, []);
 
   function handleDismissReview() {
-    try { localStorage.setItem(WEEKLY_REVIEW_KEY_PREFIX + isoWeekKey(new Date()), "seen"); } catch {}
+    try { localStorage.setItem(weeklyReviewKey(new Date()), "1"); } catch {}
   }
 
   // When a session ends, return to the normal dashboard for the next time one starts

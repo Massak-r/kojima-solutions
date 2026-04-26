@@ -3,7 +3,6 @@ import type { ObjectiveSource } from "@/api/objectiveSource";
 
 export const DAILY_COMMIT_KEY_PREFIX = "kojima-daily-commit-";
 export const VIEW_MODE_KEY = "sprint-view-mode";
-export const WEEKLY_REVIEW_KEY_PREFIX = "kojima-weekly-review-";
 
 // Flagged subtasks that have been in the backlog longer than this are
 // surfaced with a visible "stale" cue — signal to either finish or unflag.
@@ -13,6 +12,12 @@ export type SprintViewMode = "today" | "week";
 
 export function todayKey(): string {
   return DAILY_COMMIT_KEY_PREFIX + new Date().toISOString().slice(0, 10);
+}
+
+// localStorage key for "Friday review dismissed this ISO week".
+// Status is encoded in the key suffix so presence alone is the signal.
+export function weeklyReviewKey(d: Date): string {
+  return `${isoWeekKey(d)}:seen`;
 }
 
 export function daysSinceFlagged(item: Pick<SubtaskItem, "flaggedAt" | "createdAt">): number {
