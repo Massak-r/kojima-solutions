@@ -102,12 +102,18 @@ export async function flushQueue(): Promise<{ ok: number; failed: number; deadLe
   let deadLettered = 0;
   const remaining: QueuedAction[] = [];
 
+  const csrf = (typeof document !== "undefined"
+    && document.cookie.match(/(?:^|; )kojima_csrf=([^;]*)/)?.[1]) || "";
+  const writeHeaders: Record<string, string> = { "Content-Type": "application/json" };
+  if (csrf) writeHeaders["X-CSRF-Token"] = decodeURIComponent(csrf);
+
   for (const action of queue) {
     try {
       const res = await fetch(action.endpoint, {
         method: action.method,
-        headers: { "Content-Type": "application/json" },
+        headers: writeHeaders,
         body: action.body ? JSON.stringify(action.body) : undefined,
+        credentials: "include",
       });
       if (res.ok) {
         ok++;

@@ -19,7 +19,7 @@ if (in_array($origin, $allowed, true)) {
     header('Access-Control-Allow-Credentials: true');
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key, X-Client-Token, X-Admin-Token');
+header('Access-Control-Allow-Headers: Content-Type, X-API-Key, X-Client-Token, X-Admin-Token, X-CSRF-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -138,6 +138,21 @@ function requireAdminSession(): void {
     if (validateAdminSession() === null) {
         requireAuth();
         return;
+    }
+    // Lazy-upgrade for sessions that pre-date the CSRF rollout: if the admin
+    // session validates but no kojima_csrf cookie is present, mint one now so
+    // the client picks it up via Set-Cookie and the next request succeeds.
+    // The current write still 403s — that's intentional, the frontend retries
+    // once it sees the freshly-minted cookie.
+    if (($_COOKIE['kojima_csrf'] ?? '') === '') {
+        $secure = ($_SERVER['HTTPS'] ?? '') !== '' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+        setcookie('kojima_csrf', bin2hex(random_bytes(32)), [
+            'expires'  => time() + 30 * 24 * 60 * 60,
+            'path'     => '/',
+            'secure'   => $secure,
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
     }
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method === 'GET' || $method === 'HEAD' || $method === 'OPTIONS') return;

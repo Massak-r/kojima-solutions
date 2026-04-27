@@ -14,28 +14,46 @@ function readCookie(name: string): string {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
-  const headers: Record<string, string> = isFormData
+  const baseHeaders: Record<string, string> = isFormData
     ? {}                                    // let browser set multipart boundary
     : { 'Content-Type': 'application/json' };
 
-  // Admin auth is the HttpOnly session cookie — the browser sends it
-  // automatically because of credentials: 'include' below. State-changing
-  // requests additionally need a CSRF token (double-submit pattern).
   const method = (init?.method ?? 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') {
-    const csrf = readCookie('kojima_csrf');
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-  }
+  const isWrite = method !== 'GET' && method !== 'HEAD';
+
   const clientSession = getClientSession();
   if (clientSession?.token) {
-    headers['X-Client-Token'] = clientSession.token;
+    baseHeaders['X-Client-Token'] = clientSession.token;
   }
 
-  const res = await fetch(`${BASE}/api/${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
-  });
+  // Admin auth is the HttpOnly session cookie — the browser sends it
+  // automatically because of credentials: 'include' below. State-changing
+  // requests additionally need a CSRF token (double-submit pattern). On a
+  // 403 with the CSRF error we re-read the cookie and retry once, so
+  // pre-CSRF sessions that just got their cookie lazy-minted by the server
+  // succeed without a manual re-login.
+  const send = async (): Promise<Response> => {
+    const headers = { ...baseHeaders };
+    if (isWrite) {
+      const csrf = readCookie('kojima_csrf');
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    }
+    return fetch(`${BASE}/api/${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
+    });
+  };
+
+  let res = await send();
+  if (!res.ok && res.status === 403 && isWrite) {
+    const text = await res.clone().text().catch(() => '');
+    if (text.includes('CSRF') && readCookie('kojima_csrf')) {
+      res = await send();
+    } else {
+      throw new Error(`API ${path} → ${res.status}: ${text}`);
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
