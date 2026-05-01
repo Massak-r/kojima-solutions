@@ -222,6 +222,7 @@ export default function ProjectSteps() {
       <div key={task.id}>
         <UnifiedStepCard
           task={task}
+          projectId={id!}
           isLast={idx === stepList.length - 1}
           onEdit={handleStartEdit}
           onDelete={handleDelete}

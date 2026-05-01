@@ -83,6 +83,7 @@ export function useCreateSubtask() {
         flaggedToday: false,
         effortSize: data.effortSize ?? null,
         estimatedMinutes: data.estimatedMinutes ?? null,
+        sprintTier: "nice",
         createdAt: new Date().toISOString(),
       };
       setSubtasksCache(qc, (list) => [...list, optimistic]);

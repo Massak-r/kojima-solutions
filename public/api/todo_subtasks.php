@@ -53,6 +53,10 @@ try {
         // completed_at: needed to decide if a recurring task should reset today
         $pdo->exec('ALTER TABLE todo_subtasks ADD COLUMN completed_at DATETIME DEFAULT NULL');
     }
+    if (!in_array('sprint_tier', $cols)) {
+        // sprint_tier: must = "vraie obligation du jour", nice = "si j'ai le temps". Default nice.
+        $pdo->exec("ALTER TABLE todo_subtasks ADD COLUMN sprint_tier ENUM('must','nice') NOT NULL DEFAULT 'nice'");
+    }
 } catch (Throwable $e) {}
 
 /**
@@ -138,6 +142,7 @@ function mapSubtask(array $row): array {
         'recurrenceDay'    => isset($row['recurrence_day']) ? (int)$row['recurrence_day'] : null,
         'scheduledFor'     => $row['scheduled_for'] ?? null,
         'completedAt'      => $row['completed_at'] ?? null,
+        'sprintTier'       => $row['sprint_tier'] ?? 'nice',
         'createdAt'        => $row['created_at'],
     ];
 }
@@ -234,6 +239,7 @@ if ($method === 'PUT') {
         'recurrence'      => ['recurrence = ?',         fn($v) => $v ?: null],
         'recurrenceDay'   => ['recurrence_day = ?',     fn($v) => $v === null || $v === '' ? null : (int)$v],
         'scheduledFor'    => ['scheduled_for = ?',      fn($v) => $v ?: null],
+        'sprintTier'      => ['sprint_tier = ?',        fn($v) => in_array($v, ['must','nice'], true) ? $v : 'nice'],
     ];
 
     foreach ($map as $key => [$sql, $cast]) {

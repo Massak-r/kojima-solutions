@@ -90,4 +90,6 @@ export interface TimelineTask {
   phaseId?: string;
   estimatedHours?: number;
   actualHours?: number;
+  flaggedToday?: boolean;
+  sprintTier?: "must" | "nice";
 }

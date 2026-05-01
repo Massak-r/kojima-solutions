@@ -1,38 +1,49 @@
 import { useCallback } from "react";
 import { useAllSubtasks, useUpdateSubtask } from "@/hooks/useSubtasks";
-import { useSprintCapContext } from "@/components/sprint/SprintCapProvider";
-import { countSprintPending, isSprintFull } from "@/lib/sprintLimits";
+import { useProjects } from "@/contexts/ProjectsContext";
+import { useSprintCapContext, type SprintItem } from "@/components/sprint/SprintCapProvider";
+import { isSprintFull } from "@/lib/sprintLimits";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 
 /**
- * Central hook for flagging a subtask into today's sprint.
- * When the sprint is already at cap, opens the overload dialog instead of flagging directly.
- * Deflagging (flaggedToday: false) always bypasses this hook — use useUpdateSubtask directly.
+ * Central hook for flagging an objective subtask into today's sprint.
+ * When the cap (across subtasks + project tasks) is reached, opens the
+ * shared overload dialog so the user can swap or force.
  *
- * extraPatch: additional fields to set alongside flaggedToday (e.g. scheduledFor: null in WeekPlanner).
- * Applied immediately on direct flag; NOT applied when the dialog swap path runs.
+ * Deflagging is direct (no cap check needed).
  */
 export function useFlagSubtask() {
   const { data: allSubtasks = [] } = useAllSubtasks();
+  const { projects } = useProjects();
   const updateSubtask = useUpdateSubtask();
   const { requestFlag } = useSprintCapContext();
 
   const flag = useCallback((subtask: SubtaskItem, extraPatch?: Partial<SubtaskItem>) => {
-    if (subtask.flaggedToday) return; // already flagged, nothing to do
+    if (subtask.flaggedToday) return;
 
-    const pending = countSprintPending(allSubtasks);
-    if (isSprintFull(pending)) {
-      const currentSprint = allSubtasks.filter(s => s.flaggedToday && !s.completed);
-      // Apply extraPatch (e.g. clear scheduledFor) immediately so the item leaves its column,
-      // regardless of what the user picks in the dialog.
+    const subtaskItems: SprintItem[] = allSubtasks
+      .filter(s => s.flaggedToday && !s.completed)
+      .map(s => ({ kind: "subtask", subtask: s }));
+
+    const taskItems: SprintItem[] = projects.flatMap(p =>
+      (p.tasks ?? [])
+        .filter(t => t.flaggedToday && t.status !== "completed")
+        .map(t => ({ kind: "task" as const, projectId: p.id, task: t })),
+    );
+
+    const totalPending = subtaskItems.length + taskItems.length;
+
+    if (isSprintFull(totalPending)) {
+      // Apply extraPatch (e.g. clear scheduledFor on drag-to-today) immediately —
+      // the visual "leaves the column" regardless of swap outcome.
       if (extraPatch && Object.keys(extraPatch).length > 0) {
         updateSubtask.mutate({ id: subtask.id, patch: extraPatch });
       }
-      requestFlag(subtask, currentSprint);
+      requestFlag({ kind: "subtask", subtask }, [...subtaskItems, ...taskItems]);
     } else {
       updateSubtask.mutate({ id: subtask.id, patch: { flaggedToday: true, ...extraPatch } });
     }
-  }, [allSubtasks, updateSubtask, requestFlag]);
+  }, [allSubtasks, projects, updateSubtask, requestFlag]);
 
   return { flag };
 }

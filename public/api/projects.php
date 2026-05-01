@@ -26,6 +26,12 @@ try {
     if (!in_array('actual_hours', $cols)) {
         $pdo->exec("ALTER TABLE tasks ADD COLUMN actual_hours DECIMAL(6,1) DEFAULT NULL AFTER estimated_hours");
     }
+    if (!in_array('flagged_today', $cols)) {
+        $pdo->exec("ALTER TABLE tasks ADD COLUMN flagged_today TINYINT(1) NOT NULL DEFAULT 0 AFTER actual_hours");
+    }
+    if (!in_array('sprint_tier', $cols)) {
+        $pdo->exec("ALTER TABLE tasks ADD COLUMN sprint_tier ENUM('must','nice') NOT NULL DEFAULT 'nice' AFTER flagged_today");
+    }
 } catch (Throwable $e) {}
 
 try {
@@ -106,6 +112,8 @@ function mapTask(array $row): array {
         'deadline'         => $row['deadline'] ?? null,
         'estimatedHours'   => isset($row['estimated_hours']) ? (float)$row['estimated_hours'] : null,
         'actualHours'      => isset($row['actual_hours']) ? (float)$row['actual_hours'] : null,
+        'flaggedToday'     => (bool)($row['flagged_today'] ?? false),
+        'sprintTier'       => $row['sprint_tier'] ?? 'nice',
         'subtasks'         => [],
         'feedbackRequests' => [],
         'comments'         => [],
@@ -374,10 +382,15 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
         $taskId = $task['id'] ?? uuid();
         $isNew  = !in_array($taskId, $existingIds);
 
+        $taskStatus = $task['status'] ?? 'open';
+        // Workflow: only 'open' tasks can be flagged for today's sprint.
+        $flagged = !empty($task['flaggedToday']) && $taskStatus === 'open' ? 1 : 0;
+        $tier    = in_array($task['sprintTier'] ?? 'nice', ['must','nice'], true) ? $task['sprintTier'] : 'nice';
+
         if ($isNew) {
             $pdo->prepare('
-                INSERT INTO tasks (id, project_id, title, description, task_order, date_label, color, status, phase_id, completed_at, completed_by, deadline, estimated_hours, actual_hours)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (id, project_id, title, description, task_order, date_label, color, status, phase_id, completed_at, completed_by, deadline, estimated_hours, actual_hours, flagged_today, sprint_tier)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ')->execute([
                 $taskId, $projectId,
                 $task['title']       ?? '',
@@ -385,17 +398,19 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
                 $task['order']       ?? 0,
                 $task['dateLabel']   ?? null,
                 $task['color']       ?? 'primary',
-                $task['status']      ?? 'open',
+                $taskStatus,
                 $task['phaseId']     ?? null,
                 $task['completedAt'] ?? null,
                 $task['completedBy'] ?? null,
                 $task['deadline']    ?? null,
                 isset($task['estimatedHours']) ? (float)$task['estimatedHours'] : null,
                 isset($task['actualHours'])    ? (float)$task['actualHours']    : null,
+                $flagged,
+                $tier,
             ]);
         } else {
             $pdo->prepare('
-                UPDATE tasks SET title=?, description=?, task_order=?, date_label=?, color=?, status=?, phase_id=?, completed_at=?, completed_by=?, deadline=?, estimated_hours=?, actual_hours=?
+                UPDATE tasks SET title=?, description=?, task_order=?, date_label=?, color=?, status=?, phase_id=?, completed_at=?, completed_by=?, deadline=?, estimated_hours=?, actual_hours=?, flagged_today=?, sprint_tier=?
                 WHERE id=?
             ')->execute([
                 $task['title']       ?? '',
@@ -403,13 +418,15 @@ function syncTasks(PDO $pdo, string $projectId, array $tasks): void {
                 $task['order']       ?? 0,
                 $task['dateLabel']   ?? null,
                 $task['color']       ?? 'primary',
-                $task['status']      ?? 'open',
+                $taskStatus,
                 $task['phaseId']     ?? null,
                 $task['completedAt'] ?? null,
                 $task['completedBy'] ?? null,
                 $task['deadline']    ?? null,
                 isset($task['estimatedHours']) ? (float)$task['estimatedHours'] : null,
                 isset($task['actualHours'])    ? (float)$task['actualHours']    : null,
+                $flagged,
+                $tier,
                 $taskId,
             ]);
         }

@@ -28,6 +28,7 @@ export interface SubtaskItem {
   recurrenceDay?:  number | null;   // 1-7 (weekly, ISO Mon=1) or 1-31 (monthly)
   scheduledFor?:   string | null;   // YYYY-MM-DD — auto-reflags when reached
   completedAt?:    string | null;
+  sprintTier:      'must' | 'nice'; // tier within today's sprint — default 'nice' on creation
   createdAt:       string;
 }
 
@@ -59,7 +60,7 @@ export function createSubtask(data: {
 
 export function updateSubtask(
   id: string,
-  data: Partial<Pick<SubtaskItem, 'completed' | 'text' | 'dueDate' | 'order' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'flaggedToday' | 'effortSize' | 'parentSubtaskId' | 'estimatedMinutes' | 'recurrence' | 'recurrenceDay' | 'scheduledFor'>>,
+  data: Partial<Pick<SubtaskItem, 'completed' | 'text' | 'dueDate' | 'order' | 'description' | 'smartSpecific' | 'smartMeasurable' | 'smartAchievable' | 'smartRelevant' | 'priority' | 'status' | 'flaggedToday' | 'effortSize' | 'parentSubtaskId' | 'estimatedMinutes' | 'recurrence' | 'recurrenceDay' | 'scheduledFor' | 'sprintTier'>>,
 ) {
   return apiFetch<SubtaskItem>(`todo_subtasks.php?id=${id}`, {
     method: 'PUT',

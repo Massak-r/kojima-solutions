@@ -2,13 +2,14 @@ import { useState } from "react";
 import {
   ChevronDown, Lock, CheckCircle2, Circle, MessageSquare,
   Image, Vote, FileUp, Type, CalendarDays, ListChecks, Pencil, Trash2,
-  Unlock, RotateCcw, Clock,
+  Unlock, RotateCcw, Clock, Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StepComments } from "./StepComments";
 import { SubtaskManager } from "@/components/SubtaskManager";
+import { useFlagProjectTask } from "@/hooks/useFlagProjectTask";
 import type { TimelineTask, SubTask, FeedbackRequest, StepComment } from "@/types/timeline";
 
 const STATUS_CONFIG = {
@@ -26,6 +27,7 @@ const REQUEST_ICONS: Record<string, { icon: typeof Type; label: string; color: s
 
 interface Props {
   task: TimelineTask;
+  projectId: string;
   isLast?: boolean;
   onEdit: (task: TimelineTask) => void;
   onDelete: (taskId: string) => void;
@@ -41,6 +43,7 @@ interface Props {
 
 export function UnifiedStepCard({
   task,
+  projectId,
   isLast,
   onEdit,
   onDelete,
@@ -54,6 +57,7 @@ export function UnifiedStepCard({
   onCancelDelete,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const { flag: flagTask, unflag: unflagTask } = useFlagProjectTask();
   const status = task.status || "open";
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.open;
   const StatusIcon = config.icon;
@@ -166,6 +170,36 @@ export function UnifiedStepCard({
               )}
             </div>
           </div>
+
+          {/* Sprint flag — only on open tasks */}
+          {status === "open" && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={e => {
+                e.stopPropagation();
+                if (task.flaggedToday) unflagTask(projectId, task.id);
+                else flagTask(projectId, task);
+              }}
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (task.flaggedToday) unflagTask(projectId, task.id);
+                  else flagTask(projectId, task);
+                }
+              }}
+              className={cn(
+                "shrink-0 transition-colors p-1 -m-1 cursor-pointer",
+                task.flaggedToday
+                  ? "text-amber-500 hover:text-amber-400"
+                  : "text-muted-foreground/30 hover:text-amber-400",
+              )}
+              title={task.flaggedToday ? "Retirer du sprint" : "Ajouter au sprint"}
+            >
+              <Star size={13} className={task.flaggedToday ? "fill-current" : ""} />
+            </span>
+          )}
 
           <ChevronDown size={14} className={cn("text-muted-foreground/40 transition-transform shrink-0", expanded && "rotate-180")} />
         </button>

@@ -35,6 +35,7 @@ interface ProjectsContextValue {
   updateFeedback: (projectId: string, feedbackId: string, updates: Partial<Pick<TaskFeedback, "comment" | "status" | "author">>) => void;
   deleteFeedback: (projectId: string, feedbackId: string) => void;
   updateTaskSubtasks: (projectId: string, taskId: string, subtasks: SubTask[]) => void;
+  updateProjectTask: (projectId: string, taskId: string, patch: Partial<import("@/types/timeline").TimelineTask>) => void;
   toggleTaskComplete: (projectId: string, taskId: string) => void;
   addFeedbackRequest: (projectId: string, taskId: string, request: Omit<FeedbackRequest, "id" | "createdAt" | "resolved">) => void;
   deleteFeedbackRequest: (projectId: string, taskId: string, requestId: string) => void;
@@ -190,6 +191,25 @@ export function useProjects(): ProjectsContextValue {
         });
     }
     void taskId;
+  }, [qc]);
+
+  const updateProjectTask = useCallback((projectId: string, taskId: string, patch: Partial<import("@/types/timeline").TimelineTask>) => {
+    const before = snapshot(qc);
+    const next = before.map((p) =>
+      p.id === projectId
+        ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? { ...t, ...patch } : t) }
+        : p,
+    );
+    setCache(qc, () => next);
+    const updated = next.find((p) => p.id === projectId);
+    if (updated) {
+      api.updateProject(projectId, { tasks: updated.tasks } as Partial<StoredProject>)
+        .then(() => qc.invalidateQueries({ queryKey: PROJECTS_KEY }))
+        .catch((err) => {
+          qc.setQueryData(PROJECTS_KEY, before);
+          notifyError("Mise à jour tâche échouée", err);
+        });
+    }
   }, [qc]);
 
   const toggleTaskComplete = useCallback((projectId: string, taskId: string) => {
@@ -487,6 +507,7 @@ export function useProjects(): ProjectsContextValue {
     updateFeedback,
     deleteFeedback,
     updateTaskSubtasks,
+    updateProjectTask,
     toggleTaskComplete,
     addFeedbackRequest,
     deleteFeedbackRequest,

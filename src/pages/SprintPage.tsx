@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 import { useObjectives } from "@/hooks/useObjectives";
 import { useAllSubtasks, useUpdateSubtask } from "@/hooks/useSubtasks";
+import { useProjects } from "@/contexts/ProjectsContext";
+import type { SprintItem } from "@/components/sprint/SprintCapProvider";
 import { GlobalWeekSummary } from "@/components/objective/GlobalWeekSummary";
 import { DailyCommitDialog } from "@/components/objective/DailyCommitDialog";
 import { WeeklyReviewDialog } from "@/components/objective/WeeklyReviewDialog";
@@ -29,6 +31,7 @@ export default function SprintPage() {
   const navigate = useNavigate();
   const { data: allObjectives = [], isLoading: objLoading } = useObjectives();
   const { data: allSubtasks = [], isLoading: subLoading } = useAllSubtasks();
+  const { projects } = useProjects();
   const updateSubtaskMut = useUpdateSubtask();
   const loading = objLoading || subLoading;
 
@@ -153,6 +156,12 @@ export default function SprintPage() {
     return map;
   }, [objectives]);
 
+  const projectsById = useMemo(() => {
+    const map: Record<string, typeof projects[number]> = {};
+    for (const p of projects) map[p.id] = p;
+    return map;
+  }, [projects]);
+
   const subtaskById = useMemo(() => {
     const m: Record<string, SubtaskItem> = {};
     for (const s of allSubtasks) m[s.id] = s;
@@ -172,8 +181,35 @@ export default function SprintPage() {
     return flagged;
   }, [allSubtasks, objectivesById]);
 
-  const backlogPending = sprintBacklog.filter(s => !s.completed).length;
-  const backlogDone    = sprintBacklog.filter(s =>  s.completed).length;
+  // Project tasks flagged for today (open + flagged)
+  const flaggedProjectTasks = useMemo(() => {
+    const items: { projectId: string; projectTitle: string; task: import("@/types/timeline").TimelineTask }[] = [];
+    for (const p of projects) {
+      for (const t of p.tasks ?? []) {
+        if (t.flaggedToday && t.status !== "completed") {
+          items.push({ projectId: p.id, projectTitle: p.title, task: t });
+        }
+      }
+    }
+    return items;
+  }, [projects]);
+
+  // Unified sprint list (subtasks + project tasks). Used by SprintBacklog rendering.
+  const unifiedSprint = useMemo<SprintItem[]>(() => {
+    const subItems: SprintItem[] = sprintBacklog.map(s => ({ kind: "subtask" as const, subtask: s }));
+    const taskItems: SprintItem[] = flaggedProjectTasks.map(({ projectId, task }) => ({
+      kind: "task" as const, projectId, task,
+    }));
+    return [...subItems, ...taskItems];
+  }, [sprintBacklog, flaggedProjectTasks]);
+
+  const taskBacklogPending = flaggedProjectTasks.filter(t => t.task.status !== "completed").length;
+  const subtaskBacklogPending = sprintBacklog.filter(s => !s.completed).length;
+  const subtaskBacklogDone    = sprintBacklog.filter(s =>  s.completed).length;
+
+  // Cross-system totals
+  const backlogPending = subtaskBacklogPending + taskBacklogPending;
+  const backlogDone    = subtaskBacklogDone; // project tasks "completed" exit the sprint, so done count = subtasks only
   const isOverCap      = backlogPending > DAILY_SPRINT_CAP;
   const today          = new Date().toISOString().slice(0, 10);
 
@@ -329,21 +365,30 @@ export default function SprintPage() {
                 <UrgentBacklog
                   allSubtasks={allSubtasks}
                   objectivesById={objectivesById}
+                  projects={projects}
                   today={today}
                 />
               )}
 
               {loading ? (
                 <Skeleton className="h-40 rounded-2xl" />
-              ) : sprintBacklog.length > 0 ? (
+              ) : unifiedSprint.length > 0 ? (
                 <SprintBacklog
-                  items={sprintBacklog}
+                  items={unifiedSprint}
                   subtaskById={subtaskById}
                   objectivesById={objectivesById}
+                  projectsById={projectsById}
                   backlogPending={backlogPending}
                   backlogDone={backlogDone}
                   isOverCap={isOverCap}
-                  onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
+                  onJump={(item) => {
+                    if (item.kind === "subtask") {
+                      const source = item.subtask.source === "personal" ? "personal" : "admin";
+                      navigate(`/objective/${source}/${item.subtask.parentId}`, { state: { from: "/sprint" } });
+                    } else {
+                      navigate(`/project/${item.projectId}/etapes`, { state: { from: "/sprint" } });
+                    }
+                  }}
                   onPostpone={postponeSubtask}
                 />
               ) : null}
