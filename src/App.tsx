@@ -21,6 +21,8 @@ import ScrollToTop from "@/components/ScrollToTop";
 import CommandPalette from "@/components/CommandPalette";
 import { ProjectMeetingNotes } from "@/components/ProjectMeetingNotes";
 import { FocusRetroPrompt } from "@/components/objective/FocusRetroPrompt";
+import { SprintCapProvider } from "@/components/sprint/SprintCapProvider";
+import { SprintCapOverloadDialog } from "@/components/sprint/SprintCapOverloadDialog";
 
 // Eager: small entry-point routes the user hits first.
 import Index from "./pages/Index";
@@ -101,6 +103,7 @@ const App = () => (
               <ClientsProvider>
                 <CompanySettingsProvider>
                 <ProjectsProvider>
+                <SprintCapProvider>
                   <Header />
                   <BottomNav />
                   <InstallPrompt />
@@ -109,6 +112,7 @@ const App = () => (
                   <CommandPalette />
                   <ProjectMeetingNotes />
                   <FocusRetroPrompt />
+                  <SprintCapOverloadDialog />
                   <AdminContentWrapper>
                     <PageTransition>
                     <Suspense fallback={<RouteFallback />}>
@@ -170,6 +174,7 @@ const App = () => (
                     </Suspense>
                     </PageTransition>
                   </AdminContentWrapper>
+                </SprintCapProvider>
                 </ProjectsProvider>
                 </CompanySettingsProvider>
               </ClientsProvider>

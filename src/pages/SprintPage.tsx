@@ -19,6 +19,8 @@ import {
 } from "@/components/sprintPage/helpers";
 import { EmptyFocusHint } from "@/components/sprintPage/EmptyFocusHint";
 import { SprintBacklog } from "@/components/sprintPage/SprintBacklog";
+import { UrgentBacklog } from "@/components/sprintPage/UrgentBacklog";
+import { DAILY_SPRINT_CAP } from "@/lib/sprintLimits";
 import { RunningSessionBanner } from "@/components/sprintPage/RunningSessionBanner";
 import { ObjectiveCard } from "@/components/sprintPage/ObjectiveCard";
 import { RadicalFocusView } from "@/components/sprintPage/RadicalFocusView";
@@ -172,6 +174,8 @@ export default function SprintPage() {
 
   const backlogPending = sprintBacklog.filter(s => !s.completed).length;
   const backlogDone    = sprintBacklog.filter(s =>  s.completed).length;
+  const isOverCap      = backlogPending > DAILY_SPRINT_CAP;
+  const today          = new Date().toISOString().slice(0, 10);
 
   const sorted = useMemo(() => {
     const priRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -321,6 +325,14 @@ export default function SprintPage() {
             )
           ) : (
             <>
+              {!loading && (
+                <UrgentBacklog
+                  allSubtasks={allSubtasks}
+                  objectivesById={objectivesById}
+                  today={today}
+                />
+              )}
+
               {loading ? (
                 <Skeleton className="h-40 rounded-2xl" />
               ) : sprintBacklog.length > 0 ? (
@@ -330,6 +342,7 @@ export default function SprintPage() {
                   objectivesById={objectivesById}
                   backlogPending={backlogPending}
                   backlogDone={backlogDone}
+                  isOverCap={isOverCap}
                   onJump={(source, objectiveId) => navigate(`/objective/${source}/${objectiveId}`, { state: { from: "/sprint" } })}
                   onPostpone={postponeSubtask}
                 />

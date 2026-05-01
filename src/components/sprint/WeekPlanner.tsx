@@ -3,6 +3,7 @@ import {
   DndContext, PointerSensor, useSensor, useSensors, pointerWithin,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import { ChevronLeft, ChevronRight, CalendarDays, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ export function WeekPlanner({
   const [showWeekend, setShowWeekend] = useState<boolean>(() => {
     try { return localStorage.getItem(SHOW_WEEKEND_KEY) === "1"; } catch { return false; }
   });
+  const { flag: flagSubtask } = useFlagSubtask();
   useEffect(() => {
     try { localStorage.setItem(SHOW_WEEKEND_KEY, showWeekend ? "1" : "0"); } catch { /* ignore */ }
   }, [showWeekend]);
@@ -134,7 +136,7 @@ export function WeekPlanner({
 
       if (isToday(targetDateObj)) {
         if (sub.flaggedToday) return;
-        void onUpdateSubtask(subId, { flaggedToday: true, scheduledFor: null });
+        flagSubtask(sub, { scheduledFor: null });
       } else {
         if (sub.scheduledFor === targetDate && !sub.flaggedToday) return;
         void onUpdateSubtask(subId, { flaggedToday: false, scheduledFor: targetDate });

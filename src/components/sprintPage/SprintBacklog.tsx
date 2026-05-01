@@ -11,12 +11,13 @@ interface SprintBacklogProps {
   objectivesById: Record<string, UnifiedObjective>;
   backlogPending: number;
   backlogDone: number;
+  isOverCap?: boolean;
   onJump: (source: ObjectiveSource, objectiveId: string) => void;
   onPostpone: (subId: string) => void;
 }
 
 export function SprintBacklog({
-  items, subtaskById, objectivesById, backlogPending, backlogDone, onJump, onPostpone,
+  items, subtaskById, objectivesById, backlogPending, backlogDone, isOverCap, onJump, onPostpone,
 }: SprintBacklogProps) {
   const pct = items.length === 0 ? 0 : Math.round((backlogDone / items.length) * 100);
 
@@ -27,8 +28,12 @@ export function SprintBacklog({
         <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">
           Sprint en cours
         </span>
-        <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
+        <span className={cn(
+          "text-[11px] font-mono tabular-nums",
+          isOverCap ? "text-red-600 font-semibold" : "text-muted-foreground",
+        )}>
           · {backlogPending} à faire {backlogDone > 0 && <>· {backlogDone} terminée{backlogDone > 1 ? "s" : ""}</>}
+          {isOverCap && <span className="ml-1 text-red-500">⚠</span>}
         </span>
         {items.length > 1 && (
           <div className="ml-auto flex items-center gap-2 min-w-[100px] max-w-[160px]">

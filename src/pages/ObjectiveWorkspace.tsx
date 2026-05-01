@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -173,6 +174,8 @@ export default function ObjectiveWorkspace() {
     updateSubtaskMut.mutate({ id, patch: data });
   }, [updateSubtaskMut]);
 
+  const { flag: flagSubtask } = useFlagSubtask();
+
   const handleAIImport = useCallback(async (items: ParsedSubtask[]) => {
     if (!objective || items.length === 0) return;
     for (const it of items) {
@@ -247,7 +250,7 @@ export default function ObjectiveWorkspace() {
         objectiveId={objective.id}
         objectiveTitle={objective.text}
         subtasks={subtasks}
-        onSetFocus={id => handleSubtaskUpdate(id, { flaggedToday: true })}
+        onSetFocus={id => { const s = subtasks.find(x => x.id === id); if (s) flagSubtask(s); }}
         onClearFocus={id => handleSubtaskUpdate(id, { flaggedToday: false })}
         onComplete={id => handleSubtaskUpdate(id, { completed: true })}
       />

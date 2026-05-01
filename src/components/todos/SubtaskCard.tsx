@@ -3,6 +3,7 @@ import {
   Circle, CheckCircle2, Trash2, ChevronRight, ChevronUp, ChevronDown,
   Pencil, AlertTriangle, Star, Zap, GripVertical, CornerDownRight, Clock, Repeat,
 } from "lucide-react";
+import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,6 +79,7 @@ export function SubtaskCard({
   const [descDraft, setDescDraft] = useState(sub.description || "");
   const [editTitle, setEditTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(sub.text);
+  const { flag: flagSubtask } = useFlagSubtask();
 
   const isOverdue = !!sub.dueDate && !sub.completed && sub.dueDate < today;
   const isDueSoon = !!sub.dueDate && !sub.completed && !isOverdue && sub.dueDate <= (() => {
@@ -291,7 +293,7 @@ export function SubtaskCard({
 
             {onUpdate && !sub.flaggedToday && (
               <button
-                onClick={e => { e.stopPropagation(); onUpdate(sub.id, { flaggedToday: true }); }}
+                onClick={e => { e.stopPropagation(); flagSubtask(sub); }}
                 className="text-muted-foreground/30 hover:text-amber-400 transition-all"
                 title="Ajouter au sprint"
               >
