@@ -47,10 +47,12 @@ export function SprintCapOverloadDialog() {
   }, [currentSprint]);
 
   function applyFlag(item: SprintItem, flagged: boolean) {
+    // When adding to sprint, reset tier to 'nice' (fresh start). When removing, no tier change.
+    const patch = flagged ? { flaggedToday: true, sprintTier: "nice" as const } : { flaggedToday: false };
     if (item.kind === "subtask") {
-      updateSubtask.mutate({ id: item.subtask.id, patch: { flaggedToday: flagged } });
+      updateSubtask.mutate({ id: item.subtask.id, patch });
     } else {
-      updateProjectTask(item.projectId, item.task.id, { flaggedToday: flagged });
+      updateProjectTask(item.projectId, item.task.id, patch);
     }
   }
 

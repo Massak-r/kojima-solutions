@@ -41,7 +41,8 @@ export function useFlagSubtask() {
       }
       requestFlag({ kind: "subtask", subtask }, [...subtaskItems, ...taskItems]);
     } else {
-      updateSubtask.mutate({ id: subtask.id, patch: { flaggedToday: true, ...extraPatch } });
+      // Reset tier to "nice" on every flag — fresh start, user can promote to must later.
+      updateSubtask.mutate({ id: subtask.id, patch: { flaggedToday: true, sprintTier: "nice", ...extraPatch } });
     }
   }, [allSubtasks, projects, updateSubtask, requestFlag]);
 

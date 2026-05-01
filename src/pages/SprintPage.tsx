@@ -31,7 +31,7 @@ export default function SprintPage() {
   const navigate = useNavigate();
   const { data: allObjectives = [], isLoading: objLoading } = useObjectives();
   const { data: allSubtasks = [], isLoading: subLoading } = useAllSubtasks();
-  const { projects } = useProjects();
+  const { projects, updateProjectTask } = useProjects();
   const updateSubtaskMut = useUpdateSubtask();
   const loading = objLoading || subLoading;
 
@@ -390,6 +390,15 @@ export default function SprintPage() {
                     }
                   }}
                   onPostpone={postponeSubtask}
+                  onToggleTier={(item) => {
+                    if (item.kind === "subtask") {
+                      const next = item.subtask.sprintTier === "must" ? "nice" : "must";
+                      updateSubtaskMut.mutate({ id: item.subtask.id, patch: { sprintTier: next } });
+                    } else {
+                      const next = item.task.sprintTier === "must" ? "nice" : "must";
+                      updateProjectTask(item.projectId, item.task.id, { sprintTier: next });
+                    }
+                  }}
                 />
               ) : null}
 

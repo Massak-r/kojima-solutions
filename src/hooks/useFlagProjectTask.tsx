@@ -38,7 +38,8 @@ export function useFlagProjectTask() {
         [...subtaskItems, ...taskItems],
       );
     } else {
-      updateProjectTask(projectId, task.id, { flaggedToday: true });
+      // Reset tier to "nice" on every flag — fresh start, user can promote to must later.
+      updateProjectTask(projectId, task.id, { flaggedToday: true, sprintTier: "nice" });
     }
   }, [projects, allSubtasks, updateProjectTask, requestFlag]);
 

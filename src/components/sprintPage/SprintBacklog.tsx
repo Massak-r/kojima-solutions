@@ -1,4 +1,4 @@
-import { Star, ChevronRight, CornerDownRight, Hourglass, CalendarPlus, Repeat, FolderKanban } from "lucide-react";
+import { Star, ChevronRight, CornerDownRight, Hourglass, CalendarPlus, Repeat, FolderKanban, Flame, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 import type { UnifiedObjective } from "@/api/objectiveSource";
@@ -17,18 +17,20 @@ interface SprintBacklogProps {
   isOverCap?: boolean;
   onJump: (item: SprintItem) => void;
   onPostpone: (subId: string) => void;
+  onToggleTier: (item: SprintItem) => void;
 }
 
 export function SprintBacklog({
-  items, subtaskById, objectivesById, projectsById, backlogPending, backlogDone, isOverCap, onJump, onPostpone,
+  items, subtaskById, objectivesById, projectsById,
+  backlogPending, backlogDone, isOverCap, onJump, onPostpone, onToggleTier,
 }: SprintBacklogProps) {
-  const total = items.length;
-  const doneCount = items.filter(i => isItemCompleted(i)).length;
-  const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+  const mustItems = items.filter(i => itemTier(i) === "must" && !isItemCompleted(i));
+  const niceItems = items.filter(i => itemTier(i) === "nice" && !isItemCompleted(i));
+  const doneItems = items.filter(i => isItemCompleted(i));
 
   return (
     <section className="rounded-2xl border border-border/40 bg-gradient-to-br from-amber-50/30 via-card/40 to-card/30 dark:from-amber-500/5 p-4 sm:p-5">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Star size={14} className="fill-amber-400 text-amber-400" />
         <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">
           Sprint en cours
@@ -37,41 +39,131 @@ export function SprintBacklog({
           "text-[11px] font-mono tabular-nums",
           isOverCap ? "text-red-600 font-semibold" : "text-muted-foreground",
         )}>
-          · {backlogPending} à faire {backlogDone > 0 && <>· {backlogDone} terminée{backlogDone > 1 ? "s" : ""}</>}
+          · {mustItems.length} <span className="text-red-600">must</span>
+          {" · "}{niceItems.length} <span className="text-sky-600">nice</span>
+          {doneItems.length > 0 && <> · {doneItems.length} done</>}
           {isOverCap && <span className="ml-1 text-red-500">⚠</span>}
         </span>
-        {total > 1 && (
-          <div className="ml-auto flex items-center gap-2 min-w-[100px] max-w-[160px]">
-            <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-emerald-500" : "bg-amber-400")}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="text-[10px] font-mono tabular-nums text-muted-foreground shrink-0">{pct}%</span>
-          </div>
-        )}
       </div>
 
-      <ul className="space-y-1">
-        {items.map(item => (
-          <SprintBacklogRow
-            key={itemKey(item)}
-            item={item}
-            subtaskById={subtaskById}
-            objectivesById={objectivesById}
-            projectsById={projectsById}
-            onJump={onJump}
-            onPostpone={onPostpone}
-          />
-        ))}
-      </ul>
+      {/* Must-have zone */}
+      <TierZone
+        kind="must"
+        items={mustItems}
+        subtaskById={subtaskById}
+        objectivesById={objectivesById}
+        projectsById={projectsById}
+        onJump={onJump}
+        onPostpone={onPostpone}
+        onToggleTier={onToggleTier}
+      />
+
+      {/* Nice-to-have zone */}
+      <TierZone
+        kind="nice"
+        items={niceItems}
+        subtaskById={subtaskById}
+        objectivesById={objectivesById}
+        projectsById={projectsById}
+        onJump={onJump}
+        onPostpone={onPostpone}
+        onToggleTier={onToggleTier}
+      />
+
+      {/* Done zone (completed items, collapsed style) */}
+      {doneItems.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border/30">
+          <div className="text-[10px] font-display font-bold text-muted-foreground/40 uppercase tracking-wider mb-1.5 ml-1">
+            Terminé · {doneItems.length}
+          </div>
+          <ul className="space-y-1">
+            {doneItems.map(item => (
+              <SprintBacklogRow
+                key={itemKey(item)}
+                item={item}
+                subtaskById={subtaskById}
+                objectivesById={objectivesById}
+                projectsById={projectsById}
+                onJump={onJump}
+                onPostpone={onPostpone}
+                onToggleTier={onToggleTier}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
+  );
+}
+
+interface TierZoneProps {
+  kind: "must" | "nice";
+  items: SprintItem[];
+  subtaskById: Record<string, SubtaskItem>;
+  objectivesById: Record<string, UnifiedObjective>;
+  projectsById: Record<string, StoredProject>;
+  onJump: (item: SprintItem) => void;
+  onPostpone: (subId: string) => void;
+  onToggleTier: (item: SprintItem) => void;
+}
+
+function TierZone({ kind, items, subtaskById, objectivesById, projectsById, onJump, onPostpone, onToggleTier }: TierZoneProps) {
+  if (items.length === 0 && kind === "nice") return null; // no nice = nothing to show
+  const isMust = kind === "must";
+
+  return (
+    <div className={cn(
+      "rounded-xl mb-2 last:mb-0",
+      isMust
+        ? "bg-red-50/40 dark:bg-red-500/5 border border-red-200/40 dark:border-red-500/15"
+        : "bg-sky-50/30 dark:bg-sky-500/5 border border-sky-200/30 dark:border-sky-500/15",
+    )}>
+      <div className="flex items-center gap-1.5 px-3 py-1.5">
+        {isMust ? (
+          <Flame size={11} className="text-red-500" />
+        ) : (
+          <Sparkles size={11} className="text-sky-500" />
+        )}
+        <span className={cn(
+          "text-[10px] font-display font-bold uppercase tracking-wider",
+          isMust ? "text-red-700 dark:text-red-400" : "text-sky-700 dark:text-sky-400",
+        )}>
+          {isMust ? "Must-have" : "Nice-to-have"}
+        </span>
+        <span className="text-[10px] font-mono text-muted-foreground/50">· {items.length}</span>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-3 pb-2.5 text-[11px] font-body italic text-muted-foreground/50">
+          Pas de must-have aujourd'hui — jour léger ?
+        </div>
+      ) : (
+        <ul className="space-y-0.5 pb-1.5 px-1">
+          {items.map(item => (
+            <SprintBacklogRow
+              key={itemKey(item)}
+              item={item}
+              subtaskById={subtaskById}
+              objectivesById={objectivesById}
+              projectsById={projectsById}
+              onJump={onJump}
+              onPostpone={onPostpone}
+              onToggleTier={onToggleTier}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
 function itemKey(item: SprintItem): string {
   return item.kind === "subtask" ? `s:${item.subtask.id}` : `t:${item.task.id}`;
+}
+
+function itemTier(item: SprintItem): "must" | "nice" {
+  if (item.kind === "subtask") return item.subtask.sprintTier ?? "nice";
+  return item.task.sprintTier ?? "nice";
 }
 
 function isItemCompleted(item: SprintItem): boolean {
@@ -85,10 +177,14 @@ interface RowProps {
   projectsById: Record<string, StoredProject>;
   onJump: (item: SprintItem) => void;
   onPostpone: (subId: string) => void;
+  onToggleTier: (item: SprintItem) => void;
 }
 
-function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJump, onPostpone }: RowProps) {
+function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJump, onPostpone, onToggleTier }: RowProps) {
   const completed = isItemCompleted(item);
+  const tier = itemTier(item);
+  const TierIcon = tier === "must" ? Flame : Sparkles;
+  const tierTitle = tier === "must" ? "Passer en nice-to-have" : "Passer en must-have";
 
   if (item.kind === "subtask") {
     const sub = item.subtask;
@@ -103,7 +199,7 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
         <button
           onClick={() => onJump(item)}
           className={cn(
-            "w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-3 py-2.5 pr-16",
+            "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-2.5 py-2 pr-20",
             completed && "opacity-50",
           )}
         >
@@ -156,14 +252,29 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
           </div>
           <ChevronRight size={14} className="text-muted-foreground/30 group-hover:text-primary transition-colors mt-1 shrink-0" />
         </button>
-        {!sub.completed && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onPostpone(sub.id); }}
-            className="absolute right-9 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-sky-600 transition-all p-1 rounded-md hover:bg-sky-50 dark:hover:bg-sky-500/10"
-            title="Repousser à demain"
-          >
-            <CalendarPlus size={13} />
-          </button>
+
+        {!completed && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleTier(item); }}
+              className={cn(
+                "absolute right-9 top-1/2 -translate-y-1/2 transition-all p-1 rounded-md",
+                tier === "must"
+                  ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  : "text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10",
+              )}
+              title={tierTitle}
+            >
+              <TierIcon size={13} className={tier === "must" ? "fill-current" : ""} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onPostpone(sub.id); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-sky-600 transition-all p-1 rounded-md hover:bg-sky-50 dark:hover:bg-sky-500/10"
+              title="Repousser à demain"
+            >
+              <CalendarPlus size={13} />
+            </button>
+          </>
         )}
       </li>
     );
@@ -178,7 +289,7 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
       <button
         onClick={() => onJump(item)}
         className={cn(
-          "w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-3 py-2.5 pr-4",
+          "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-2.5 py-2 pr-12",
           completed && "opacity-50",
         )}
       >
@@ -207,6 +318,21 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
         </div>
         <ChevronRight size={14} className="text-muted-foreground/30 group-hover:text-primary transition-colors mt-1 shrink-0" />
       </button>
+
+      {!completed && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleTier(item); }}
+          className={cn(
+            "absolute right-2 top-1/2 -translate-y-1/2 transition-all p-1 rounded-md",
+            tier === "must"
+              ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+              : "text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10",
+          )}
+          title={tierTitle}
+        >
+          <TierIcon size={13} className={tier === "must" ? "fill-current" : ""} />
+        </button>
+      )}
     </li>
   );
 }
