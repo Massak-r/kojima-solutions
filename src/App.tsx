@@ -36,6 +36,7 @@ const QuotesList            = lazy(() => import("./pages/QuotesList"));
 const QuoteNew              = lazy(() => import("./pages/QuoteNew"));
 const QuoteEdit             = lazy(() => import("./pages/QuoteEdit"));
 const QuotePrintPage        = lazy(() => import("./pages/QuotePrintPage"));
+const Home                  = lazy(() => import("./pages/Home"));
 const Dashboard             = lazy(() => import("./pages/Dashboard"));
 const KojimaSpace           = lazy(() => import("./pages/KojimaSpace"));
 const ProjectSteps          = lazy(() => import("./pages/ProjectSteps"));
@@ -137,11 +138,14 @@ const App = () => (
                       <Route path="/client/:id/feedback/:taskId/:requestId" element={<FeedbackDecisionPage />} />
 
                       {/* Protected admin routes */}
-                      <Route path="/space" element={<ProtectedRoute><KojimaSpace /></ProtectedRoute>} />
+                      <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+                      <Route path="/space" element={<Navigate to="/home" replace />} />
+                      <Route path="/space-full" element={<ProtectedRoute><KojimaSpace /></ProtectedRoute>} />
                       <Route path="/quotes" element={<ProtectedRoute><QuotesList /></ProtectedRoute>} />
                       <Route path="/quotes/new" element={<ProtectedRoute><QuoteNew /></ProtectedRoute>} />
                       <Route path="/quotes/:id" element={<ProtectedRoute><QuoteEdit /></ProtectedRoute>} />
-                      <Route path="/projects" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                      <Route path="/projects" element={<Navigate to="/home?tab=kanban" replace />} />
+                      <Route path="/projects-board" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                       {/* New project workflow routes */}
                       <Route path="/project/:id/brief" element={<ProtectedRoute><ProjectBrief /></ProtectedRoute>} />
                       <Route path="/project/:id/cadrage" element={<ProtectedRoute><ProjectCadrage /></ProtectedRoute>} />

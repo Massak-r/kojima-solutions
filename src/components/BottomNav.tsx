@@ -2,7 +2,6 @@ import { useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
-  FolderKanban,
   TrendingUp,
   Wallet,
   FileText,
@@ -12,16 +11,15 @@ import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 
 const BOTTOM_NAV = [
-  { to: "/space",      label: "Espace",     icon: LayoutDashboard },
+  { to: "/home",       label: "Home",       icon: LayoutDashboard },
   { to: "/sprint",     label: "Sprint",     icon: Target          },
-  { to: "/projects",   label: "Projets",    icon: FolderKanban    },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
   { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
   { to: "/documents",  label: "Documents",  icon: FileText        },
 ];
 
 const ADMIN_PREFIXES = [
-  "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
+  "/home", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
   "/clients", "/accounting", "/tresorerie", "/documents", "/settings",
   "/objective/",
 ];
@@ -50,7 +48,7 @@ export default function BottomNav() {
           {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
             const active =
               pathname === to ||
-              (to === "/projects" && pathname.startsWith("/project/")) ||
+              (to === "/home" && pathname.startsWith("/project/")) ||
               (to === "/quotes" && pathname.startsWith("/quote"));
             const showBadge = to === "/sprint" && sprintActive;
             return (

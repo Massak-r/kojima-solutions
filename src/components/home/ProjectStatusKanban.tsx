@@ -1,0 +1,438 @@
+import { useNavigate } from "react-router-dom";
+import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
+import { useClients } from "@/contexts/ClientsContext";
+import { useQuotes } from "@/hooks/useQuotes";
+import { Button } from "@/components/ui/button";
+import { Plus, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight, LayoutList } from "lucide-react";
+import { totalQuote } from "@/types/quote";
+import { Input } from "@/components/ui/input";
+import {
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { useState, useMemo, memo } from "react";
+import { type ProjectData, type ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
+import { useToast } from "@/hooks/use-toast";
+
+const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
+  { status: "draft",       label: "Brouillon",  accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
+  { status: "in-progress", label: "En cours",   accent: "border-primary/40",          emptyColor: "border-primary/10" },
+  { status: "completed",   label: "Terminé",    accent: "border-palette-sage/40",     emptyColor: "border-palette-sage/10" },
+  { status: "on-hold",     label: "En pause",   accent: "border-palette-amber/40",    emptyColor: "border-palette-amber/10" },
+];
+
+/**
+ * Project status kanban — drag-drop between Draft / In-Progress / Completed / On-hold.
+ * Self-contained: filters, search, "À facturer" banner, new project button.
+ * No outer page header — designed to embed inside Home tab or any page.
+ */
+export function ProjectStatusKanban() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
+  const { getClient } = useClients();
+  const { quotes } = useQuotes();
+
+  const toInvoice = useMemo(
+    () => quotes
+      .filter((q) => q.docType !== "invoice" && q.invoiceStatus === "validated")
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [quotes],
+  );
+  const toInvoiceTotal = useMemo(
+    () => toInvoice.reduce((sum, q) => sum + totalQuote(q), 0),
+    [toInvoice],
+  );
+  const clientName = (p: StoredProject) => (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [showCompleted, setShowCompleted] = useState(() => {
+    try {
+      const v = localStorage.getItem("dashboard_show_completed");
+      return v === null ? true : v === "true";
+    } catch { return true; }
+  });
+  const [kindFilter, setKindFilter] = useState<ProjectKind | "all">(() => {
+    try {
+      const v = localStorage.getItem("dashboard_kind_filter");
+      return v === "client" || v === "internal" || v === "personal" ? v : "all";
+    } catch { return "all"; }
+  });
+
+  function setKindFilterPersist(k: ProjectKind | "all") {
+    setKindFilter(k);
+    try { localStorage.setItem("dashboard_kind_filter", k); } catch {}
+  }
+
+  const filteredProjects = useMemo(() => {
+    let list = projects.filter(p => p && p.id);
+    if (kindFilter !== "all") list = list.filter((p) => (p.kind ?? "client") === kindFilter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((p) => (p.title || "").toLowerCase().includes(q) || (p.client || "").toLowerCase().includes(q));
+    }
+    return list;
+  }, [projects, search, kindFilter]);
+
+  const visibleColumns = useMemo(
+    () => showCompleted ? COLUMNS : COLUMNS.filter((c) => c.status !== "completed"),
+    [showCompleted],
+  );
+
+  function toggleShowCompleted() {
+    setShowCompleted((prev) => {
+      const next = !prev;
+      localStorage.setItem("dashboard_show_completed", String(next));
+      return next;
+    });
+  }
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  function handleCreate() {
+    const p = createProject();
+    navigate(`/project/${p.id}/brief`);
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+    const newStatus = over.id as ProjectData["status"];
+    const project = projects.find((p) => p.id === active.id);
+    if (project && project.status !== newStatus) {
+      updateProject(active.id as string, { status: newStatus });
+    }
+  }
+
+  function handleCopyLink(project: StoredProject) {
+    const url = `${window.location.origin}/client/${project.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast({ title: "Lien client copié", description: url });
+    });
+  }
+
+  const activeProject = activeId ? projects.find((p) => p.id === activeId) : null;
+
+  return (
+    <div className="space-y-6">
+      {/* À facturer banner */}
+      {toInvoice.length > 0 && (
+        <section className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/5 via-card/40 to-card/30 p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowRightLeft size={14} className="text-accent" />
+            <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">
+              À facturer
+            </span>
+            <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
+              · {toInvoice.length} devis validé{toInvoice.length > 1 ? "s" : ""}
+            </span>
+            <span className="ml-auto text-xs font-body font-semibold text-foreground/80 tabular-nums">
+              {toInvoiceTotal.toLocaleString("fr-CH", { minimumFractionDigits: 0 })} CHF
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {toInvoice.slice(0, 3).map((q) => {
+              const ageDays = Math.max(0, Math.floor((Date.now() - new Date(q.createdAt).getTime()) / 86400000));
+              const target = q.projectId ? `/project/${q.projectId}/documents` : `/quotes/${q.id}`;
+              return (
+                <li key={q.id}>
+                  <button
+                    onClick={() => navigate(target)}
+                    className="w-full text-left rounded-xl border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-center gap-2 px-3 py-2 group"
+                  >
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-primary/40 text-primary shrink-0">DEV</span>
+                    <span className="text-xs font-mono text-muted-foreground/60 shrink-0">{q.quoteNumber || "—"}</span>
+                    <span className="text-sm font-body text-foreground truncate flex-1 min-w-0">
+                      {q.clientName || q.projectTitle || "Sans client"}
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums shrink-0 hidden sm:inline">{ageDays}j</span>
+                    <span className="text-xs font-body font-semibold text-foreground/80 tabular-nums shrink-0">
+                      {totalQuote(q).toLocaleString("fr-CH", { minimumFractionDigits: 0 })} CHF
+                    </span>
+                    <ChevronRight size={13} className="text-muted-foreground/30 group-hover:text-accent transition-colors shrink-0" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {toInvoice.length > 3 && (
+            <div className="mt-2 pt-2 border-t border-border/40 text-[11px] font-body text-muted-foreground">
+              + {toInvoice.length - 3} autre{toInvoice.length - 3 > 1 ? "s" : ""}
+            </div>
+          )}
+        </section>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={24} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+            <LayoutList size={28} className="text-primary" />
+          </div>
+          <h2 className="font-display text-xl font-bold text-foreground mb-2">Aucun projet</h2>
+          <p className="font-body text-sm text-muted-foreground mb-6 max-w-sm">
+            Créez votre premier projet pour commencer à planifier et partager avec vos clients.
+          </p>
+          <Button onClick={handleCreate} className="gap-2">
+            <Plus size={16} />
+            Créer un projet
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative max-w-sm flex-1 min-w-[200px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un projet..."
+                className="pl-9 font-body text-sm"
+              />
+            </div>
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => setKindFilterPersist("all")}
+                className={`px-3 py-1.5 text-xs font-body font-medium rounded transition-colors ${kindFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+              >
+                Tous
+              </button>
+              {KIND_ORDER.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKindFilterPersist(k)}
+                  className={`px-3 py-1.5 text-xs font-body font-medium rounded transition-colors ${kindFilter === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                >
+                  {KIND_LABELS[k]}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={toggleShowCompleted} className="gap-1.5 font-body text-xs">
+                {showCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+                {showCompleted ? "Masquer terminés" : "Terminés"}
+              </Button>
+              <Button onClick={handleCreate} size="sm" className="gap-1.5 font-body text-xs">
+                <Plus size={14} />
+                Nouveau projet
+              </Button>
+            </div>
+          </div>
+
+          {search.trim() && filteredProjects.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground font-body text-sm">
+              Aucun projet trouvé pour « {search} ».
+            </div>
+          ) : (
+            <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${visibleColumns.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-5`}>
+                {visibleColumns.map((col) => {
+                  const items = filteredProjects.filter((p) => p.status === col.status);
+                  return (
+                    <DroppableColumn key={col.status} col={col} items={items} activeId={activeId}>
+                      {items.map((project) => (
+                        <DraggableCard
+                          key={project.id}
+                          project={project}
+                          clientDisplayName={clientName(project)}
+                          onClick={() => navigate(`/project/${project.id}/brief`)}
+                          onDelete={() => deleteProject(project.id)}
+                          onCopyLink={() => handleCopyLink(project)}
+                          isDragging={activeId === project.id}
+                        />
+                      ))}
+                    </DroppableColumn>
+                  );
+                })}
+              </div>
+              <DragOverlay>
+                {activeProject && (
+                  <ProjectCard
+                    project={activeProject}
+                    clientDisplayName={clientName(activeProject)}
+                    onClick={() => {}}
+                    onDelete={() => {}}
+                    onCopyLink={() => {}}
+                    isOverlay
+                  />
+                )}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DroppableColumn({
+  col, items, activeId, children,
+}: {
+  col: typeof COLUMNS[number];
+  items: StoredProject[];
+  activeId: string | null;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.status });
+
+  return (
+    <div className="flex flex-col">
+      <div className={`flex items-center justify-between mb-3 pb-2 border-b-2 ${col.accent}`}>
+        <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">
+          {col.label}
+        </h2>
+        <span className="text-xs font-body text-muted-foreground bg-secondary rounded-full px-2 py-0.5">
+          {items.length}
+        </span>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={`flex flex-col gap-3 min-h-[120px] rounded-xl p-2 transition-colors ${isOver ? "bg-primary/5 ring-2 ring-primary/20" : "bg-transparent"}`}
+      >
+        {items.length === 0 && !activeId && (
+          <div className={`border-2 border-dashed ${col.emptyColor} rounded-lg h-[80px] flex items-center justify-center`}>
+            <p className="text-xs font-body text-muted-foreground/50">Déposer ici</p>
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DraggableCard({
+  project, clientDisplayName, onClick, onDelete, onCopyLink, isDragging,
+}: {
+  project: StoredProject;
+  clientDisplayName: string | null;
+  onClick: () => void;
+  onDelete: () => void;
+  onCopyLink: () => void;
+  isDragging: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: project.id });
+  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-40" : ""}>
+      <ProjectCard
+        project={project}
+        clientDisplayName={clientDisplayName}
+        onClick={onClick}
+        onDelete={onDelete}
+        onCopyLink={onCopyLink}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
+
+interface ProjectCardProps {
+  project: StoredProject;
+  clientDisplayName?: string | null;
+  onClick: () => void;
+  onDelete: () => void;
+  onCopyLink: () => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
+  isOverlay?: boolean;
+}
+
+const ProjectCard = memo(function ProjectCard({
+  project, clientDisplayName, onClick, onDelete, onCopyLink, dragHandleProps, isOverlay,
+}: ProjectCardProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const pendingResponses = (project.tasks || [])
+    .flatMap((t) => t.feedbackRequests || [])
+    .filter((r) => r.resolved && r.response).length;
+
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative ${isOverlay ? "rotate-1 shadow-xl scale-105 opacity-95" : ""}`}
+    >
+      <button
+        {...dragHandleProps}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-3 left-3 p-1 rounded text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-all"
+        title="Drag pour déplacer"
+      >
+        <GripVertical size={13} />
+      </button>
+
+      <div className="absolute top-2.5 right-2.5 flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
+        <button
+          onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
+          className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all"
+          title="Copier le lien client"
+        >
+          <Link2 size={12} />
+        </button>
+        {confirmDelete ? (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="px-2 py-0.5 rounded text-[10px] bg-destructive text-white font-semibold">Supprimer</button>
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }} className="px-2 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground">Annuler</button>
+          </div>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
+            title="Supprimer le projet"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+
+      <h3 className="font-display text-sm font-semibold text-foreground mb-1 px-5 line-clamp-2">{project.title}</h3>
+
+      {clientDisplayName && (
+        <div className="flex items-center gap-1.5 text-muted-foreground font-body text-xs mb-2">
+          <User size={11} />
+          <span>{clientDisplayName}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-2">
+          {(project.tasks || []).length > 0 && (
+            <span className="text-xs font-body text-muted-foreground">
+              {(project.tasks || []).length} tâche{(project.tasks || []).length > 1 ? "s" : ""}
+            </span>
+          )}
+          {pendingResponses > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-body font-semibold bg-palette-amber/15 text-palette-amber border border-palette-amber/30 rounded-full px-2 py-0.5">
+              <MessageSquare size={9} />
+              {pendingResponses} réponse{pendingResponses > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        {project.startDate && (
+          <span className="text-xs font-body text-muted-foreground flex items-center gap-1">
+            <CalendarDays size={10} />
+            {new Date(project.startDate).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
