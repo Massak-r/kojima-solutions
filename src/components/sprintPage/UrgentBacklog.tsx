@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { AlertCircle, Clock, ChevronRight, Star } from "lucide-react";
+import { AlertCircle, Clock, ChevronRight, Star, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 import type { UnifiedObjective } from "@/api/objectiveSource";
@@ -9,17 +9,24 @@ import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 
 const MAX_VISIBLE = 10;
 
-function urgencyBadge(s: SubtaskItem, today: string): { label: string; cls: string } | null {
+const RECURRENCE_LABEL: Record<string, string> = {
+  daily: "Quotidien", weekdays: "Lun-Ven", weekly: "Hebdo", monthly: "Mensuel",
+};
+
+function urgencyBadge(s: SubtaskItem, today: string): { label: string; cls: string; icon?: "clock" | "repeat" } | null {
+  // Recurring badge takes priority if no date signal is stronger
+  const recurLabel = s.recurrence ? RECURRENCE_LABEL[s.recurrence] ?? "Récurrent" : null;
+
   if (!s.dueDate || s.dueDate >= today) {
-    // No date — must be high priority
+    if (s.dueDate === today) return { label: "AUJOURD'HUI", cls: "bg-amber-100 text-amber-700 border-amber-200" };
     if (s.priority === "high") return { label: "PRIORITÉ HAUTE", cls: "bg-violet-100 text-violet-700 border-violet-200" };
+    if (recurLabel) return { label: recurLabel.toUpperCase(), cls: "bg-sky-100 text-sky-700 border-sky-200", icon: "repeat" };
     return null;
   }
-  if (s.dueDate < today) return { label: "EN RETARD", cls: "bg-red-100 text-red-700 border-red-200" };
+  if (s.dueDate < today) return { label: "EN RETARD", cls: "bg-red-100 text-red-700 border-red-200", icon: "clock" };
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-  if (s.dueDate === today) return { label: "AUJOURD'HUI", cls: "bg-amber-100 text-amber-700 border-amber-200" };
   if (s.dueDate === tomorrowStr) return { label: "DEMAIN", cls: "bg-orange-100 text-orange-700 border-orange-200" };
   return { label: "BIENTÔT", cls: "bg-slate-100 text-slate-600 border-slate-200" };
 }
@@ -72,7 +79,8 @@ export function UrgentBacklog({ allSubtasks, objectivesById, today }: UrgentBack
                       "inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border",
                       badge.cls,
                     )}>
-                      {badge.label === "EN RETARD" && <Clock size={8} />}
+                      {badge.icon === "clock" && <Clock size={8} />}
+                      {badge.icon === "repeat" && <Repeat size={8} />}
                       {badge.label}
                     </span>
                   )}

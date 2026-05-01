@@ -12,10 +12,11 @@ export function countSprintPending(allSubtasks: SubtaskItem[]): number {
 }
 
 /** Returns true if the subtask should appear in "À ne pas oublier":
- *  urgent, not yet flagged, not completed. */
+ *  urgent, recurring, not yet flagged, not completed. */
 export function urgentSubtaskFilter(s: SubtaskItem, today: string): boolean {
   if (s.flaggedToday || s.completed) return false;
   if (s.priority === "high") return true;
+  if (s.recurrence) return true; // recurring tasks always surfaced when not in sprint
   if (!s.dueDate) return false;
   // overdue or due within 3 days
   const inThreeDays = new Date(today);
