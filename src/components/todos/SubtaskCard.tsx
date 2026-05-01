@@ -74,11 +74,12 @@ export function SubtaskCard({
   onDecompose,
   dragHandleProps, dragHandleRef, isDragging,
 }: SubtaskCardProps) {
-  const [expanded,  setExpanded]  = useState(false);
-  const [editDesc,  setEditDesc]  = useState(false);
-  const [descDraft, setDescDraft] = useState(sub.description || "");
-  const [editTitle, setEditTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(sub.text);
+  const [expanded,      setExpanded]     = useState(false);
+  const [showAdvanced,  setShowAdvanced] = useState(false);
+  const [editDesc,      setEditDesc]     = useState(false);
+  const [descDraft,     setDescDraft]    = useState(sub.description || "");
+  const [editTitle,     setEditTitle]    = useState(false);
+  const [titleDraft,    setTitleDraft]   = useState(sub.text);
   const { flag: flagSubtask } = useFlagSubtask();
 
   const isOverdue = !!sub.dueDate && !sub.completed && sub.dueDate < today;
@@ -219,7 +220,7 @@ export function SubtaskCard({
               </button>
             )}
 
-            {(estimated !== null || actualMin !== null) && (
+            {actualMin !== null && (
               <span
                 className={cn(
                   "shrink-0 inline-flex items-center gap-0.5 text-[10px] font-mono font-semibold tabular-nums px-1.5 py-0.5 rounded-full border",
@@ -244,7 +245,7 @@ export function SubtaskCard({
               </span>
             )}
 
-            {status && status !== "not_started" && (
+            {status === "blocked" && (
               <span className={cn("text-[10px] font-body font-bold px-2 py-0.5 rounded-full shrink-0", statusCfg.bg, statusCfg.text)}>
                 {statusCfg.label}
               </span>
@@ -345,39 +346,36 @@ export function SubtaskCard({
             <div className={cn("pt-0", isChild ? "px-3 pb-2.5" : "px-4 pb-3")}>
               <div className="h-px bg-border/30 mb-2.5 mx-1" />
 
-              {/* Status + Priority + Effort */}
+              {/* Urgent + Bloqué toggles + Effort */}
               <div className="flex flex-wrap items-center gap-2 mb-2.5 ml-1">
-                {(["not_started", "in_progress", "done", "blocked"] as TodoStatus[]).map(s => {
-                  const cfg = STATUS_CONFIG[s];
-                  return (
-                    <button
-                      key={s}
-                      onClick={e => { e.stopPropagation(); saveField("status", s); }}
-                      className={cn(
-                        "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all",
-                        status === s ? cn(cfg.bg, cfg.text) : "text-muted-foreground/25 hover:text-muted-foreground/50",
-                      )}
-                    >
-                      {cfg.label}
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={e => { e.stopPropagation(); saveField("priority", priority === "high" ? "medium" : "high"); }}
+                  className={cn(
+                    "flex items-center gap-1.5 text-[11px] font-body font-semibold rounded-full px-3 py-1 border transition-all",
+                    priority === "high"
+                      ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-500/10 dark:border-red-500/30 dark:text-red-400"
+                      : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground/80",
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full shrink-0", priority === "high" ? "bg-red-500" : "bg-muted-foreground/20")} />
+                  Urgent
+                </button>
+
+                <button
+                  onClick={e => { e.stopPropagation(); saveField("status", status === "blocked" ? "not_started" : "blocked"); }}
+                  className={cn(
+                    "flex items-center gap-1.5 text-[11px] font-body font-semibold rounded-full px-3 py-1 border transition-all",
+                    status === "blocked"
+                      ? "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-500/10 dark:border-orange-500/30 dark:text-orange-400"
+                      : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground/80",
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full shrink-0", status === "blocked" ? "bg-orange-500" : "bg-muted-foreground/20")} />
+                  Bloqué
+                </button>
+
                 <div className="w-px h-3 bg-border/20" />
-                {(["low", "medium", "high"] as TodoPriority[]).map(p => (
-                  <button
-                    key={p}
-                    onClick={e => { e.stopPropagation(); saveField("priority", p); }}
-                    className={cn(
-                      "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all",
-                      priority === p
-                        ? p === "high" ? "bg-red-100 text-red-700" : p === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
-                        : "text-muted-foreground/25 hover:text-muted-foreground/50",
-                    )}
-                  >
-                    {p === "low" ? "Basse" : p === "medium" ? "Moyenne" : "Haute"}
-                  </button>
-                ))}
-                <div className="w-px h-3 bg-border/20" />
+
                 {(EFFORT_CYCLE.filter(Boolean) as EffortSize[]).map(e => {
                   const cfg = EFFORT_CONFIG[e];
                   return (
@@ -394,61 +392,6 @@ export function SubtaskCard({
                   );
                 })}
               </div>
-
-              {/* Estimated time row */}
-              <div className="flex flex-wrap items-center gap-2 mb-2.5 ml-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-display font-bold text-foreground/60 uppercase tracking-wider">
-                  <Clock size={10} /> Estimation
-                </div>
-                {ESTIMATE_PRESETS.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={ev => { ev.stopPropagation(); onUpdate(sub.id, { estimatedMinutes: estimated === p.value ? null : p.value }); }}
-                    className={cn(
-                      "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full transition-all border tabular-nums",
-                      estimated === p.value
-                        ? "bg-primary/10 text-primary border-primary/40"
-                        : "text-muted-foreground/30 border-transparent hover:text-muted-foreground/70",
-                    )}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-                {actualMin !== null && (
-                  <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums ml-1">
-                    · {formatMinutes(actualMin)} passé
-                  </span>
-                )}
-              </div>
-
-              {/* Actual vs estimate progress bar (only when both present) */}
-              {estimated && actualMin !== null && (
-                <div className="mb-2.5 ml-1">
-                  <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        overEstimate ? "bg-rose-400" : estimateRatio > 0.8 ? "bg-amber-400" : "bg-emerald-400",
-                      )}
-                      style={{ width: `${Math.min(100, estimateRatio * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Recurrence */}
-              <RecurrenceRow sub={sub} onUpdate={onUpdate} />
-
-              {!isChild && (
-                <SmartFields
-                  specific={sub.smartSpecific}
-                  measurable={sub.smartMeasurable}
-                  achievable={sub.smartAchievable}
-                  relevant={sub.smartRelevant}
-                  dueDate={sub.dueDate}
-                  onSave={(field, value) => saveField(field, value)}
-                />
-              )}
 
               {/* Description */}
               <div className="ml-1">
@@ -487,6 +430,105 @@ export function SubtaskCard({
                   </button>
                 )}
               </div>
+
+              {/* Avancé toggle */}
+              <button
+                onClick={e => { e.stopPropagation(); setShowAdvanced(v => !v); }}
+                className="flex items-center gap-1 text-[10px] font-body text-muted-foreground/30 hover:text-muted-foreground/60 mt-2 ml-1 transition-colors"
+              >
+                Avancé {showAdvanced ? "▴" : "▸"}
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-2 space-y-2.5 pt-2 border-t border-border/20">
+                  {/* Statut précis */}
+                  <div className="flex flex-wrap items-center gap-2 ml-1">
+                    {(["not_started", "in_progress", "done", "blocked"] as TodoStatus[]).map(s => {
+                      const cfg = STATUS_CONFIG[s];
+                      return (
+                        <button
+                          key={s}
+                          onClick={e => { e.stopPropagation(); saveField("status", s); }}
+                          className={cn(
+                            "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all",
+                            status === s ? cn(cfg.bg, cfg.text) : "text-muted-foreground/25 hover:text-muted-foreground/50",
+                          )}
+                        >
+                          {cfg.label}
+                        </button>
+                      );
+                    })}
+                    <div className="w-px h-3 bg-border/20" />
+                    {(["low", "medium", "high"] as TodoPriority[]).map(p => (
+                      <button
+                        key={p}
+                        onClick={e => { e.stopPropagation(); saveField("priority", p); }}
+                        className={cn(
+                          "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all",
+                          priority === p
+                            ? p === "high" ? "bg-red-100 text-red-700" : p === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
+                            : "text-muted-foreground/25 hover:text-muted-foreground/50",
+                        )}
+                      >
+                        {p === "low" ? "Basse" : p === "medium" ? "Moyenne" : "Haute"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Estimation */}
+                  <div className="flex flex-wrap items-center gap-2 ml-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-display font-bold text-foreground/60 uppercase tracking-wider">
+                      <Clock size={10} /> Estimation
+                    </div>
+                    {ESTIMATE_PRESETS.map(p => (
+                      <button
+                        key={p.value}
+                        onClick={ev => { ev.stopPropagation(); onUpdate(sub.id, { estimatedMinutes: estimated === p.value ? null : p.value }); }}
+                        className={cn(
+                          "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full transition-all border tabular-nums",
+                          estimated === p.value
+                            ? "bg-primary/10 text-primary border-primary/40"
+                            : "text-muted-foreground/30 border-transparent hover:text-muted-foreground/70",
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                    {actualMin !== null && (
+                      <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums ml-1">
+                        · {formatMinutes(actualMin)} passé
+                      </span>
+                    )}
+                  </div>
+
+                  {estimated && actualMin !== null && (
+                    <div className="ml-1">
+                      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            overEstimate ? "bg-rose-400" : estimateRatio > 0.8 ? "bg-amber-400" : "bg-emerald-400",
+                          )}
+                          style={{ width: `${Math.min(100, estimateRatio * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <RecurrenceRow sub={sub} onUpdate={onUpdate} />
+
+                  {!isChild && (
+                    <SmartFields
+                      specific={sub.smartSpecific}
+                      measurable={sub.smartMeasurable}
+                      achievable={sub.smartAchievable}
+                      relevant={sub.smartRelevant}
+                      dueDate={sub.dueDate}
+                      onSave={(field, value) => saveField(field, value)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
