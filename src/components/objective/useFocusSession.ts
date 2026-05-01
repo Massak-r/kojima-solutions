@@ -44,7 +44,8 @@ export interface FocusSessionState {
   elapsedSec: number;
   subtaskId: string | null;
   start: (subtaskId?: string | null) => Promise<void>;
-  stop: (note?: string) => Promise<void>;
+  /** Returns the closed session id when there was an active session, else null. */
+  stop: (note?: string) => Promise<{ sessionId: string } | null>;
 }
 
 export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): FocusSessionState {
@@ -131,11 +132,11 @@ export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): F
     }
   }, [source, objectiveId, key]);
 
-  const stop = useCallback(async (note?: string) => {
+  const stop = useCallback(async (note?: string): Promise<{ sessionId: string } | null> => {
     const s = readStored(key);
     writeStored(key, null);
     setStored(null);
-    if (!s) return;
+    if (!s) return null;
     try { await stopSession(s.sessionId, note); } catch {}
     // Notify any retro-prompt listeners that a session just ended
     try {
@@ -143,6 +144,7 @@ export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): F
         detail: { sessionId: s.sessionId, source, objectiveId, subtaskId: s.subtaskId ?? null },
       }));
     } catch {}
+    return { sessionId: s.sessionId };
   }, [key, source, objectiveId]);
 
   const startedAtMs = stored ? new Date(stored.startedAt).getTime() : 0;

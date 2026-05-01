@@ -134,6 +134,7 @@ export interface ObjectiveSession {
   source: ObjectiveSource;
   objectiveId: string;
   subtaskId?: string | null;
+  subtaskIds: string[];
   startedAt: string;
   endedAt?: string | null;
   durationSec?: number | null;
@@ -177,6 +178,7 @@ export const startSession = (data: {
   source: ObjectiveSource;
   objectiveId: string;
   subtaskId?: string | null;
+  subtaskIds?: string[];
 }) => call<ObjectiveSession>("objective_sessions.php", { method: "POST", body: JSON.stringify(data) });
 
 export const stopSession = (id: string, note?: string) =>
@@ -184,6 +186,9 @@ export const stopSession = (id: string, note?: string) =>
 
 export const patchSession = (id: string, data: { accuracy?: ObjectiveSession["accuracy"]; note?: string | null }) =>
   call<ObjectiveSession>(`objective_sessions.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const attributeSessionSubtasks = (id: string, subtaskIds: string[]) =>
+  call<ObjectiveSession>(`objective_sessions.php?id=${id}`, { method: "PUT", body: JSON.stringify({ subtaskIds }) });
 
 export const getGlobalWeekSummary = () =>
   call<{

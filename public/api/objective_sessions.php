@@ -35,14 +35,58 @@ try {
             INDEX idx_obj_time (source, objective_id, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+    // Multi-subtask attribution per session — lets one focus session credit
+    // multiple subtasks (and therefore multiple projects via their parent
+    // objective.linked_project_id). Aggregation in suggest_quote_lines.php
+    // splits duration_sec equally across rows in this pivot.
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS objective_session_subtasks (
+            session_id  VARCHAR(36) NOT NULL,
+            subtask_id  VARCHAR(36) NOT NULL,
+            created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (session_id, subtask_id),
+            INDEX idx_subtask (subtask_id),
+            FOREIGN KEY (session_id) REFERENCES objective_sessions(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    // Idempotent backfill: every legacy session with a subtask_id gets one
+    // pivot row. INSERT IGNORE skips rows already migrated.
+    $pdo->exec("
+        INSERT IGNORE INTO objective_session_subtasks (session_id, subtask_id)
+        SELECT id, subtask_id
+        FROM objective_sessions
+        WHERE subtask_id IS NOT NULL
+    ");
 } catch (Throwable $e) {}
 
-function mapSession(array $row): array {
+/**
+ * Resolve the pivot subtask ids for a session.
+ *
+ * Reads from a pre-joined column (GROUP_CONCAT alias `pivot_subtask_ids`)
+ * when present — that's the cheap path used by list/summary queries. Falls
+ * back to a sub-query when only $pdo is available, used by single-row
+ * SELECTs where rewriting the query for one row isn't worth it.
+ */
+function mapSession(array $row, ?PDO $pdo = null): array {
+    $subtaskIds = [];
+    if (array_key_exists('pivot_subtask_ids', $row) && $row['pivot_subtask_ids']) {
+        foreach (explode(',', (string)$row['pivot_subtask_ids']) as $sid) {
+            $sid = trim($sid);
+            if ($sid !== '') $subtaskIds[] = $sid;
+        }
+    } elseif ($pdo) {
+        $stmt = $pdo->prepare('SELECT subtask_id FROM objective_session_subtasks WHERE session_id = ?');
+        $stmt->execute([$row['id']]);
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            $subtaskIds[] = $sid;
+        }
+    }
     return [
         'id'          => $row['id'],
         'source'      => $row['source'],
         'objectiveId' => $row['objective_id'],
         'subtaskId'   => $row['subtask_id'] ?? null,
+        'subtaskIds'  => $subtaskIds,
         'startedAt'   => $row['started_at'],
         'endedAt'     => $row['ended_at'] ?? null,
         'durationSec' => $row['duration_sec'] !== null ? (int)$row['duration_sec'] : null,
@@ -188,7 +232,15 @@ if ($method === 'GET') {
         ]);
     }
 
-    $stmt = $pdo->prepare('SELECT * FROM objective_sessions WHERE source = ? AND objective_id = ? ORDER BY started_at DESC LIMIT 200');
+    $stmt = $pdo->prepare('
+        SELECT s.*, GROUP_CONCAT(p.subtask_id) AS pivot_subtask_ids
+        FROM objective_sessions s
+        LEFT JOIN objective_session_subtasks p ON p.session_id = s.id
+        WHERE s.source = ? AND s.objective_id = ?
+        GROUP BY s.id
+        ORDER BY s.started_at DESC
+        LIMIT 200
+    ');
     $stmt->execute([$source, $objId]);
     ok(array_map('mapSession', $stmt->fetchAll()));
 }
@@ -202,7 +254,7 @@ if ($method === 'POST') {
             $note = $data['note'] ?? null;
         }
         $closed = closeSession($pdo, $id, $note);
-        ok($closed ? mapSession($closed) : ['ok' => true]);
+        ok($closed ? mapSession($closed, $pdo) : ['ok' => true]);
     }
 
     // Start
@@ -210,7 +262,23 @@ if ($method === 'POST') {
     $src  = $data['source']      ?? null;
     $oid  = $data['objectiveId'] ?? null;
     $sid  = $data['subtaskId']   ?? null;
+    $sids = $data['subtaskIds']  ?? null;
     if (!$src || !$oid) fail('source and objectiveId required');
+
+    // Normalize: subtaskIds[] is the source of truth. subtaskId (singular)
+    // stays filled with the first id for legacy clients (sendBeacon, retro
+    // breadcrumb, listSessions consumers).
+    $idsList = [];
+    if (is_array($sids)) {
+        foreach ($sids as $v) {
+            if (is_string($v) && $v !== '') $idsList[] = $v;
+        }
+    }
+    if (empty($idsList) && is_string($sid) && $sid !== '') {
+        $idsList = [$sid];
+    }
+    $idsList = array_values(array_unique($idsList));
+    $primary = $idsList[0] ?? null;
 
     // Auto-close any open session for the same (source, objective)
     $open = $pdo->prepare('SELECT id FROM objective_sessions WHERE source = ? AND objective_id = ? AND ended_at IS NULL');
@@ -221,16 +289,24 @@ if ($method === 'POST') {
 
     $newId = uuid();
     $pdo->prepare('INSERT INTO objective_sessions (id, source, objective_id, subtask_id, started_at) VALUES (?, ?, ?, ?, NOW())')
-        ->execute([$newId, $src, $oid, $sid]);
+        ->execute([$newId, $src, $oid, $primary]);
+
+    if (!empty($idsList)) {
+        $insPivot = $pdo->prepare('INSERT IGNORE INTO objective_session_subtasks (session_id, subtask_id) VALUES (?, ?)');
+        foreach ($idsList as $stid) {
+            $insPivot->execute([$newId, $stid]);
+        }
+    }
 
     emitActivity($pdo, $src, $oid, 'session_started', [
-        'sessionId' => $newId,
-        'subtaskId' => $sid,
+        'sessionId'  => $newId,
+        'subtaskId'  => $primary,
+        'subtaskIds' => $idsList,
     ]);
 
     $stmt = $pdo->prepare('SELECT * FROM objective_sessions WHERE id = ?');
     $stmt->execute([$newId]);
-    ok(mapSession($stmt->fetch()));
+    ok(mapSession($stmt->fetch(), $pdo));
 }
 
 if ($method === 'PUT') {
@@ -238,8 +314,42 @@ if ($method === 'PUT') {
     $data = body();
     if (($data['action'] ?? null) === 'stop') {
         $closed = closeSession($pdo, $id, $data['note'] ?? null);
-        ok($closed ? mapSession($closed) : ['ok' => true]);
+        ok($closed ? mapSession($closed, $pdo) : ['ok' => true]);
     }
+
+    // Multi-subtask attribution patch (retro). Replaces the pivot rows for
+    // this session, syncs subtask_id to the first id for legacy reads, and
+    // emits an activity event so the timeline reflects the change.
+    if (array_key_exists('subtaskIds', $data)) {
+        $raw = $data['subtaskIds'];
+        if (!is_array($raw)) fail('subtaskIds must be an array');
+        $idsList = [];
+        foreach ($raw as $v) {
+            if (is_string($v) && $v !== '') $idsList[] = $v;
+        }
+        $idsList = array_values(array_unique($idsList));
+
+        $sessStmt = $pdo->prepare('SELECT source, objective_id FROM objective_sessions WHERE id = ?');
+        $sessStmt->execute([$id]);
+        $sessRow = $sessStmt->fetch();
+        if (!$sessRow) fail('Session not found', 404);
+
+        $pdo->prepare('DELETE FROM objective_session_subtasks WHERE session_id = ?')->execute([$id]);
+        if (!empty($idsList)) {
+            $insPivot = $pdo->prepare('INSERT IGNORE INTO objective_session_subtasks (session_id, subtask_id) VALUES (?, ?)');
+            foreach ($idsList as $stid) {
+                $insPivot->execute([$id, $stid]);
+            }
+        }
+        $primary = $idsList[0] ?? null;
+        $pdo->prepare('UPDATE objective_sessions SET subtask_id = ? WHERE id = ?')->execute([$primary, $id]);
+
+        emitActivity($pdo, $sessRow['source'], $sessRow['objective_id'], 'session_subtasks_updated', [
+            'sessionId'  => $id,
+            'subtaskIds' => $idsList,
+        ]);
+    }
+
     // Patch accuracy / note on an already-closed session (retro picker)
     $fields = [];
     $values = [];
@@ -255,13 +365,16 @@ if ($method === 'PUT') {
         $fields[] = 'note = ?';
         $values[] = $data['note'];
     }
-    if (empty($fields)) fail('Nothing to update');
-    $values[] = $id;
-    $pdo->prepare('UPDATE objective_sessions SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+    if (!empty($fields)) {
+        $values[] = $id;
+        $pdo->prepare('UPDATE objective_sessions SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+    } elseif (!array_key_exists('subtaskIds', $data)) {
+        fail('Nothing to update');
+    }
     $stmt = $pdo->prepare('SELECT * FROM objective_sessions WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
-    ok($row ? mapSession($row) : ['ok' => true]);
+    ok($row ? mapSession($row, $pdo) : ['ok' => true]);
 }
 
 if ($method === 'DELETE') {

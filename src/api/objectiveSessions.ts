@@ -8,6 +8,8 @@ export interface ObjectiveSession {
   source:      ObjectiveSource;
   objectiveId: string;
   subtaskId?:  string | null;
+  /** All subtasks credited by this session. The first id matches subtaskId. */
+  subtaskIds:  string[];
   startedAt:   string;
   endedAt?:    string | null;
   durationSec?: number | null;
@@ -39,6 +41,10 @@ export function startSession(data: {
   source: ObjectiveSource;
   objectiveId: string;
   subtaskId?: string | null;
+  /** Optional. If provided, populates the session-subtask pivot so several
+   *  projects can be credited from the same session. subtaskId stays in
+   *  sync with subtaskIds[0] for legacy consumers. */
+  subtaskIds?: string[];
 }) {
   return apiFetch<ObjectiveSession>('objective_sessions.php', {
     method: 'POST',
@@ -62,6 +68,14 @@ export function patchSession(id: string, data: { accuracy?: SessionAccuracy | nu
   return apiFetch<ObjectiveSession>(`objective_sessions.php?id=${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  });
+}
+
+/** Replace the subtasks credited by a session. Driven by the post-stop retro. */
+export function attributeSubtasks(id: string, subtaskIds: string[]) {
+  return apiFetch<ObjectiveSession>(`objective_sessions.php?id=${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ subtaskIds }),
   });
 }
 

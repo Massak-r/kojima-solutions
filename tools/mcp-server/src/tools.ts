@@ -3,7 +3,7 @@ import {
   createAdminObjective, createPersonalObjective,
   updateAdminObjective, updatePersonalObjective,
   listSubtasks, createSubtask, updateSubtask,
-  startSession, stopSession, patchSession, listSessions,
+  startSession, stopSession, patchSession, attributeSessionSubtasks, listSessions,
   getGlobalWeekSummary,
   listNotes, createNote, updateNote, deleteNote,
   listDecisions, createDecision, updateDecision,
@@ -160,15 +160,29 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "start_focus",
     description:
-      "Start a focus session on an objective (and optionally a specific subtask). Auto-closes any other open session on the same objective. Returns the new session record.",
+      "Start a focus session on an objective (and optionally one or more subtasks). Auto-closes any other open session on the same objective. Pass subtask_ids[] when the user announces upfront that they'll work across several subtasks (their effort gets split equally between them at aggregation time). Otherwise pass subtask_id and refine later via attribute_focus_subtasks. Returns the new session record.",
     inputSchema: {
       type: "object",
       properties: {
         source:       { type: "string", enum: ["admin", "personal"] },
         objective_id: { type: "string" },
-        subtask_id:   { type: "string", description: "Optional. The specific subtask being worked on." },
+        subtask_id:   { type: "string", description: "Optional. The specific subtask the session starts on. Stays in sync with subtask_ids[0]." },
+        subtask_ids:  { type: "array", items: { type: "string" }, description: "Optional. Several subtasks to credit (e.g. work spans multiple projects). Each gets duration_sec/N at aggregation." },
       },
       required: ["source", "objective_id"],
+    },
+  },
+  {
+    name: "attribute_focus_subtasks",
+    description:
+      "Replace the list of subtasks credited by a focus session. Use this after a session ends when the user mentions they also worked on other flagged subtasks — typically across several projects. Setting subtask_ids: [] clears all attribution (the session keeps its raw duration_sec but no longer maps to projects via the pivot).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session_id:   { type: "string" },
+        subtask_ids:  { type: "array", items: { type: "string" }, description: "Replacement list. Order is preserved; the first id becomes the legacy subtask_id." },
+      },
+      required: ["session_id", "subtask_ids"],
     },
   },
   {
@@ -503,7 +517,13 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
         source:      args.source,
         objectiveId: args.objective_id,
         subtaskId:   args.subtask_id ?? null,
+        subtaskIds:  Array.isArray(args.subtask_ids) ? args.subtask_ids : undefined,
       });
+    }
+
+    case "attribute_focus_subtasks": {
+      const ids = Array.isArray(args.subtask_ids) ? args.subtask_ids : [];
+      return await attributeSessionSubtasks(args.session_id, ids);
     }
 
     case "stop_focus": {

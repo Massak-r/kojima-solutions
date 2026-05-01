@@ -4,14 +4,22 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useFocusSession, formatElapsed } from "./useFocusSession";
+import { attributeSubtasks } from "@/api/objectiveSessions";
+import { useAllSubtasks } from "@/hooks/useSubtasks";
+import { useObjectives } from "@/hooks/useObjectives";
 import type { ObjectiveSource } from "@/api/objectiveSource";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 
+interface RetroCandidate extends SubtaskItem {
+  objectiveTitle?: string;
+}
+
 interface RetroState {
-  subtaskId: string;
-  text: string;
+  sessionId: string;
+  primarySubtaskId: string;
+  primaryText: string;
   durationSec: number;
-  sessionId?: string;
+  candidates: RetroCandidate[];
 }
 
 interface FocusStripProps {
@@ -43,6 +51,30 @@ export function FocusStrip({
   );
   const pending = useMemo(() => subtasks.filter(s => !s.completed), [subtasks]);
 
+  // Cross-objective sprint backlog: every flagged subtask the user committed
+  // to today, regardless of its parent objective. Used by the retro so a
+  // single session can credit work spread across several projects.
+  const { data: allSubtasksData } = useAllSubtasks();
+  const { data: allObjectivesData } = useObjectives();
+  const objectiveTitleById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const o of allObjectivesData ?? []) m[o.id] = o.text;
+    return m;
+  }, [allObjectivesData]);
+  const sprintCandidates = useMemo<RetroCandidate[]>(() => {
+    const decorate = (s: SubtaskItem): RetroCandidate => ({
+      ...s,
+      objectiveTitle: s.parentId === objectiveId ? undefined : objectiveTitleById[s.parentId],
+    });
+    if (!allSubtasksData) return flagged.map(decorate);
+    const filtered = allSubtasksData.filter(s => s.flaggedToday && !s.completed);
+    if (filtered.length === 0) return flagged.map(decorate);
+    return filtered
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map(decorate);
+  }, [allSubtasksData, flagged, objectiveTitleById, objectiveId]);
+
   const activeFromSession = session.active && session.subtaskId ? subtaskById[session.subtaskId] : null;
   const active = activeFromSession ?? flagged[0] ?? null;
 
@@ -66,12 +98,24 @@ export function FocusStrip({
 
   async function handleStop() {
     // Capture before stopping (state unmounts elapsed)
-    const snapshot: RetroState | null = active
-      ? { subtaskId: active.id, text: active.text, durationSec: session.elapsedSec }
+    const snapshot = active
+      ? {
+          primarySubtaskId: active.id,
+          primaryText: active.text,
+          durationSec: session.elapsedSec,
+          // Offer the cross-objective sprint backlog so the user can credit
+          // work that spanned several projects. sprintCandidates already
+          // falls back to local-objective flagged subtasks when nothing
+          // else is loaded; if even that is empty, surface just the active
+          // one so the retro is never empty.
+          candidates: sprintCandidates.length > 0
+            ? sprintCandidates
+            : [active as RetroCandidate],
+        }
       : null;
-    await session.stop();
-    if (snapshot && snapshot.durationSec >= 10) {
-      setRetro(snapshot);
+    const closed = await session.stop();
+    if (snapshot && closed && snapshot.durationSec >= 10) {
+      setRetro({ ...snapshot, sessionId: closed.sessionId });
       scheduleDismiss();
     }
   }
@@ -93,15 +137,17 @@ export function FocusStrip({
     onClearFocus(active.id);
   }
 
-  function handleRetroConfirm(markDone: boolean, note: string) {
+  async function handleRetroConfirm(selectedIds: string[], markDoneIds: string[], _note: string) {
     if (!retro) return;
-    if (markDone) {
-      onComplete(retro.subtaskId);
-      onClearFocus(retro.subtaskId);
+    // Persist multi-subtask attribution: the backend splits duration_sec
+    // equally across these ids when computing per-project breakdowns.
+    if (selectedIds.length > 0) {
+      try { await attributeSubtasks(retro.sessionId, selectedIds); } catch {}
     }
-    // Note is attached to the most recent session for this objective (simple append via a fresh stop with note)
-    // Since the session is already stopped, we can't update it directly without a new endpoint.
-    // For v1 the note travels via the session-end activity emission if the user typed one.
+    for (const id of markDoneIds) {
+      onComplete(id);
+      onClearFocus(id);
+    }
     setRetro(null);
     if (retroTimeout.current) window.clearTimeout(retroTimeout.current);
   }
@@ -307,22 +353,68 @@ function SprintRetroContent({
   retro, onConfirm, onDismiss,
 }: {
   retro: RetroState;
-  onConfirm: (markDone: boolean, note: string) => void;
+  onConfirm: (selectedIds: string[], markDoneIds: string[], note: string) => void;
   onDismiss: () => void;
 }) {
-  const [markDone, setMarkDone] = useState(true);
+  // Pre-select the subtask that started the session — it's almost always
+  // the right default. The user can extend the selection to credit other
+  // flagged subtasks they touched during the session.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set([retro.primarySubtaskId])
+  );
+  const [markDoneIds, setMarkDoneIds] = useState<Set<string>>(() => new Set());
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
 
   const mins = Math.floor(retro.durationSec / 60);
   const secs = retro.durationSec % 60;
   const durationLabel = mins > 0 ? `${mins}min ${secs.toString().padStart(2, "0")}s` : `${secs}s`;
+  const splitPerSubtaskMin = selectedIds.size > 1
+    ? Math.max(1, Math.round(retro.durationSec / selectedIds.size / 60))
+    : null;
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    // Unselecting also clears any markDone flag on that row
+    setMarkDoneIds(prev => {
+      if (!prev.has(id) || selectedIds.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleMarkDone(id: string) {
+    setMarkDoneIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        // Marking done implies the row is selected for attribution
+        setSelectedIds(p => p.has(id) ? p : new Set(p).add(id));
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Sparkles size={14} className="text-primary shrink-0" />
-        <span className="text-xs font-display font-bold uppercase tracking-wider text-primary">Rétro · {durationLabel}</span>
+        <span className="text-xs font-display font-bold uppercase tracking-wider text-primary">
+          Rétro · {durationLabel}
+        </span>
+        {splitPerSubtaskMin !== null && (
+          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+            ~{splitPerSubtaskMin}min × {selectedIds.size}
+          </span>
+        )}
         <button
           onClick={onDismiss}
           className="ml-auto text-muted-foreground/60 hover:text-foreground transition-colors"
@@ -332,21 +424,54 @@ function SprintRetroContent({
         </button>
       </div>
 
-      <div className="text-sm font-body text-foreground/80">
-        Session sur <span className="font-semibold">« {retro.text} »</span>
+      <div className="text-xs font-body text-foreground/70">
+        Sur quelles étapes du sprint as-tu travaillé ? Le temps est réparti à parts égales entre celles cochées.
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer group select-none">
-        <input
-          type="checkbox"
-          checked={markDone}
-          onChange={e => setMarkDone(e.target.checked)}
-          className="w-4 h-4 rounded border-border/50 text-primary focus:ring-2 focus:ring-primary/20"
-        />
-        <span className="text-sm font-body text-foreground/80 group-hover:text-foreground transition-colors">
-          Marquer cette étape terminée
-        </span>
-      </label>
+      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+        {retro.candidates.map(c => {
+          const sel = selectedIds.has(c.id);
+          const done = markDoneIds.has(c.id);
+          const isPrimary = c.id === retro.primarySubtaskId;
+          return (
+            <div
+              key={c.id}
+              className={cn(
+                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors",
+                sel ? "border-primary/40 bg-primary/5" : "border-border/30 bg-card/40",
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={sel}
+                onChange={() => toggleSelected(c.id)}
+                className="w-4 h-4 rounded border-border/50 text-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                aria-label={`Inclure « ${c.text} » dans la répartition`}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-body text-foreground/80 truncate" title={c.text}>
+                  {isPrimary && <Star size={10} className="fill-amber-400 text-amber-400 inline mr-1 -mt-0.5" />}
+                  {c.text}
+                </div>
+                {c.objectiveTitle && (
+                  <div className="text-[10px] font-body text-muted-foreground/70 truncate" title={c.objectiveTitle}>
+                    {c.objectiveTitle}
+                  </div>
+                )}
+              </div>
+              <label className="flex items-center gap-1 text-[10px] font-body text-muted-foreground cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={done}
+                  onChange={() => toggleMarkDone(c.id)}
+                  className="w-3.5 h-3.5 rounded border-border/50 text-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <span>Terminée</span>
+              </label>
+            </div>
+          );
+        })}
+      </div>
 
       {!showNote ? (
         <button
@@ -367,8 +492,13 @@ function SprintRetroContent({
       )}
 
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => onConfirm(markDone, note)} className="h-8 rounded-full">
-          <Check size={13} className="mr-1" /> Confirmer
+        <Button
+          size="sm"
+          onClick={() => onConfirm([...selectedIds], [...markDoneIds], note)}
+          className="h-8 rounded-full"
+        >
+          <Check size={13} className="mr-1" />
+          Confirmer{selectedIds.size > 1 ? ` (${selectedIds.size} étapes)` : ""}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDismiss} className="h-8 rounded-full text-muted-foreground">
           Ignorer
