@@ -1,27 +1,32 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, Plus, FileText } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { AlertsZone } from "@/components/home/AlertsZone";
 import { SprintSummary } from "@/components/home/SprintSummary";
 import { StreamsList } from "@/components/home/StreamsList";
 import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
+import { OverviewTab } from "@/components/home/OverviewTab";
 
-type Tab = "streams" | "kanban";
+type Tab = "streams" | "kanban" | "overview";
 
 export default function Home() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { createProject } = useProjects();
 
-  const initialTab: Tab = searchParams.get("tab") === "kanban" ? "kanban" : "streams";
+  const tabFromUrl = searchParams.get("tab");
+  const initialTab: Tab =
+    tabFromUrl === "kanban" ? "kanban" :
+    tabFromUrl === "overview" ? "overview" :
+    "streams";
   const [tab, setTab] = useState<Tab>(initialTab);
 
   // Keep URL in sync with tab
   useEffect(() => {
     const current = searchParams.get("tab");
-    const target = tab === "kanban" ? "kanban" : null;
+    const target = tab === "streams" ? null : tab;
     if (current !== target) {
       const next = new URLSearchParams(searchParams);
       if (target) next.set("tab", target);
@@ -91,17 +96,23 @@ export default function Home() {
             active={tab === "kanban"}
             onClick={() => setTab("kanban")}
           />
+          <TabButton
+            label="Aperçu"
+            icon={BarChart3}
+            active={tab === "overview"}
+            onClick={() => setTab("overview")}
+          />
         </div>
 
-        {tab === "streams" ? (
+        {tab === "streams" && (
           <div className="space-y-5">
             <AlertsZone />
             <SprintSummary />
             <StreamsList />
           </div>
-        ) : (
-          <ProjectStatusKanban />
         )}
+        {tab === "kanban" && <ProjectStatusKanban />}
+        {tab === "overview" && <OverviewTab />}
       </main>
     </div>
   );
