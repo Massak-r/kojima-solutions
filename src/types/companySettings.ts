@@ -19,7 +19,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   address: "Rue de la Paix 4, 1020 Renens, Suisse",
   email: "massaki@kojima-solutions.ch",
   website: "kojima-solutions.ch",
-  ideNumber: "CHE-000.000.000",
+  ideNumber: "",
   bankAccountHolder: "Kojima Solutions — Massaki Chraïti",
   bankIban: "",
   bankBic: "",
