@@ -264,8 +264,8 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
             </div>
           )}
 
-          {/* Bank details (invoices) */}
-          {isInvoice && (
+          {/* Bank details (invoices) — only when IBAN is configured in admin settings */}
+          {isInvoice && !!co.bankIban && (
             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${accentFaint}` }}>
               <div className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
                 {isFr ? "Coordonnées bancaires" : "Bank details"}

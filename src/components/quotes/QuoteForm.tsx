@@ -579,8 +579,8 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               placeholder={
                 isFr
-                  ? "IBAN: CH00 0000 0000 0000 0000 0\nPaiement à 30 jours net.\nMerci pour votre confiance."
-                  : "IBAN: CH00 0000 0000 0000 0000 0\nNet 30 days.\nThank you for your business."
+                  ? "Paiement à 30 jours net.\nMerci pour votre confiance."
+                  : "Net 30 days.\nThank you for your business."
               }
             />
           </div>
