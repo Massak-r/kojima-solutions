@@ -14,6 +14,7 @@ import { CompanySettingsProvider } from "@/contexts/CompanySettingsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Header from "@/components/Header";
 import BottomNav, { useIsAdminPage } from "@/components/BottomNav";
+import { QuickActionFAB } from "@/components/QuickActionFAB";
 import InstallPrompt from "@/components/InstallPrompt";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import PageTransition from "@/components/PageTransition";
@@ -107,6 +108,7 @@ const App = () => (
                 <SprintCapProvider>
                   <Header />
                   <BottomNav />
+                  <QuickActionFAB />
                   <InstallPrompt />
                   <UpdateBanner />
                   <ScrollToTop />

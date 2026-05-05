@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Plus, FolderKanban, FileText, Building2, Target, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useIsAdminPage } from "@/components/BottomNav";
 
 interface Action {
   label: string;
@@ -22,28 +23,31 @@ export function QuickActionFAB() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdminPage = useIsAdminPage();
 
-  const isOnSpace = location.pathname === "/space";
+  const isOnObjectivesView = location.pathname === "/space-full";
 
   const ACTIONS: Action[] = [
-    ...(isOnSpace
-      ? [
-          {
-            label: "Nouvel objectif",
-            icon: Target,
-            color: "bg-violet-500",
-            action: () => {
-              const input = document.getElementById("new-objective-input");
-              if (input) {
-                input.scrollIntoView({ behavior: "smooth", block: "center" });
-                setTimeout(() => input.focus(), 400);
-              }
-            },
-          },
-        ]
-      : []),
+    {
+      label: "Nouvel objectif",
+      icon: Target,
+      color: "bg-violet-500",
+      action: () => {
+        if (isOnObjectivesView) {
+          const input = document.getElementById("new-objective-input");
+          if (input) {
+            input.scrollIntoView({ behavior: "smooth", block: "center" });
+            setTimeout(() => input.focus(), 400);
+          }
+        } else {
+          navigate("/space-full?focus=new-objective");
+        }
+      },
+    },
     ...NAV_ACTIONS,
   ];
+
+  if (!isAdminPage) return null;
 
   return (
     <div className="fixed bottom-24 sm:bottom-8 right-4 sm:right-6 z-40 flex flex-col-reverse items-end gap-2.5">

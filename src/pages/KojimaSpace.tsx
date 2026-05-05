@@ -1,7 +1,7 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { QuickActionFAB } from "@/components/QuickActionFAB";
 import { RecentActivity } from "@/components/RecentActivity";
 import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { IntakeManager } from "@/components/IntakeManager";
@@ -19,6 +19,22 @@ import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
 export default function KojimaSpace() {
   const navigate = useNavigate();
   const { createProject } = useProjects();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("focus") !== "new-objective") return;
+    const t = setTimeout(() => {
+      const input = document.getElementById("new-objective-input");
+      if (input) {
+        input.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => input.focus(), 350);
+      }
+    }, 500);
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+    return () => clearTimeout(t);
+  }, [searchParams, setSearchParams]);
 
   function handleNewProject() {
     const p = createProject();
@@ -70,8 +86,6 @@ export default function KojimaSpace() {
             <RecentActivity />
           </div>
         </motion.div>
-
-        <QuickActionFAB />
 
         <ObjectivesSection />
       </main>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Target, Sun, CalendarCheck2 } from "lucide-react";
+import { Target, Sun, CalendarCheck2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -264,6 +264,16 @@ export default function SprintPage() {
           </Button>
         )}
         <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/space-full?focus=new-objective")}
+          className="shrink-0 gap-1.5 rounded-full"
+          title="Créer un nouvel objectif"
+        >
+          <Plus size={13} />
+          <span className="hidden sm:inline">Objectif</span>
+        </Button>
+        <Button
           variant="ghost"
           size="sm"
           onClick={() => setShowReview(true)}
@@ -421,9 +431,17 @@ export default function SprintPage() {
                   <div className="rounded-2xl border border-dashed border-border/40 p-8 text-center">
                     <Target size={32} className="mx-auto text-muted-foreground/30 mb-3" />
                     <div className="text-sm font-body text-muted-foreground">Aucun objectif actif.</div>
-                    <div className="text-xs font-body text-muted-foreground/50 mt-1">
-                      Créez un objectif depuis Kojima Space ou Personnel pour entrer en sprint.
+                    <div className="text-xs font-body text-muted-foreground/50 mt-1 mb-4">
+                      Créez votre premier objectif pour entrer en sprint.
                     </div>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/space-full?focus=new-objective")}
+                      className="gap-1.5 rounded-full"
+                    >
+                      <Plus size={13} />
+                      Nouvel objectif
+                    </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

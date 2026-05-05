@@ -459,9 +459,12 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
 
     case "create_objective": {
       const { source, ...data } = args;
+      // The PHP backend defaults is_objective=0; the MCP tool is named create_objective
+      // and its description says "Create a new top-level objective", so always promote.
+      const payload = { ...data, isObjective: true };
       return source === "admin"
-        ? await createAdminObjective(data)
-        : await createPersonalObjective(data);
+        ? await createAdminObjective(payload)
+        : await createPersonalObjective(payload);
     }
 
     case "get_objective": {
