@@ -568,24 +568,6 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           />
         </div>
 
-        {/* Payment terms (invoice only) */}
-        {data.docType === "invoice" && (
-          <div className="space-y-2">
-            <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
-            <textarea
-              value={data.paymentTerms ?? ""}
-              onChange={(e) => set("paymentTerms", e.target.value)}
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-              placeholder={
-                isFr
-                  ? "Paiement à 30 jours net.\nMerci pour votre confiance."
-                  : "Net 30 days.\nThank you for your business."
-              }
-            />
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
           <Button onClick={handleSave} className="btn-primary-glow">
@@ -632,6 +614,24 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           </div>
         </div>
       </div>
+
+      {/* Payment terms — full width below both columns (invoice only) */}
+      {data.docType === "invoice" && (
+        <div className="lg:col-span-2 glass-card p-6 md:p-8 space-y-2">
+          <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
+          <textarea
+            value={data.paymentTerms ?? ""}
+            onChange={(e) => set("paymentTerms", e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            placeholder={
+              isFr
+                ? "Paiement à 30 jours net.\nMerci pour votre confiance."
+                : "Net 30 days.\nThank you for your business."
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
