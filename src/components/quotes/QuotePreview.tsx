@@ -34,7 +34,8 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
     : (isInvoice ? "Invoice" : "Quote");
 
   // Use hardcoded colors for print/PDF reliability (CSS variables may not resolve in iframe print)
-  const baseColor   = isInvoice ? "107, 131, 158" : "42, 74, 107"; // accent rgb / primary rgb
+  // Quote = navy (primary), Invoice = teal (saturated so it doesn't print as grey)
+  const baseColor   = isInvoice ? "15, 109, 122" : "42, 74, 107";
   const accentColor = `rgb(${baseColor})`;
   const accentFaint = `rgba(${baseColor}, 0.15)`;
   const accentMid   = `rgba(${baseColor}, 0.4)`;
