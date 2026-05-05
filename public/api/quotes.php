@@ -2,6 +2,14 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuthForWrites();
 
+// Auto-migrate: add payment_terms column if missing (same pattern as client_address).
+try {
+    $cols = array_column($pdo->query('SHOW COLUMNS FROM quotes')->fetchAll(), 'Field');
+    if (!in_array('payment_terms', $cols)) {
+        $pdo->exec('ALTER TABLE quotes ADD COLUMN payment_terms TEXT DEFAULT NULL');
+    }
+} catch (Throwable $e) {}
+
 // ── Helper ──────────────────────────────────────────────────
 
 function mapQuote(array $row): array {
@@ -18,6 +26,7 @@ function mapQuote(array $row): array {
         'clientEmail'        => $row['client_email'] ?? '',
         'clientCompany'      => $row['client_company'] ?? '',
         'clientAddress'      => $row['client_address'] ?? '',
+        'paymentTerms'       => $row['payment_terms'] ?? '',
         'lineItems'          => $row['line_items'] ? json_decode($row['line_items'], true) : [],
         'applyTva'           => (bool)$row['apply_tva'],
         'discountEnabled'    => (bool)$row['discount_enabled'],
@@ -60,9 +69,9 @@ if ($method === 'POST') {
     $newId = !empty($data['id']) ? $data['id'] : uuid();
     $pdo->prepare('
         INSERT INTO quotes (id, project_id, lang, doc_type, invoice_status, quote_number, validity_date, project_title,
-            project_desc, conditions, client_name, client_email, client_company, client_address,
+            project_desc, conditions, client_name, client_email, client_company, client_address, payment_terms,
             line_items, apply_tva, discount_enabled, discount_type, discount_value, discount_label)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['projectId']          ?? null,
@@ -78,6 +87,7 @@ if ($method === 'POST') {
         $data['clientEmail']        ?? null,
         $data['clientCompany']      ?? null,
         $data['clientAddress']      ?? null,
+        $data['paymentTerms']       ?? null,
         json_encode($data['lineItems'] ?? []),
         (int)($data['applyTva']        ?? false),
         (int)($data['discountEnabled'] ?? false),
@@ -99,7 +109,7 @@ if ($method === 'PUT') {
         UPDATE quotes SET
             project_id = ?, lang = ?, doc_type = ?, invoice_status = ?, quote_number = ?, validity_date = ?,
             project_title = ?, project_desc = ?, conditions = ?,
-            client_name = ?, client_email = ?, client_company = ?, client_address = ?,
+            client_name = ?, client_email = ?, client_company = ?, client_address = ?, payment_terms = ?,
             line_items = ?, apply_tva = ?, discount_enabled = ?,
             discount_type = ?, discount_value = ?, discount_label = ?
         WHERE id = ?
@@ -117,6 +127,7 @@ if ($method === 'PUT') {
         $data['clientEmail']        ?? null,
         $data['clientCompany']      ?? null,
         $data['clientAddress']      ?? null,
+        $data['paymentTerms']       ?? null,
         json_encode($data['lineItems'] ?? []),
         (int)($data['applyTva']        ?? false),
         (int)($data['discountEnabled'] ?? false),
