@@ -121,8 +121,12 @@ export function useUpdateSubtask() {
       if (ctx) qc.setQueryData(ALL_SUBTASKS_KEY, ctx.prev);
       notifyError("Mise à jour de l'étape échouée", err);
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: ALL_SUBTASKS_KEY });
+      // If completion toggled, the streak source-of-truth changed too.
+      if (vars && Object.prototype.hasOwnProperty.call(vars.patch, "completed")) {
+        qc.invalidateQueries({ queryKey: ["subtask-completions"] });
+      }
     },
   });
 }

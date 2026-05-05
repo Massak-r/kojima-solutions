@@ -17,6 +17,40 @@ try {
     ");
 } catch (Throwable $e) {}
 
+// Ensure subtask_completion_log exists (one row per subtask × calendar day).
+// Powers the "recurrence streak" UI — survives the daily refresh that nullifies
+// todo_subtasks.completed_at, so we keep the historical pulse.
+try {
+    $existed = (bool)$pdo->query("SHOW TABLES LIKE 'subtask_completion_log'")->fetchColumn();
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS subtask_completion_log (
+            id           VARCHAR(36) PRIMARY KEY,
+            subtask_id   VARCHAR(36) NOT NULL,
+            completed_at DATETIME    NOT NULL,
+            source       ENUM('admin','personal') NOT NULL,
+            INDEX idx_sub_date (subtask_id, completed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    // Add a generated date column + UNIQUE (subtask_id, day) so toggling on/off
+    // in the same day collapses to a single log row. Generated columns are the
+    // portable way to get a unique-on-DATE() constraint.
+    $logCols = array_column($pdo->query('SHOW COLUMNS FROM subtask_completion_log')->fetchAll(), 'Field');
+    if (!in_array('completion_date', $logCols)) {
+        $pdo->exec('ALTER TABLE subtask_completion_log ADD COLUMN completion_date DATE GENERATED ALWAYS AS (DATE(completed_at)) STORED');
+        try {
+            $pdo->exec('ALTER TABLE subtask_completion_log ADD UNIQUE KEY uniq_sub_day (subtask_id, completion_date)');
+        } catch (Throwable $e) {} // already present in some envs
+    }
+    if (!$existed) {
+        // One-shot backfill from todo_subtasks.completed_at so the first streak
+        // render isn't a wall of "skipped" cells. Safe with INSERT IGNORE.
+        $pdo->exec("INSERT IGNORE INTO subtask_completion_log (id, subtask_id, completed_at, source)
+                    SELECT UUID(), id, completed_at, source
+                    FROM todo_subtasks
+                    WHERE completed = 1 AND completed_at IS NOT NULL");
+    }
+} catch (Throwable $e) {}
+
 // Auto-migrate: parent_subtask_id (for 2-level nesting) + effort_size + estimated_minutes + flagged_at
 try {
     $cols = array_column($pdo->query('SHOW COLUMNS FROM todo_subtasks')->fetchAll(), 'Field');
@@ -273,9 +307,40 @@ if ($method === 'PUT') {
         }
     }
 
-    if (!empty($fields)) {
-        $values[] = $id;
-        $pdo->prepare('UPDATE todo_subtasks SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+    // Wrap the UPDATE + completion-log writes in a transaction so concurrent
+    // toggles can't desync state vs. log (e.g. duplicate INSERTs on a 0→1).
+    $pdo->beginTransaction();
+    try {
+        if (!empty($fields)) {
+            $values[] = $id;
+            $pdo->prepare('UPDATE todo_subtasks SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+        }
+
+        // Mirror completion transitions into subtask_completion_log so the
+        // streak UI has a record that survives the daily refresh.
+        if (array_key_exists('completed', $data)) {
+            $nextCompleted = (int)(bool)$data['completed'];
+            $prevCompleted = (int)($prev['completed'] ?? 0);
+            if ($nextCompleted !== $prevCompleted) {
+                if ($nextCompleted === 1) {
+                    // INSERT IGNORE collapses any same-day re-toggle into one row
+                    $pdo->prepare("INSERT IGNORE INTO subtask_completion_log (id, subtask_id, completed_at, source) VALUES (?, ?, NOW(), ?)")
+                        ->execute([uuid(), $id, $prev['source']]);
+                } else {
+                    // Scope DELETE to TODAY only — yesterday's completion is
+                    // immutable history, even if user un-toggles after midnight.
+                    $pdo->prepare("DELETE FROM subtask_completion_log
+                                   WHERE subtask_id = ? AND DATE(completed_at) = CURDATE()
+                                   ORDER BY completed_at DESC LIMIT 1")
+                        ->execute([$id]);
+                }
+            }
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
     }
 
     $stmt = $pdo->prepare('SELECT * FROM todo_subtasks WHERE id = ?');
@@ -305,6 +370,18 @@ if ($method === 'PUT') {
 // DELETE
 if ($method === 'DELETE') {
     if (!$id) fail('Missing id');
+
+    // Collect the subtask + its children so we can clean their log rows in one
+    // statement (avoid orphan completion-log entries pointing at nothing).
+    $childStmt = $pdo->prepare('SELECT id FROM todo_subtasks WHERE parent_subtask_id = ?');
+    $childStmt->execute([$id]);
+    $allIds = array_merge([$id], $childStmt->fetchAll(PDO::FETCH_COLUMN));
+    $placeholders = implode(',', array_fill(0, count($allIds), '?'));
+    try {
+        $pdo->prepare("DELETE FROM subtask_completion_log WHERE subtask_id IN ($placeholders)")
+            ->execute($allIds);
+    } catch (Throwable $e) {} // log table may not exist on first deploy
+
     // Cascade: delete children (sub-subtasks) first
     $pdo->prepare('DELETE FROM todo_subtasks WHERE parent_subtask_id = ?')->execute([$id]);
     $pdo->prepare('DELETE FROM todo_subtasks WHERE id = ?')->execute([$id]);

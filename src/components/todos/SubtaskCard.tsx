@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmartFields } from "./SmartFields";
+import { RecurrenceStreak } from "./RecurrenceStreak";
 import { STATUS_CONFIG, PRIORITY_BORDER } from "@/lib/objectiveConstants";
 import type { SubtaskItem, EffortSize, Recurrence } from "@/api/todoSubtasks";
 import type { TodoPriority, TodoStatus } from "@/api/objectives";
+import type { ObjectiveSource } from "@/api/objectiveSource";
 
 export const EFFORT_CONFIG: Record<EffortSize, { label: string; short: string; bg: string; text: string; border: string }> = {
   rapide:   { label: "Rapide",   short: "R", bg: "bg-emerald-100 dark:bg-emerald-500/15", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-500/30" },
@@ -516,6 +518,17 @@ export function SubtaskCard({
                   )}
 
                   <RecurrenceRow sub={sub} onUpdate={onUpdate} />
+
+                  {sub.recurrence && (
+                    <RecurrenceStreak
+                      subtaskId={sub.id}
+                      source={sub.source as ObjectiveSource}
+                      recurrence={sub.recurrence}
+                      recurrenceDay={sub.recurrenceDay ?? null}
+                      createdAt={sub.createdAt}
+                      onCompleteToday={() => onToggle(sub.id)}
+                    />
+                  )}
 
                   {!isChild && (
                     <SmartFields

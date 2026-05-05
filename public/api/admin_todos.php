@@ -133,6 +133,18 @@ if ($method === 'PUT' && $id) {
 }
 
 if ($method === 'DELETE' && $id) {
+    // Cascade clean subtask_completion_log before dropping the subtasks themselves,
+    // otherwise we leak orphan log rows pointing at vanished subtask IDs.
+    try {
+        $idsStmt = $pdo->prepare("SELECT id FROM todo_subtasks WHERE parent_id = ?");
+        $idsStmt->execute([$id]);
+        $sids = $idsStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($sids)) {
+            $ph = implode(',', array_fill(0, count($sids), '?'));
+            $pdo->prepare("DELETE FROM subtask_completion_log WHERE subtask_id IN ($ph)")->execute($sids);
+        }
+    } catch (Throwable $e) {}
+
     $pdo->prepare("DELETE FROM todo_subtasks WHERE parent_id = ?")->execute([$id]);
     foreach (['objective_notes','objective_files','objective_links','objective_sessions','objective_activity','objective_decisions'] as $t) {
         try { $pdo->prepare("DELETE FROM $t WHERE source = 'admin' AND objective_id = ?")->execute([$id]); } catch (Throwable $e) {}

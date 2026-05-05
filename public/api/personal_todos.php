@@ -130,6 +130,18 @@ if ($method === 'PUT') {
 // DELETE
 if ($method === 'DELETE') {
     if (!$id) fail('Missing id');
+
+    // Cascade clean subtask_completion_log before dropping the subtasks
+    try {
+        $idsStmt = $pdo->prepare("SELECT id FROM todo_subtasks WHERE source = 'personal' AND parent_id = ?");
+        $idsStmt->execute([$id]);
+        $sids = $idsStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($sids)) {
+            $ph = implode(',', array_fill(0, count($sids), '?'));
+            $pdo->prepare("DELETE FROM subtask_completion_log WHERE subtask_id IN ($ph)")->execute($sids);
+        }
+    } catch (Throwable $e) {}
+
     $pdo->prepare("DELETE FROM todo_subtasks WHERE source = 'personal' AND parent_id = ?")->execute([$id]);
     foreach (['objective_notes','objective_files','objective_links','objective_sessions','objective_activity','objective_decisions'] as $t) {
         try { $pdo->prepare("DELETE FROM $t WHERE source = 'personal' AND objective_id = ?")->execute([$id]); } catch (Throwable $e) {}
