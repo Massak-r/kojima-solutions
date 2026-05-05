@@ -14,7 +14,16 @@ const CompanySettingsContext = createContext<CompanySettingsContextValue | null>
 function loadSettings(): CompanySettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_COMPANY_SETTINGS, ...JSON.parse(raw) } : DEFAULT_COMPANY_SETTINGS;
+    if (!raw) return DEFAULT_COMPANY_SETTINGS;
+    const parsed = JSON.parse(raw);
+    const merged = { ...DEFAULT_COMPANY_SETTINGS } as Record<string, unknown>;
+    for (const key of Object.keys(parsed) as (keyof CompanySettings)[]) {
+      const val = parsed[key];
+      if (val !== "" && val !== null && val !== undefined) {
+        merged[key] = val;
+      }
+    }
+    return merged as CompanySettings;
   } catch {
     return DEFAULT_COMPANY_SETTINGS;
   }
