@@ -26,6 +26,11 @@ const ADMIN_PREFIXES = [
 
 export function useIsAdminPage() {
   const { pathname } = useLocation();
+  // Print preview routes (e.g. /quotes/:id/print, /funnel/:id/print) are
+  // public-facing previews that auto-trigger window.print() — must not be
+  // treated as admin chrome surfaces, otherwise floating buttons leak into
+  // the printed output and the on-screen preview.
+  if (pathname.endsWith("/print")) return false;
   return ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
