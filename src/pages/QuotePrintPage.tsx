@@ -14,7 +14,7 @@ export default function QuotePrintPage() {
     const style = document.createElement("style");
     style.id = "quote-print-page-style";
     style.textContent =
-      "@page { size: A4; margin: 0; } @media print { html, body { height: auto !important; overflow: visible !important; } }";
+      "@page { size: A4; margin: 0; } @media print { html, body { height: auto !important; overflow: visible !important; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }";
     document.head.appendChild(style);
     document.body.classList.add("quote-print-mode");
 
