@@ -44,6 +44,23 @@ export function RichTextEditor({
     }
   }, [value]);
 
+  // Native `beforeinput` listener. React's synthetic `onBeforeInput` does NOT fire
+  // for contentEditable Enter — it's a different (legacy) event under the hood —
+  // so we attach the real listener manually.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const handler = (e: InputEvent) => {
+      if (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak") {
+        e.preventDefault();
+        insertLineBreak();
+      }
+    };
+    el.addEventListener("beforeinput", handler);
+    return () => el.removeEventListener("beforeinput", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function emit(): void {
     const el = editorRef.current;
     if (!el) return;
@@ -59,6 +76,18 @@ export function RichTextEditor({
     // execCommand is deprecated but remains the most reliable cross-browser way
     // to apply inline formatting to a selection inside a contentEditable.
     document.execCommand(command, false);
+    emit();
+  }
+
+  // Insert a single <br> at the caret using the browser's native insert-line-break
+  // command. This produces <br>-based line breaks (instead of <div>/<p> blocks),
+  // which is the storage shape we want and which renders consistently in both
+  // Chrome desktop and iOS Safari (the PWA target).
+  function insertLineBreak(): void {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    document.execCommand("insertLineBreak");
     emit();
   }
 

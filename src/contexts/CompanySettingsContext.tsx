@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import type { CompanySettings } from "@/types/companySettings";
-import { DEFAULT_COMPANY_SETTINGS } from "@/types/companySettings";
+import type { CompanySettings, QuotePreset } from "@/types/companySettings";
+import {
+  DEFAULT_COMPANY_SETTINGS,
+  DEFAULT_PAYMENT_TERMS_PRESETS,
+  DEFAULT_CONDITIONS_PRESETS,
+  LEGACY_PRESET_IDS,
+} from "@/types/companySettings";
 
 const STORAGE_KEY = "kojima-company-settings";
 
@@ -10,6 +15,11 @@ interface CompanySettingsContextValue {
 }
 
 const CompanySettingsContext = createContext<CompanySettingsContextValue | null>(null);
+
+function hasLegacyPresets(list: unknown): boolean {
+  if (!Array.isArray(list)) return false;
+  return (list as QuotePreset[]).some((p) => p?.id && LEGACY_PRESET_IDS.has(p.id));
+}
 
 function loadSettings(): CompanySettings {
   try {
@@ -22,6 +32,14 @@ function loadSettings(): CompanySettings {
       if (val !== "" && val !== null && val !== undefined) {
         merged[key] = val;
       }
+    }
+    // One-shot migration: if the stored presets still carry v1 IDs (or are
+    // missing entirely), refresh them so the new defaults take effect.
+    if (hasLegacyPresets(merged.paymentTermsPresets) || !Array.isArray(merged.paymentTermsPresets) || (merged.paymentTermsPresets as QuotePreset[]).length === 0) {
+      merged.paymentTermsPresets = DEFAULT_PAYMENT_TERMS_PRESETS;
+    }
+    if (!Array.isArray(merged.conditionsPresets) || (merged.conditionsPresets as QuotePreset[]).length === 0) {
+      merged.conditionsPresets = DEFAULT_CONDITIONS_PRESETS;
     }
     return merged as CompanySettings;
   } catch {

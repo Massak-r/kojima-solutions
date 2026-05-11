@@ -21,28 +21,21 @@ export interface CompanySettings {
   conditionsPresets: QuotePreset[];
 }
 
+const HOURLY_CLAUSE =
+  "Tout horaire en dehors des prestations ou en supplément : 120 CHF de l'heure.";
+
 export const DEFAULT_PAYMENT_TERMS_PRESETS: QuotePreset[] = [
   {
-    id: "pt-50-50-acompte",
-    label: "50/50 avec acompte",
+    id: "pt-end-of-service",
+    label: "Paiement à la fin",
+    content: "Paiement à la fin de la prestation.",
+  },
+  {
+    id: "pt-acomptes-50-50",
+    label: "Acomptes 50/50",
     content:
-      "50% à la commande (acompte) — facturé immédiatement.\n50% à la livraison.\nPaiement à 14 jours après réception de la facture.",
-  },
-  {
-    id: "pt-net30",
-    label: "30 jours net",
-    content: "Paiement à 30 jours net à compter de la date de facturation.\nMerci pour votre confiance.",
-  },
-  {
-    id: "pt-comptant",
-    label: "Comptant",
-    content: "Paiement comptant à la livraison.",
-  },
-  {
-    id: "pt-tranches-3",
-    label: "30/40/30 (3 tranches)",
-    content:
-      "30% à la commande (acompte).\n40% à mi-parcours sur validation du jalon.\n30% à la livraison finale.",
+      "Acomptes : 50% à la commande, 50% à la livraison.\n" +
+      "Et sur validation du devis, la facture d'acompte vous sera envoyée.",
   },
 ];
 
@@ -51,21 +44,38 @@ export const DEFAULT_CONDITIONS_PRESETS: QuotePreset[] = [
     id: "cd-standard",
     label: "Standard",
     content:
-      "Devis valable 30 jours à compter de la date d'émission.\nToute modification du périmètre fera l'objet d'un avenant chiffré séparément.",
+      "Devis valable 30 jours à compter de la date d'émission.\n" +
+      "Toute modification du périmètre fera l'objet d'un avenant chiffré séparément.\n" +
+      HOURLY_CLAUSE,
   },
   {
     id: "cd-dev-web",
     label: "Développement web",
     content:
-      "Devis valable 30 jours.\nLes modifications hors périmètre seront facturées au taux horaire en vigueur.\nLes coûts d'hébergement et de noms de domaine sont à la charge du client.",
+      "Devis valable 30 jours.\n" +
+      "Les modifications hors périmètre seront facturées au taux horaire en vigueur.\n" +
+      "Les coûts d'hébergement et de noms de domaine sont à la charge du client.\n" +
+      HOURLY_CLAUSE,
   },
   {
     id: "cd-design",
     label: "Design / Création",
     content:
-      "Devis valable 30 jours.\nDeux tours de retours inclus, retours supplémentaires facturés au taux horaire.\nCession des droits d'exploitation au paiement intégral.",
+      "Devis valable 30 jours.\n" +
+      "Deux tours de retours inclus, retours supplémentaires facturés au taux horaire.\n" +
+      "Cession des droits d'exploitation au paiement intégral.\n" +
+      HOURLY_CLAUSE,
   },
 ];
+
+/** IDs from the v1 preset set, used to detect a localStorage state that
+ *  predates the current default copy so we can refresh it once on load. */
+export const LEGACY_PRESET_IDS = new Set([
+  "pt-50-50-acompte",
+  "pt-net30",
+  "pt-comptant",
+  "pt-tranches-3",
+]);
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   companyName: "Kojima.Solutions",

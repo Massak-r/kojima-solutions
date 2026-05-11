@@ -13,15 +13,26 @@ import {
   quoteNumberConflicts,
   TVA_RATE,
 } from "@/types/quote";
+import type { Client } from "@/types/client";
 import type { QuotePreset } from "@/types/companySettings";
 import { QuotePreview } from "./QuotePreview";
 import { RichTextEditor } from "./RichTextEditor";
-import { Plus, Trash2, Download, Save, Lock, Unlock, Wand2 } from "lucide-react";
+import { Plus, Trash2, Download, Save, Wand2, UserSearch, Check } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useClients } from "@/contexts/ClientsContext";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { printViaIframe } from "@/lib/printUtils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type QuoteFormData = Omit<Quote, "id" | "createdAt">;
 
@@ -34,6 +45,7 @@ interface QuoteFormProps {
 export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteFormProps) {
   const { lang: siteLang, t: siteT } = useLanguage();
   const { quotes, addQuote, updateQuote } = useQuotes();
+  const { clients } = useClients();
   const { settings: companySettings } = useCompanySettings();
   const navigate = useNavigate();
 
@@ -41,11 +53,10 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
     () => initial ?? createEmptyQuote(siteLang)
   );
 
-  // Auto-number is on by default for new quotes, off for existing ones.
-  const [autoNumber, setAutoNumber] = useState<boolean>(!quoteId);
-
-  // Sync the computed quote number whenever it could change: when auto is on,
-  // and when either the docType, the list of quotes, or the year change.
+  // Always-editable quote number. We auto-fill on mount and recompute on
+  // docType change ONLY when the current value still matches the previously
+  // computed auto value — that way a user-typed custom number is preserved
+  // across toggles while a stale auto value gets refreshed.
   const currentYear = new Date().getFullYear();
   const computedNumber = useMemo(
     () =>
@@ -57,12 +68,45 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
       ),
     [quotes, quoteId, data.docType, currentYear],
   );
+  const lastAutoNumberRef = useRef<string>(data.quoteNumber);
 
   useEffect(() => {
-    if (!autoNumber) return;
-    if (data.quoteNumber === computedNumber) return;
+    // Only auto-fill if the field is empty or still matches the last value we auto-filled.
+    if (data.quoteNumber && data.quoteNumber !== lastAutoNumberRef.current) return;
+    if (data.quoteNumber === computedNumber) {
+      lastAutoNumberRef.current = computedNumber;
+      return;
+    }
+    lastAutoNumberRef.current = computedNumber;
     setData((prev) => ({ ...prev, quoteNumber: computedNumber }));
-  }, [autoNumber, computedNumber, data.quoteNumber]);
+  }, [computedNumber, data.quoteNumber]);
+
+  const isAutoNumber = data.quoteNumber === computedNumber;
+
+  // Client picker — autofill name/email/company/address from an existing
+  // client record, plus carry over the conditions from their most recent quote.
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+
+  function applyClient(client: Client) {
+    const lastForClient = quotes
+      .filter((q) => q.clientEmail?.toLowerCase() === client.email?.toLowerCase()
+        || (q.clientName === client.name && !!client.name))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+    setData((prev) => ({
+      ...prev,
+      clientName: client.name,
+      clientEmail: client.email ?? prev.clientEmail,
+      clientCompany: client.organization ?? prev.clientCompany,
+      clientAddress: client.address ?? prev.clientAddress,
+      // Only overwrite conditions when we have something to pull in,
+      // and the user hasn't already typed their own.
+      conditions: prev.conditions?.trim()
+        ? prev.conditions
+        : (lastForClient?.conditions || companySettings.defaultConditions || ""),
+    }));
+    setClientPickerOpen(false);
+  }
 
   // A4 preview scaling
   const previewRef = useRef<HTMLDivElement>(null);
@@ -219,9 +263,56 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
 
         {/* Client */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">
-            {isFr ? "Client" : "Client"}
-          </h3>
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              {isFr ? "Client" : "Client"}
+            </h3>
+            <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="text-xs gap-1.5">
+                  <UserSearch className="w-3.5 h-3.5" />
+                  {siteT("Choisir un client existant", "Pick an existing client")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[320px]" align="end">
+                <Command>
+                  <CommandInput placeholder={siteT("Rechercher un client…", "Search clients…")} />
+                  <CommandList>
+                    <CommandEmpty>
+                      {siteT("Aucun client trouvé.", "No clients found.")}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {clients.map((c) => {
+                        const selected =
+                          (c.email && c.email.toLowerCase() === data.clientEmail?.toLowerCase())
+                          || (!!c.name && c.name === data.clientName);
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={`${c.name} ${c.organization ?? ""} ${c.email ?? ""}`}
+                            onSelect={() => applyClient(c)}
+                            className="flex items-start gap-2"
+                          >
+                            <Check
+                              className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${selected ? "opacity-100 text-primary" : "opacity-0"}`}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium text-foreground truncate">
+                                {c.name || "—"}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {[c.organization, c.email].filter(Boolean).join(" · ")}
+                              </div>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>{isFr ? "Nom" : "Name"} *</Label>
@@ -274,32 +365,19 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                     ? (isFr ? "N° de facture" : "Invoice number")
                     : (isFr ? "N° de devis" : "Quote number")}
                 </Label>
-                <button
-                  type="button"
-                  onClick={() => setAutoNumber((v) => !v)}
-                  className={`flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border transition-colors ${
-                    autoNumber
-                      ? "border-primary/40 text-primary bg-primary/5"
-                      : "border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                  title={
-                    autoNumber
-                      ? siteT("Numéro automatique — cliquer pour saisir manuellement", "Auto-numbered — click to edit manually")
-                      : siteT("Numéro manuel — cliquer pour réactiver l'auto", "Manual — click to re-enable auto")
-                  }
-                >
-                  {autoNumber ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
-                  {autoNumber ? "Auto" : (isFr ? "Manuel" : "Manual")}
-                </button>
+                {isAutoNumber && (
+                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-primary/40 text-primary bg-primary/5">
+                    {siteT("Auto", "Auto")}
+                  </span>
+                )}
               </div>
               <Input
                 value={data.quoteNumber}
                 onChange={(e) => set("quoteNumber", e.target.value)}
                 placeholder={data.docType === 'invoice' ? "FAC-2026-001" : "DEV-2026-001"}
-                disabled={autoNumber}
-                className={autoNumber ? "font-mono opacity-80" : "font-mono"}
+                className="font-mono"
               />
-              {!autoNumber && quoteNumberConflicts(quotes, data.quoteNumber, quoteId) && (
+              {quoteNumberConflicts(quotes, data.quoteNumber, quoteId) && (
                 <p className="text-[11px] text-destructive">
                   {siteT("Ce numéro est déjà utilisé.", "This number is already in use.")}
                 </p>
@@ -360,9 +438,9 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
             {data.lineItems.map((line) => (
               <div
                 key={line.id}
-                className="grid grid-cols-4 sm:grid-cols-12 gap-2 items-start p-3 rounded-lg bg-secondary/30"
+                className="space-y-3 p-3 rounded-lg bg-secondary/30"
               >
-                <div className="col-span-12 sm:col-span-6 space-y-1">
+                <div className="space-y-1">
                   <Label className="text-xs">{isFr ? "Prestation" : "Description"}</Label>
                   <RichTextEditor
                     value={line.description}
@@ -375,8 +453,8 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                     ariaLabel={isFr ? "Description de la prestation" : "Line item description"}
                   />
                 </div>
-                <div className="col-span-4 sm:col-span-2 space-y-1">
-                  <Label className="text-xs">{isFr ? "Qté" : "Qty"}</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">{isFr ? "Quantité" : "Quantity"}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -384,11 +462,11 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                     onChange={(e) =>
                       updateLine(line.id, { quantity: Math.max(0, Number(e.target.value) || 0) })
                     }
-                    className="h-9"
+                    className="h-9 max-w-[160px]"
                   />
                 </div>
-                <div className="col-span-4 sm:col-span-2 space-y-1">
-                  <Label className="text-xs">{isFr ? "Prix unit." : "Unit price"}</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">{isFr ? "Prix unitaire (CHF)" : "Unit price (CHF)"}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -399,21 +477,21 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                         unitPrice: Math.max(0, parseFloat(e.target.value) || 0),
                       })
                     }
-                    className="h-9"
+                    className="h-9 max-w-[200px]"
                   />
                 </div>
-                <div className="col-span-4 sm:col-span-2 space-y-1">
-                  <Label className="text-xs opacity-0 select-none">·</Label>
-                  <div className="h-9 flex items-center justify-end px-2 text-xs text-muted-foreground">
-                    {new Intl.NumberFormat("fr-CH", {
-                      style: "currency",
-                      currency: "CHF",
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    }).format(line.quantity * line.unitPrice).replace(new RegExp("(?<=\\d)[\\s\\u00A0\\u202F](?=\\d)", "g"), "'")}
-                  </div>
-                </div>
-                <div className="col-span-12 sm:col-span-12 flex justify-end pt-1 -mt-2">
+                <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                  <span className="text-xs text-muted-foreground">
+                    {siteT("Total ligne", "Line total")} :{" "}
+                    <span className="text-foreground font-medium">
+                      {new Intl.NumberFormat("fr-CH", {
+                        style: "currency",
+                        currency: "CHF",
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                      }).format(line.quantity * line.unitPrice).replace(new RegExp("(?<=\\d)[\\s\\u00A0\\u202F](?=\\d)", "g"), "'")}
+                    </span>
+                  </span>
                   <Button
                     type="button"
                     variant="ghost"
