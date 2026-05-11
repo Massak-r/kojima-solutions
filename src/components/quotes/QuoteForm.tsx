@@ -650,29 +650,29 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
         </div>
       </div>
 
-      {/* Payment terms — full width below both columns (invoice only) */}
-      {data.docType === "invoice" && (
-        <div className="lg:col-span-2 glass-card p-6 md:p-8 space-y-2">
-          <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
-          <PresetPills
-            presets={companySettings.paymentTermsPresets}
-            onApply={(content) => set("paymentTerms", content)}
-            currentValue={data.paymentTerms ?? ""}
-            emptyHint={isFr ? "Aucun modèle. Ajoutez-en dans Réglages." : "No presets. Add some in Settings."}
-          />
-          <textarea
-            value={data.paymentTerms ?? ""}
-            onChange={(e) => set("paymentTerms", e.target.value)}
-            rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-            placeholder={
-              isFr
-                ? "50% à la commande, 50% à la livraison…"
-                : "50% upfront, 50% on delivery…"
-            }
-          />
-        </div>
-      )}
+      {/* Payment terms — full width below both columns, shown on both
+          quotes and invoices so an acompte arrangement can be agreed
+          upfront when the client validates the devis. */}
+      <div className="lg:col-span-2 glass-card p-6 md:p-8 space-y-2">
+        <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
+        <PresetPills
+          presets={companySettings.paymentTermsPresets}
+          onApply={(content) => set("paymentTerms", content)}
+          currentValue={data.paymentTerms ?? ""}
+          emptyHint={isFr ? "Aucun modèle. Ajoutez-en dans Réglages." : "No presets. Add some in Settings."}
+        />
+        <textarea
+          value={data.paymentTerms ?? ""}
+          onChange={(e) => set("paymentTerms", e.target.value)}
+          rows={3}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+          placeholder={
+            isFr
+              ? "50% à la commande, 50% à la livraison…"
+              : "50% upfront, 50% on delivery…"
+          }
+        />
+      </div>
     </div>
   );
 }

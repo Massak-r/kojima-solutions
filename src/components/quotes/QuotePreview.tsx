@@ -191,8 +191,9 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
           <div className="mt-6 border-t border-gray-200" style={{ borderTopWidth: "1px" }} />
           <div className="mt-4 flex items-start gap-8">
 
-            {/* Left: payment terms (invoices) takes the flex-1 slot; falls back to conditions */}
-            {(isInvoice && quote.paymentTerms) ? (
+            {/* Left: payment terms takes the flex-1 slot whenever filled in;
+                falls back to conditions otherwise. */}
+            {quote.paymentTerms ? (
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
                   {isFr ? "Modalités de paiement" : "Payment terms"}
@@ -213,7 +214,7 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
             ) : null}
 
             {/* Right: Totals */}
-            <div className={`w-52 shrink-0 space-y-2 text-xs${(isInvoice ? !!quote.paymentTerms : !!quote.conditions) ? "" : " ml-auto"}`}>
+            <div className={`w-52 shrink-0 space-y-2 text-xs${(quote.paymentTerms || quote.conditions) ? "" : " ml-auto"}`}>
               <div className="flex justify-between text-gray-700">
                 <span>{isFr ? "Sous-total" : "Subtotal"}:</span>
                 <span>{formatCurrency(subtotal, lang)}</span>
@@ -258,8 +259,8 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
 
           </div>
 
-          {/* Conditions (below, only when invoice has both payment terms + conditions) */}
-          {isInvoice && quote.paymentTerms && quote.conditions && (
+          {/* Conditions (below, when both payment terms and conditions are filled in). */}
+          {quote.paymentTerms && quote.conditions && (
             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${accentFaint}` }}>
               <div className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
                 {isFr ? "Conditions" : "Terms and conditions"}
