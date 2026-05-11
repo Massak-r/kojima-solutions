@@ -407,6 +407,7 @@
   /* Undo A4 preview scaling when printing from form */
   .quote-preview-wrapper {
     aspect-ratio: unset !important;
+    height: auto !important;
     overflow: visible !important;
     position: static !important;
     border: none !important;

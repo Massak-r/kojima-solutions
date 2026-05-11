@@ -28,14 +28,14 @@ export const DEFAULT_PAYMENT_TERMS_PRESETS: QuotePreset[] = [
   {
     id: "pt-end-of-service",
     label: "Paiement à la fin",
-    content: "Paiement à la fin de la prestation.",
+    content: "Paiement intégral à la livraison de la prestation.",
   },
   {
-    id: "pt-acomptes-50-50",
+    id: "pt-acompte-50-50",
     label: "Acomptes 50/50",
     content:
-      "Acomptes : 50% à la commande, 50% à la livraison.\n" +
-      "Et sur validation du devis, la facture d'acompte vous sera envoyée.",
+      "Paiement en deux temps : 50% à la signature du devis (acompte), 50% à la livraison de la prestation.\n" +
+      "Une facture d'acompte vous sera transmise dès validation du devis.",
   },
 ];
 
@@ -68,13 +68,17 @@ export const DEFAULT_CONDITIONS_PRESETS: QuotePreset[] = [
   },
 ];
 
-/** IDs from the v1 preset set, used to detect a localStorage state that
- *  predates the current default copy so we can refresh it once on load. */
+/** Preset IDs from previous default sets. Detecting any of these in a
+ *  user's stored settings triggers a one-shot refresh to the current
+ *  defaults, so wording tweaks ship without requiring a manual reset. */
 export const LEGACY_PRESET_IDS = new Set([
+  // v1 set (initial release)
   "pt-50-50-acompte",
   "pt-net30",
   "pt-comptant",
   "pt-tranches-3",
+  // v2 set (introduced "Paiement à la fin" + "Acomptes 50/50")
+  "pt-acomptes-50-50",
 ]);
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {

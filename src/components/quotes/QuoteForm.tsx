@@ -108,19 +108,40 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
     setClientPickerOpen(false);
   }
 
-  // A4 preview scaling
+  // Preview scaling. We track both:
+  //   - the wrapper width (to compute the scale factor for fitting A4 across)
+  //   - the actual document height (so the preview can grow past one page when
+  //     the content requires it — otherwise extra pages get clipped)
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewContentRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(0.5);
+  // 1123px ≈ 297mm at 96dpi — single A4 page, used as a sensible default.
+  const [previewContentHeight, setPreviewContentHeight] = useState(1123);
 
   useEffect(() => {
-    const el = previewRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0].contentRect.width;
-      setPreviewScale(Math.min(width / 793.7, 1));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
+    const wrapper = previewRef.current;
+    const content = previewContentRef.current;
+    if (!wrapper || !content) return;
+
+    function measure() {
+      const w = wrapper!.clientWidth;
+      // 210mm ≈ 793.7px at 96dpi
+      setPreviewScale(Math.min(w / 793.7, 1));
+      // Use the rendered document's natural height so the wrapper grows for
+      // multi-page documents instead of clipping them at one A4.
+      const naturalHeight = content!.scrollHeight || content!.offsetHeight || 1123;
+      setPreviewContentHeight(Math.max(naturalHeight, 1123));
+    }
+
+    measure();
+    const wrapperObs = new ResizeObserver(measure);
+    wrapperObs.observe(wrapper);
+    const contentObs = new ResizeObserver(measure);
+    contentObs.observe(content);
+    return () => {
+      wrapperObs.disconnect();
+      contentObs.disconnect();
+    };
   }, []);
 
   function set<K extends keyof QuoteFormData>(key: K, value: QuoteFormData[K]) {
@@ -647,7 +668,10 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
         </div>
       </div>
 
-      {/* Live preview */}
+      {/* Live preview — wrapper height tracks the rendered document so multi-page
+          quotes are fully visible. The inner doc is scaled with transform: scale,
+          which doesn't shrink layout space, so we compute the wrapper height
+          manually from the measured content height × scale. */}
       <div className="quote-preview-panel lg:sticky lg:top-24">
         <p className="text-xs text-muted-foreground mb-2" data-print-hide>
           {siteT("Aperçu du devis", "Quote preview")}
@@ -658,13 +682,13 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
         <div
           ref={previewRef}
           className="quote-preview-wrapper rounded-xl border border-border bg-muted/30 overflow-hidden relative"
-          style={{ aspectRatio: "210 / 297" }}
+          style={{ height: `${previewContentHeight * previewScale}px` }}
         >
           <div
+            ref={previewContentRef}
             className="absolute top-0 left-0 origin-top-left"
             style={{
               width: "210mm",
-              minHeight: "297mm",
               transform: `scale(${previewScale})`,
             }}
           >
