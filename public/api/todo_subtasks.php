@@ -128,19 +128,25 @@ function runDailyRefresh(PDO $pdo): void {
                 ->execute([$today]);
         }
 
-        // Weekly: today's day of week matches recurrence_day
+        // Weekly: reset whenever the last completion landed in a previous ISO
+        // week. We used to require today's DOW to equal recurrence_day, but a
+        // user can now check the task on any day of the week, so the period
+        // boundary (Monday→Sunday) is what triggers the reset, not the day.
         $pdo->prepare("UPDATE todo_subtasks
             SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
-            WHERE recurrence = 'weekly' AND recurrence_day = ? AND completed = 1
-              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
-            ->execute([$dow, $today]);
+            WHERE recurrence = 'weekly' AND completed = 1
+              AND (completed_at IS NULL
+                   OR YEARWEEK(completed_at, 3) < YEARWEEK(CURDATE(), 3))")
+            ->execute();
 
-        // Monthly: today's day of month matches recurrence_day
+        // Monthly: reset whenever the last completion was in a previous calendar
+        // month. Same rationale as above — period-based, not day-based.
         $pdo->prepare("UPDATE todo_subtasks
             SET completed = 0, completed_at = NULL, flagged_today = 1, flagged_at = NOW()
-            WHERE recurrence = 'monthly' AND recurrence_day = ? AND completed = 1
-              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
-            ->execute([$dom, $today]);
+            WHERE recurrence = 'monthly' AND completed = 1
+              AND (completed_at IS NULL
+                   OR DATE_FORMAT(completed_at, '%Y-%m') < DATE_FORMAT(CURDATE(), '%Y-%m'))")
+            ->execute();
     } catch (Throwable $e) {}
 }
 
@@ -327,12 +333,29 @@ if ($method === 'PUT') {
                     $pdo->prepare("INSERT IGNORE INTO subtask_completion_log (id, subtask_id, completed_at, source) VALUES (?, ?, NOW(), ?)")
                         ->execute([uuid(), $id, $prev['source']]);
                 } else {
-                    // Scope DELETE to TODAY only — yesterday's completion is
-                    // immutable history, even if user un-toggles after midnight.
-                    $pdo->prepare("DELETE FROM subtask_completion_log
-                                   WHERE subtask_id = ? AND DATE(completed_at) = CURDATE()
-                                   ORDER BY completed_at DESC LIMIT 1")
-                        ->execute([$id]);
+                    // Un-toggling scope: the goal is to undo "this period's"
+                    // completion, not strictly today's. For weekly/monthly tasks
+                    // the user can check on any day of the period, so the entry
+                    // we want to drop is whichever one belongs to the current
+                    // ISO week / calendar month. Past periods stay immutable.
+                    $recurrence = $prev['recurrence'] ?? null;
+                    if ($recurrence === 'weekly') {
+                        $pdo->prepare("DELETE FROM subtask_completion_log
+                                       WHERE subtask_id = ?
+                                         AND YEARWEEK(completed_at, 3) = YEARWEEK(CURDATE(), 3)")
+                            ->execute([$id]);
+                    } elseif ($recurrence === 'monthly') {
+                        $pdo->prepare("DELETE FROM subtask_completion_log
+                                       WHERE subtask_id = ?
+                                         AND DATE_FORMAT(completed_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')")
+                            ->execute([$id]);
+                    } else {
+                        // Daily, weekdays, and non-recurring tasks: today only.
+                        $pdo->prepare("DELETE FROM subtask_completion_log
+                                       WHERE subtask_id = ? AND DATE(completed_at) = CURDATE()
+                                       ORDER BY completed_at DESC LIMIT 1")
+                            ->execute([$id]);
+                    }
                 }
             }
         }

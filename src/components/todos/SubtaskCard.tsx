@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SmartFields } from "./SmartFields";
 import { RecurrenceStreak } from "./RecurrenceStreak";
 import { STATUS_CONFIG, PRIORITY_BORDER } from "@/lib/objectiveConstants";
+import { recurrenceShortLabel } from "@/lib/recurrencePeriod";
 import type { SubtaskItem, EffortSize, Recurrence } from "@/api/todoSubtasks";
 import type { TodoPriority, TodoStatus } from "@/api/objectives";
 import type { ObjectiveSource } from "@/api/objectiveSource";
@@ -220,6 +221,16 @@ export function SubtaskCard({
               >
                 {effortCfg.short}
               </button>
+            )}
+
+            {sub.recurrence && (
+              <span
+                className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-body font-semibold px-1.5 py-0.5 rounded-full border bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30"
+                title={`Tâche récurrente — ${recurrenceShortLabel(sub.recurrence)}`}
+              >
+                <Repeat size={9} />
+                {recurrenceShortLabel(sub.recurrence)}
+              </span>
             )}
 
             {actualMin !== null && (
@@ -526,7 +537,7 @@ export function SubtaskCard({
                       recurrence={sub.recurrence}
                       recurrenceDay={sub.recurrenceDay ?? null}
                       createdAt={sub.createdAt}
-                      onCompleteToday={() => onToggle(sub.id)}
+                      onToggleCurrent={() => onToggle(sub.id)}
                     />
                   )}
 

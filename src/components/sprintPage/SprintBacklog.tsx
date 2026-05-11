@@ -1,11 +1,13 @@
 import { Star, ChevronRight, CornerDownRight, Hourglass, CalendarPlus, Repeat, FolderKanban, Flame, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SubtaskItem } from "@/api/todoSubtasks";
+import { useMemo } from "react";
+import type { SubtaskItem, Recurrence } from "@/api/todoSubtasks";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 import type { SprintItem } from "@/components/sprint/SprintCapProvider";
 import type { StoredProject } from "@/contexts/ProjectsContext";
 import { EFFORT_CONFIG } from "@/components/todos/SubtaskCard";
 import { daysSinceFlagged, STALE_THRESHOLD_DAYS } from "./helpers";
+import { recurrenceShortLabel } from "@/lib/recurrencePeriod";
 
 interface SprintBacklogProps {
   items: SprintItem[];
@@ -28,6 +30,30 @@ export function SprintBacklog({
   const niceItems = items.filter(i => itemTier(i) === "nice" && !isItemCompleted(i));
   const doneItems = items.filter(i => isItemCompleted(i));
 
+  // Recurring-task progress bar in the header. Group by recurrence type so the
+  // user can see at a glance "today's quotidiennes done", "this week's hebdo
+  // done", etc. The `completed` flag is period-scoped (backend resets it on
+  // period change), so counting completed == done for the current period.
+  const recurringByKind = useMemo(() => {
+    const buckets: Record<Recurrence, { done: number; total: number }> = {
+      daily:    { done: 0, total: 0 },
+      weekdays: { done: 0, total: 0 },
+      weekly:   { done: 0, total: 0 },
+      monthly:  { done: 0, total: 0 },
+    };
+    for (const item of items) {
+      if (item.kind !== "subtask") continue;
+      const r = item.subtask.recurrence;
+      if (!r) continue;
+      buckets[r].total += 1;
+      if (item.subtask.completed) buckets[r].done += 1;
+    }
+    return buckets;
+  }, [items]);
+
+  const recurringEntries = (Object.entries(recurringByKind) as [Recurrence, { done: number; total: number }][])
+    .filter(([, v]) => v.total > 0);
+
   return (
     <section className="rounded-2xl border border-border/40 bg-gradient-to-br from-amber-50/30 via-card/40 to-card/30 dark:from-amber-500/5 p-4 sm:p-5">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -45,6 +71,32 @@ export function SprintBacklog({
           {isOverCap && <span className="ml-1 text-red-500">⚠</span>}
         </span>
       </div>
+
+      {recurringEntries.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap text-[11px] font-body">
+          <Repeat size={11} className="text-violet-500 shrink-0" />
+          <span className="text-muted-foreground/80 font-display font-bold uppercase tracking-wider text-[10px]">
+            Récurrentes
+          </span>
+          {recurringEntries.map(([kind, { done, total }]) => {
+            const complete = done === total;
+            return (
+              <span
+                key={kind}
+                className={cn(
+                  "px-1.5 py-0.5 rounded-full border tabular-nums",
+                  complete
+                    ? "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                    : "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25",
+                )}
+                title={`${done} / ${total} ${recurrenceShortLabel(kind)} ${complete ? "— toutes faites" : "à faire"}`}
+              >
+                {recurrenceShortLabel(kind)} {done}/{total}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Must-have zone */}
       <TierZone
