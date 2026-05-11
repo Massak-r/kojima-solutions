@@ -8,6 +8,8 @@ import {
   TVA_RATE,
 } from "@/types/quote";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
+import { formatDateSwiss } from "@/lib/dateFormat";
+import { richHtmlForDisplay } from "@/lib/sanitizeRichHtml";
 
 function formatCurrency(value: number, lang: "fr" | "en"): string {
   return new Intl.NumberFormat(lang === "fr" ? "fr-CH" : "en-CH", {
@@ -52,18 +54,14 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
     quote.discountLabel?.trim() ||
     (isFr ? "Remise" : "Discount");
 
-  const renderBoldMarkdown = (text: string) => {
-    const parts = text.split("**");
-    return parts.map((p, i) =>
-      i % 2 === 1 ? (
-        <strong key={i} className="font-semibold text-gray-900">
-          {p}
-        </strong>
-      ) : (
-        <span key={i}>{p}</span>
-      )
-    );
-  };
+  // Quote line descriptions are rich-text HTML (with legacy markdown auto-converted).
+  // We sanitize before injecting so user-edited content can't smuggle scripts/styles.
+  const renderRichDescription = (text: string) => (
+    <span
+      className="quote-rich-content leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: richHtmlForDisplay(text) }}
+    />
+  );
 
   return (
     <div
@@ -127,7 +125,7 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
               <div className="text-xs text-gray-600 mb-4">
                 {isInvoice
                   ? (isFr ? "Date" : "Date")
-                  : (isFr ? "Validité" : "Validity")}: {quote.validityDate || "-"}
+                  : (isFr ? "Validité" : "Validity")}: {formatDateSwiss(quote.validityDate)}
               </div>
               {quote.projectTitle && (
                 <div className="font-semibold mb-1 text-gray-900">{quote.projectTitle}</div>
@@ -178,9 +176,7 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
                 {quote.lineItems.map((line) => (
                   <tr key={line.id} className="border-b border-gray-100 last:border-b-0 odd:bg-white even:bg-gray-50/50">
                     <td className="border-r border-gray-200 p-3 align-top text-gray-800">
-                      <span className="whitespace-pre-wrap leading-relaxed">
-                        {line.description ? renderBoldMarkdown(line.description) : "-"}
-                      </span>
+                      {line.description ? renderRichDescription(line.description) : <span className="text-gray-400">-</span>}
                     </td>
                     <td className="border-r border-gray-200 p-3 text-center align-top">{line.quantity}</td>
                     <td className="border-r border-gray-200 p-3 text-right align-top">{formatCurrency(line.unitPrice, lang)}</td>

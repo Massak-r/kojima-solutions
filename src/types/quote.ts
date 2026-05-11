@@ -67,7 +67,9 @@ export function createEmptyQuote(lang: QuoteLang = "fr"): Omit<Quote, "id" | "cr
     clientEmail: "",
     clientCompany: "",
     clientAddress: "",
-    quoteNumber: `DQ-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}XXX`,
+    // Real auto-generated number is computed in QuoteForm from existing quotes.
+    // This placeholder is only used when the form has no access to the quotes list.
+    quoteNumber: nextQuoteNumber([], "quote", now.getFullYear()),
     validityDate: validity.toISOString().slice(0, 10),
     projectTitle: "",
     projectDescription: "",
@@ -81,6 +83,39 @@ export function createEmptyQuote(lang: QuoteLang = "fr"): Omit<Quote, "id" | "cr
     docType: "quote",
     invoiceStatus: "draft",
   };
+}
+
+/** Prefix used in quote numbers for each document type. */
+export function quoteNumberPrefix(docType: "quote" | "invoice"): string {
+  return docType === "invoice" ? "FAC" : "DEV";
+}
+
+/** Compute the next sequential quote number (DEV-YYYY-NNN or FAC-YYYY-NNN). */
+export function nextQuoteNumber(
+  existing: Pick<Quote, "quoteNumber" | "docType">[],
+  docType: "quote" | "invoice",
+  year: number = new Date().getFullYear(),
+): string {
+  const prefix = quoteNumberPrefix(docType);
+  const re = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+  const max = existing
+    .filter((q) => (q.docType ?? "quote") === docType)
+    .map((q) => {
+      const m = (q.quoteNumber ?? "").match(re);
+      return m ? parseInt(m[1], 10) : 0;
+    })
+    .reduce((a, b) => Math.max(a, b), 0);
+  return `${prefix}-${year}-${String(max + 1).padStart(3, "0")}`;
+}
+
+/** Return true if `number` is already used by a different quote. */
+export function quoteNumberConflicts(
+  existing: Pick<Quote, "id" | "quoteNumber">[],
+  number: string,
+  currentId: string | null,
+): boolean {
+  if (!number) return false;
+  return existing.some((q) => q.quoteNumber === number && q.id !== currentId);
 }
 
 export function subtotalQuote(quote: Pick<Quote, "lineItems">): number {

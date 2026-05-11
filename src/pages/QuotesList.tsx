@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
-import { fr, enUS } from "date-fns/locale";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { totalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -62,7 +61,6 @@ export default function QuotesList() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { quotes, deleteQuote, addQuote } = useQuotes();
-  const isFr = (locale: string) => locale === "fr";
 
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -343,9 +341,7 @@ export default function QuotesList() {
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(q.createdAt), "dd MMM yyyy", {
-                              locale: isFr(q.lang) ? fr : enUS,
-                            })}
+                            {formatDateSwiss(q.createdAt)}
                           </span>
                           <Badge
                             variant="secondary"

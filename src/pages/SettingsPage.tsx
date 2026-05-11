@@ -1,4 +1,4 @@
-import { Settings, Bell, Mail, Shield, Database, Globe, Receipt, Landmark } from "lucide-react";
+import { Settings, Bell, Globe, Receipt, Landmark, Wand2, Plus, Trash2, RotateCcw } from "lucide-react";
 import { EmailTemplates } from "@/components/EmailTemplates";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
-import type { CompanySettings } from "@/types/companySettings";
+import type { CompanySettings, QuotePreset } from "@/types/companySettings";
+import {
+  DEFAULT_PAYMENT_TERMS_PRESETS,
+  DEFAULT_CONDITIONS_PRESETS,
+} from "@/types/companySettings";
 
 export default function SettingsPage() {
   return (
@@ -32,6 +36,9 @@ export default function SettingsPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Quote / Invoice settings */}
         <QuoteSettings />
+
+        {/* Quote / Invoice presets */}
+        <QuotePresets />
 
         {/* Email Templates */}
         <EmailTemplates />
@@ -263,6 +270,168 @@ function QuoteSettings() {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuotePresets() {
+  const { settings, updateSettings } = useCompanySettings();
+  const { toast } = useToast();
+  const [paymentPresets, setPaymentPresets] = useState<QuotePreset[]>(
+    settings.paymentTermsPresets ?? DEFAULT_PAYMENT_TERMS_PRESETS,
+  );
+  const [conditionsPresets, setConditionsPresets] = useState<QuotePreset[]>(
+    settings.conditionsPresets ?? DEFAULT_CONDITIONS_PRESETS,
+  );
+
+  function genId(prefix: string) {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  function save() {
+    updateSettings({
+      paymentTermsPresets: paymentPresets,
+      conditionsPresets: conditionsPresets,
+    });
+    toast({ title: "Modèles enregistrés" });
+  }
+
+  function resetDefaults(kind: "payment" | "conditions") {
+    if (kind === "payment") setPaymentPresets(DEFAULT_PAYMENT_TERMS_PRESETS);
+    else setConditionsPresets(DEFAULT_CONDITIONS_PRESETS);
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
+        <Wand2 size={14} className="text-primary" />
+        <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          Modèles devis & factures
+        </h2>
+      </div>
+      <div className="p-5 space-y-6">
+        <PresetGroup
+          title="Modalités de paiement"
+          description="Pills proposées au-dessus du champ « Modalités de paiement » lors de la création d'une facture."
+          presets={paymentPresets}
+          onChange={setPaymentPresets}
+          onReset={() => resetDefaults("payment")}
+          idPrefix="pt"
+          genId={genId}
+        />
+        <div className="h-px bg-border/50" />
+        <PresetGroup
+          title="Conditions générales"
+          description="Pills proposées au-dessus du champ « Conditions générales » sur tout devis ou facture."
+          presets={conditionsPresets}
+          onChange={setConditionsPresets}
+          onReset={() => resetDefaults("conditions")}
+          idPrefix="cd"
+          genId={genId}
+        />
+        <div className="flex justify-end pt-2 border-t border-border">
+          <Button size="sm" onClick={save}>
+            Enregistrer les modèles
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PresetGroup({
+  title,
+  description,
+  presets,
+  onChange,
+  onReset,
+  idPrefix,
+  genId,
+}: {
+  title: string;
+  description: string;
+  presets: QuotePreset[];
+  onChange: (next: QuotePreset[]) => void;
+  onReset: () => void;
+  idPrefix: string;
+  genId: (prefix: string) => string;
+}) {
+  function update(id: string, patch: Partial<QuotePreset>) {
+    onChange(presets.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+  function remove(id: string) {
+    onChange(presets.filter((p) => p.id !== id));
+  }
+  function add() {
+    onChange([...presets, { id: genId(idPrefix), label: "Nouveau modèle", content: "" }]);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
+          <p className="text-[11px] text-muted-foreground/80 mt-0.5">{description}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-[11px] h-7 text-muted-foreground hover:text-foreground gap-1"
+          onClick={onReset}
+          title="Restaurer les modèles par défaut"
+        >
+          <RotateCcw size={11} />
+          Restaurer
+        </Button>
+      </div>
+
+      {presets.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">Aucun modèle. Ajoutez-en avec le bouton ci-dessous.</p>
+      ) : (
+        <div className="space-y-2">
+          {presets.map((p) => (
+            <div key={p.id} className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={p.label}
+                  onChange={(e) => update(p.id, { label: e.target.value })}
+                  placeholder="Libellé du modèle (ex. 50/50 avec acompte)"
+                  className="text-sm font-medium"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
+                  onClick={() => remove(p.id)}
+                  title="Supprimer ce modèle"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+              <Textarea
+                value={p.content}
+                onChange={(e) => update(p.id, { content: e.target.value })}
+                placeholder="Contenu inséré quand on clique sur la pill…"
+                rows={3}
+                className="text-sm resize-none font-mono leading-relaxed"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={add}
+        className="text-xs gap-1"
+      >
+        <Plus size={12} />
+        Ajouter un modèle
+      </Button>
     </div>
   );
 }

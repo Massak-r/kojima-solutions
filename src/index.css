@@ -244,6 +244,40 @@
   100% { transform: scale(1.06) translateY(0px) translateX(0px); }
 }
 
+/* ── Rich text editor for quotes / invoices ───────────────── */
+
+.rte-content:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  display: block;
+}
+.rte-content strong, .rte-content b { font-weight: 600; }
+.rte-content em, .rte-content i { font-style: italic; }
+.rte-content u { text-decoration: underline; }
+.rte-content ul,
+.rte-content ol {
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+.rte-content ul { list-style: disc; }
+.rte-content ol { list-style: decimal; }
+.rte-content li { margin: 0.1rem 0; }
+
+/* Same rules in the quote preview / PDF so lists keep their bullets when printed. */
+.quote-rich-content strong, .quote-rich-content b { font-weight: 600; color: #111827; }
+.quote-rich-content em, .quote-rich-content i { font-style: italic; }
+.quote-rich-content u { text-decoration: underline; }
+.quote-rich-content ul,
+.quote-rich-content ol {
+  padding-left: 1.1rem;
+  margin: 0.15rem 0;
+}
+.quote-rich-content ul { list-style: disc; }
+.quote-rich-content ol { list-style: decimal; }
+.quote-rich-content li { margin: 0.05rem 0; }
+.quote-rich-content p { margin: 0; }
+
 /* ── Print / PDF export ──────────────────────────────────── */
 
 @media print {

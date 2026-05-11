@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,16 @@ import {
   type QuoteLineItem,
   createEmptyQuote,
   createEmptyLineItem,
+  nextQuoteNumber,
+  quoteNumberConflicts,
   TVA_RATE,
 } from "@/types/quote";
+import type { QuotePreset } from "@/types/companySettings";
 import { QuotePreview } from "./QuotePreview";
-import { Plus, Trash2, Download, Save } from "lucide-react";
+import { RichTextEditor } from "./RichTextEditor";
+import { Plus, Trash2, Download, Save, Lock, Unlock, Wand2 } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { printViaIframe } from "@/lib/printUtils";
@@ -26,93 +31,38 @@ interface QuoteFormProps {
   onSaved?: (quoteId: string) => void;
 }
 
-// Convert markdown **bold** to HTML
-function markdownToHtml(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/\r?\n/g, "<br>")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-}
-
-// Convert HTML back to markdown **bold**
-function htmlToMarkdown(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<strong>(.*?)<\/strong>/gi, "**$1**")
-    .replace(/<b>(.*?)<\/b>/gi, "**$1**")
-    .replace(/<[^>]+>/g, "") // Remove any other HTML tags
-    .trim();
-}
-
-// Rich text editor component with visual bold
-function RichTextEditor({
-  id,
-  value,
-  onChange,
-  placeholder,
-}: {
-  id: string;
-  value: string;
-  onChange: (markdown: string) => void;
-  placeholder: string;
-}) {
-  const [isFocused, setIsFocused] = useState(false);
-  const divRef = useState<{ current: HTMLDivElement | null }>({ current: null });
-
-  useEffect(() => {
-    const el = document.getElementById(id) as HTMLDivElement | null;
-    if (!el || isFocused) return;
-    const currentHtml = markdownToHtml(value || "");
-    if (el.innerHTML !== currentHtml) {
-      el.innerHTML = currentHtml;
-    }
-    // Show placeholder if empty
-    if (!value && !isFocused) {
-      el.setAttribute("data-empty", "true");
-    } else {
-      el.removeAttribute("data-empty");
-    }
-  }, [value, id, isFocused]);
-
-  return (
-    <div
-      ref={(el) => {
-        divRef.current = el;
-        if (el && !isFocused) {
-          el.innerHTML = markdownToHtml(value || "");
-        }
-      }}
-      id={id}
-      contentEditable
-      suppressContentEditableWarning
-      onFocus={() => setIsFocused(true)}
-      onBlur={(e) => {
-        setIsFocused(false);
-        const html = (e.target as HTMLDivElement).innerHTML;
-        const markdown = htmlToMarkdown(html);
-        onChange(markdown);
-      }}
-      onInput={(e) => {
-        const html = (e.target as HTMLDivElement).innerHTML;
-        const markdown = htmlToMarkdown(html);
-        onChange(markdown);
-      }}
-      className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[70px] break-words"
-      style={{ minHeight: "70px" }}
-      data-placeholder={placeholder}
-    />
-  );
-}
-
 export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteFormProps) {
   const { lang: siteLang, t: siteT } = useLanguage();
-  const { addQuote, updateQuote } = useQuotes();
+  const { quotes, addQuote, updateQuote } = useQuotes();
+  const { settings: companySettings } = useCompanySettings();
   const navigate = useNavigate();
 
   const [data, setData] = useState<QuoteFormData>(
     () => initial ?? createEmptyQuote(siteLang)
   );
+
+  // Auto-number is on by default for new quotes, off for existing ones.
+  const [autoNumber, setAutoNumber] = useState<boolean>(!quoteId);
+
+  // Sync the computed quote number whenever it could change: when auto is on,
+  // and when either the docType, the list of quotes, or the year change.
+  const currentYear = new Date().getFullYear();
+  const computedNumber = useMemo(
+    () =>
+      nextQuoteNumber(
+        // Exclude the current quote so editing it doesn't bump the number.
+        quotes.filter((q) => q.id !== quoteId),
+        data.docType ?? "quote",
+        currentYear,
+      ),
+    [quotes, quoteId, data.docType, currentYear],
+  );
+
+  useEffect(() => {
+    if (!autoNumber) return;
+    if (data.quoteNumber === computedNumber) return;
+    setData((prev) => ({ ...prev, quoteNumber: computedNumber }));
+  }, [autoNumber, computedNumber, data.quoteNumber]);
 
   // A4 preview scaling
   const previewRef = useRef<HTMLDivElement>(null);
@@ -123,7 +73,6 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0].contentRect.width;
-      // 210mm ≈ 793.7px at 96dpi
       setPreviewScale(Math.min(width / 793.7, 1));
     });
     observer.observe(el);
@@ -164,7 +113,6 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
       toast.error(siteT("Sauvegardez d'abord le devis", "Please save the quote first"));
       return;
     }
-    // Persist current edits, then print silently via hidden iframe
     const quote: Quote = { ...data, id: quoteId, createdAt: new Date().toISOString() };
     updateQuote(quoteId, quote);
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -172,6 +120,22 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   }
 
   function handleSave() {
+    // Conflict check on save: prevents two documents sharing the same number.
+    if (quoteNumberConflicts(quotes, data.quoteNumber, quoteId)) {
+      const suggested = nextQuoteNumber(
+        quotes.filter((q) => q.id !== quoteId),
+        data.docType ?? "quote",
+        currentYear,
+      );
+      toast.error(
+        siteT(
+          `Le numéro ${data.quoteNumber} existe déjà. Suggestion : ${suggested}`,
+          `Number ${data.quoteNumber} already exists. Suggested: ${suggested}`,
+        ),
+      );
+      return;
+    }
+
     const quote: Quote = {
       ...data,
       id: quoteId ?? crypto.randomUUID?.() ?? `q-${Date.now()}`,
@@ -304,16 +268,42 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           </h3>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>
-                {data.docType === 'invoice'
-                  ? (isFr ? "N° de facture" : "Invoice number")
-                  : (isFr ? "N° de devis" : "Quote number")}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label>
+                  {data.docType === 'invoice'
+                    ? (isFr ? "N° de facture" : "Invoice number")
+                    : (isFr ? "N° de devis" : "Quote number")}
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setAutoNumber((v) => !v)}
+                  className={`flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border transition-colors ${
+                    autoNumber
+                      ? "border-primary/40 text-primary bg-primary/5"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={
+                    autoNumber
+                      ? siteT("Numéro automatique — cliquer pour saisir manuellement", "Auto-numbered — click to edit manually")
+                      : siteT("Numéro manuel — cliquer pour réactiver l'auto", "Manual — click to re-enable auto")
+                  }
+                >
+                  {autoNumber ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                  {autoNumber ? "Auto" : (isFr ? "Manuel" : "Manual")}
+                </button>
+              </div>
               <Input
                 value={data.quoteNumber}
                 onChange={(e) => set("quoteNumber", e.target.value)}
-                placeholder={data.docType === 'invoice' ? "FAC-2025-001" : "DQ-2025-01XXX"}
+                placeholder={data.docType === 'invoice' ? "FAC-2026-001" : "DEV-2026-001"}
+                disabled={autoNumber}
+                className={autoNumber ? "font-mono opacity-80" : "font-mono"}
               />
+              {!autoNumber && quoteNumberConflicts(quotes, data.quoteNumber, quoteId) && (
+                <p className="text-[11px] text-destructive">
+                  {siteT("Ce numéro est déjà utilisé.", "This number is already in use.")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>
@@ -370,60 +360,19 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
             {data.lineItems.map((line) => (
               <div
                 key={line.id}
-                className="grid grid-cols-4 sm:grid-cols-12 gap-2 items-end p-3 rounded-lg bg-secondary/30"
+                className="grid grid-cols-4 sm:grid-cols-12 gap-2 items-start p-3 rounded-lg bg-secondary/30"
               >
                 <div className="col-span-12 sm:col-span-6 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs">{isFr ? "Prestation" : "Description"}</Label>
-                    <button
-                      type="button"
-                      className="text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border hover:bg-accent"
-                      onClick={() => {
-                        const el = document.getElementById(`line-desc-${line.id}`) as HTMLDivElement | null;
-                        if (!el) return;
-                        const selection = window.getSelection();
-                        if (!selection || selection.rangeCount === 0) return;
-                        const range = selection.getRangeAt(0);
-                        if (range.collapsed) return;
-
-                        // Wrap selection in <strong>
-                        const strong = document.createElement("strong");
-                        try {
-                          range.surroundContents(strong);
-                        } catch {
-                          // If surroundContents fails, extract and wrap
-                          const contents = range.extractContents();
-                          strong.appendChild(contents);
-                          range.insertNode(strong);
-                        }
-
-                        // Update description from HTML
-                        const html = el.innerHTML;
-                        const markdown = htmlToMarkdown(html);
-                        updateLine(line.id, { description: markdown });
-
-                        // Restore selection
-                        selection.removeAllRanges();
-                        const newRange = document.createRange();
-                        newRange.selectNodeContents(strong);
-                        newRange.collapse(false);
-                        selection.addRange(newRange);
-                        el.focus();
-                      }}
-                      title={siteT("Mettre en gras la sélection", "Bold selection")}
-                    >
-                      {siteT("Gras", "Bold")}
-                    </button>
-                  </div>
+                  <Label className="text-xs">{isFr ? "Prestation" : "Description"}</Label>
                   <RichTextEditor
-                    id={`line-desc-${line.id}`}
                     value={line.description}
-                    onChange={(markdown) => updateLine(line.id, { description: markdown })}
+                    onChange={(html) => updateLine(line.id, { description: html })}
                     placeholder={
                       isFr
-                        ? "Détail de la prestation… (Entrée pour un saut de ligne)"
-                        : "Service details… (Enter for line break)"
+                        ? "Détail de la prestation…"
+                        : "Service details…"
                     }
+                    ariaLabel={isFr ? "Description de la prestation" : "Line item description"}
                   />
                 </div>
                 <div className="col-span-4 sm:col-span-2 space-y-1">
@@ -453,26 +402,28 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                     className="h-9"
                   />
                 </div>
-                <div className="col-span-4 sm:col-span-2 flex items-end gap-1">
-                  <span className="text-xs text-muted-foreground pb-2">
+                <div className="col-span-4 sm:col-span-2 space-y-1">
+                  <Label className="text-xs opacity-0 select-none">·</Label>
+                  <div className="h-9 flex items-center justify-end px-2 text-xs text-muted-foreground">
                     {new Intl.NumberFormat("fr-CH", {
                       style: "currency",
                       currency: "CHF",
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
-                    }).format(line.quantity * line.unitPrice).replace(/(?<=\d)[\s\u00A0\u202F](?=\d)/g, "'")}
-                  </span>
+                    }).format(line.quantity * line.unitPrice).replace(new RegExp("(?<=\\d)[\\s\\u00A0\\u202F](?=\\d)", "g"), "'")}
+                  </div>
                 </div>
-                <div className="col-span-12 sm:col-span-1 flex justify-end sm:justify-start pb-1">
+                <div className="col-span-12 sm:col-span-12 flex justify-end pt-1 -mt-2">
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-destructive hover:text-destructive"
+                    size="sm"
+                    className="h-7 text-destructive hover:text-destructive text-xs"
                     onClick={() => removeLine(line.id)}
                     disabled={data.lineItems.length <= 1}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    {siteT("Retirer", "Remove")}
                   </Button>
                 </div>
               </div>
@@ -555,6 +506,12 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
         {/* Conditions */}
         <div className="space-y-2">
           <Label>{isFr ? "Conditions générales" : "Terms and conditions"}</Label>
+          <PresetPills
+            presets={companySettings.conditionsPresets}
+            onApply={(content) => set("conditions", content)}
+            currentValue={data.conditions}
+            emptyHint={isFr ? "Aucun modèle. Ajoutez-en dans Réglages." : "No presets. Add some in Settings."}
+          />
           <textarea
             value={data.conditions}
             onChange={(e) => set("conditions", e.target.value)}
@@ -562,8 +519,8 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
             placeholder={
               isFr
-                ? "Paiement à 30 jours, conditions d’annulation…"
-                : "Payment within 30 days, cancellation terms…"
+                ? "Devis valable 30 jours, conditions d'annulation…"
+                : "Quote valid for 30 days, cancellation terms…"
             }
           />
         </div>
@@ -619,6 +576,12 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
       {data.docType === "invoice" && (
         <div className="lg:col-span-2 glass-card p-6 md:p-8 space-y-2">
           <Label>{isFr ? "Modalités de paiement" : "Payment terms"}</Label>
+          <PresetPills
+            presets={companySettings.paymentTermsPresets}
+            onApply={(content) => set("paymentTerms", content)}
+            currentValue={data.paymentTerms ?? ""}
+            emptyHint={isFr ? "Aucun modèle. Ajoutez-en dans Réglages." : "No presets. Add some in Settings."}
+          />
           <textarea
             value={data.paymentTerms ?? ""}
             onChange={(e) => set("paymentTerms", e.target.value)}
@@ -626,12 +589,55 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
             placeholder={
               isFr
-                ? "Paiement à 30 jours net.\nMerci pour votre confiance."
-                : "Net 30 days.\nThank you for your business."
+                ? "50% à la commande, 50% à la livraison…"
+                : "50% upfront, 50% on delivery…"
             }
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function PresetPills({
+  presets,
+  onApply,
+  currentValue,
+  emptyHint,
+}: {
+  presets: QuotePreset[];
+  onApply: (content: string) => void;
+  currentValue: string;
+  emptyHint: string;
+}) {
+  if (!presets || presets.length === 0) {
+    return (
+      <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
+        <Wand2 className="w-3 h-3" /> {emptyHint}
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Wand2 className="w-3 h-3 text-muted-foreground shrink-0" />
+      {presets.map((p) => {
+        const active = currentValue.trim() === p.content.trim();
+        return (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onApply(p.content)}
+            className={`text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors ${
+              active
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
+            title={p.content}
+          >
+            {p.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
