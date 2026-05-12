@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 
 const BOTTOM_NAV = [
-  { to: "/home",       label: "Home",       icon: LayoutDashboard },
+  { to: "/home",       label: "Accueil",    icon: LayoutDashboard },
   { to: "/sprint",     label: "Sprint",     icon: Target          },
+  { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
   { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
-  { to: "/documents",  label: "Documents",  icon: FileText        },
 ];
 
 const ADMIN_PREFIXES = [
@@ -96,7 +96,7 @@ export default function BottomNav() {
         {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
           const active =
             pathname === to ||
-            (to === "/projects" && pathname.startsWith("/project/")) ||
+            (to === "/home" && pathname.startsWith("/project/")) ||
             (to === "/quotes" && pathname.startsWith("/quote"));
           const showBadge = to === "/sprint" && sprintActive;
           return (

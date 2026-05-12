@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { isAdmin, loginAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from ?? "/space";
+  const from = (location.state as { from?: string })?.from ?? "/home";
 
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);

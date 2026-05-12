@@ -97,9 +97,10 @@ const Header = () => {
 
   // Mobile page title for admin pages
   const PAGE_TITLES: Record<string, string> = {
+    "/home": "Accueil",
     "/space": "Kojima Space",
+    "/space-full": "Kojima Space",
     "/sprint": "Sprint",
-    "/projects": "Projets",
     "/quotes": "Devis",
     "/clients": "Clients",
     "/accounting": "Finance",
@@ -110,7 +111,7 @@ const Header = () => {
   const mobileTitle = isAdminPage
     ? PAGE_TITLES[location.pathname] ??
       (location.pathname.startsWith("/project/") ? "Projet" :
-       location.pathname.startsWith("/quote") ? "Devis" : "Kojima Space")
+       location.pathname.startsWith("/quote") ? "Devis" : "Accueil")
     : null;
 
   function isActive(to: string) {

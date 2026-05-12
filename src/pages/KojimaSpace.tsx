@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useProjects } from "@/contexts/ProjectsContext";
+import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { RecentActivity } from "@/components/RecentActivity";
 import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { IntakeManager } from "@/components/IntakeManager";
@@ -18,7 +18,7 @@ import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
 
 export default function KojimaSpace() {
   const navigate = useNavigate();
-  const { createProject } = useProjects();
+  const { open: openQuickCreate } = useQuickCreate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -37,8 +37,7 @@ export default function KojimaSpace() {
   }, [searchParams, setSearchParams]);
 
   function handleNewProject() {
-    const p = createProject();
-    navigate(`/project/${p.id}/brief`);
+    openQuickCreate("project");
   }
 
   const today = new Date().toLocaleDateString("fr-CH", {
@@ -49,7 +48,7 @@ export default function KojimaSpace() {
     <div className="min-h-screen bg-background">
       <HeroHeader
         today={today}
-        onProjectsClick={() => navigate("/projects")}
+        onProjectsClick={() => navigate("/home?tab=kanban")}
         onNewProject={handleNewProject}
         onNewQuote={() => navigate("/quotes/new")}
       />

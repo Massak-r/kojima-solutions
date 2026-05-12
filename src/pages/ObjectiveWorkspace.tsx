@@ -137,7 +137,7 @@ export default function ObjectiveWorkspace() {
 
   const goBack = useCallback(() => {
     if (fromRoute) navigate(fromRoute);
-    else navigate("/space");
+    else navigate("/home");
   }, [fromRoute, navigate]);
 
   const applyObjectiveUpdate = useCallback(
@@ -199,7 +199,7 @@ export default function ObjectiveWorkspace() {
           <div>
             <h2 className="font-display font-semibold">URL invalide</h2>
             <p className="text-sm text-muted-foreground mt-1">Format attendu : /objective/&lt;personal|admin&gt;/&lt;id&gt;</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/space")}>Retour</Button>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/home")}>Retour</Button>
           </div>
         </div>
       </div>

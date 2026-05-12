@@ -4,6 +4,7 @@ import { Plus, FolderKanban, FileText, Building2, Target, X } from "lucide-react
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useIsAdminPage } from "@/components/BottomNav";
+import { useQuickCreate } from "@/contexts/QuickCreateContext";
 
 interface Action {
   label: string;
@@ -13,17 +14,12 @@ interface Action {
   action?: () => void;
 }
 
-const NAV_ACTIONS: Action[] = [
-  { label: "Nouveau projet", icon: FolderKanban, to: "/projects", color: "bg-blue-500" },
-  { label: "Nouveau devis", icon: FileText, to: "/quotes/new", color: "bg-emerald-500" },
-  { label: "Nouveau client", icon: Building2, to: "/clients", color: "bg-amber-500" },
-];
-
 export function QuickActionFAB() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminPage = useIsAdminPage();
+  const { open: openQuickCreate } = useQuickCreate();
 
   const isOnObjectivesView = location.pathname === "/space-full";
 
@@ -44,7 +40,24 @@ export function QuickActionFAB() {
         }
       },
     },
-    ...NAV_ACTIONS,
+    {
+      label: "Nouveau projet",
+      icon: FolderKanban,
+      color: "bg-blue-500",
+      action: () => openQuickCreate("project"),
+    },
+    {
+      label: "Nouveau devis",
+      icon: FileText,
+      color: "bg-emerald-500",
+      to: "/quotes/new",
+    },
+    {
+      label: "Nouveau client",
+      icon: Building2,
+      color: "bg-amber-500",
+      action: () => openQuickCreate("client"),
+    },
   ];
 
   if (!isAdminPage) return null;

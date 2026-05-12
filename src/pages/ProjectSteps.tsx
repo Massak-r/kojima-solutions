@@ -87,7 +87,7 @@ export default function ProjectSteps() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="font-display text-xl text-foreground/50 mb-4">Projet introuvable</p>
-          <Button onClick={() => navigate("/projects")} variant="outline">
+          <Button onClick={() => navigate("/home?tab=kanban")} variant="outline">
             <ArrowLeft size={16} className="mr-2" />
             Retour
           </Button>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useProjects } from "@/contexts/ProjectsContext";
+import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { AlertsZone } from "@/components/home/AlertsZone";
 import { SprintSummary } from "@/components/home/SprintSummary";
 import { StreamsList } from "@/components/home/StreamsList";
@@ -14,7 +14,7 @@ type Tab = "streams" | "kanban" | "overview";
 export default function Home() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { createProject } = useProjects();
+  const { open: openQuickCreate } = useQuickCreate();
 
   const tabFromUrl = searchParams.get("tab");
   const initialTab: Tab =
@@ -40,8 +40,7 @@ export default function Home() {
   });
 
   function handleNewProject() {
-    const p = createProject();
-    navigate(`/project/${p.id}/brief`);
+    openQuickCreate("project");
   }
 
   return (

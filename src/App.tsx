@@ -24,6 +24,7 @@ import { ProjectMeetingNotes } from "@/components/ProjectMeetingNotes";
 import { FocusRetroPrompt } from "@/components/objective/FocusRetroPrompt";
 import { SprintCapProvider } from "@/components/sprint/SprintCapProvider";
 import { SprintCapOverloadDialog } from "@/components/sprint/SprintCapOverloadDialog";
+import { QuickCreateProvider } from "@/contexts/QuickCreateContext";
 
 // Eager: small entry-point routes the user hits first.
 import Index from "./pages/Index";
@@ -106,6 +107,7 @@ const App = () => (
                 <CompanySettingsProvider>
                 <ProjectsProvider>
                 <SprintCapProvider>
+                <QuickCreateProvider>
                   <Header />
                   <BottomNav />
                   <QuickActionFAB />
@@ -180,6 +182,7 @@ const App = () => (
                     </Suspense>
                     </PageTransition>
                   </AdminContentWrapper>
+                </QuickCreateProvider>
                 </SprintCapProvider>
                 </ProjectsProvider>
                 </CompanySettingsProvider>

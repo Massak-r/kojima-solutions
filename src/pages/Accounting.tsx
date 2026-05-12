@@ -309,7 +309,7 @@ export default function Accounting() {
               </Select>
               <Button
                 variant="ghost"
-                onClick={() => navigate("/space")}
+                onClick={() => navigate("/home")}
                 className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
               >
                 <ArrowLeft size={16} className="mr-2" />

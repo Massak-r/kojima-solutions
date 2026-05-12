@@ -21,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState, useMemo, memo } from "react";
 import { ProjectData, ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
+import { useQuickCreate } from "@/contexts/QuickCreateContext";
 
 const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
   { status: "draft",       label: "Brouillon",  accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
@@ -32,7 +33,8 @@ const COLUMNS: { status: StoredProject["status"]; label: string; accent: string;
 export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
+  const { projects, loading, deleteProject, updateProject } = useProjects();
+  const { open: openQuickCreate } = useQuickCreate();
   const { getClient } = useClients();
   const { quotes } = useQuotes();
   const toInvoice = useMemo(
@@ -96,8 +98,7 @@ export default function Dashboard() {
   );
 
   function handleCreate() {
-    const p = createProject();
-    navigate(`/project/${p.id}/brief`);
+    openQuickCreate("project");
   }
 
   function handleDragStart(event: DragStartEvent) {

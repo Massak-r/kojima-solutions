@@ -1,0 +1,265 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UserSearch, Check, FolderKanban, Building2 } from "lucide-react";
+import { useProjects } from "@/contexts/ProjectsContext";
+import { useClients } from "@/contexts/ClientsContext";
+
+export type QuickCreateKind = "project" | "client";
+
+interface Props {
+  kind: QuickCreateKind | null;
+  onClose: () => void;
+}
+
+export function QuickCreateDialog({ kind, onClose }: Props) {
+  return (
+    <Dialog open={kind !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        {kind === "project" && <ProjectForm onClose={onClose} />}
+        {kind === "client" && <ClientForm onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProjectForm({ onClose }: { onClose: () => void }) {
+  const { createProject, updateProject } = useProjects();
+  const { clients } = useClients();
+  const navigate = useNavigate();
+  const [title, setTitle] = useState("");
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const selectedClient = clientId ? clients.find((c) => c.id === clientId) ?? null : null;
+  const canSubmit = title.trim().length > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    const p = createProject(title.trim());
+    if (clientId && selectedClient) {
+      updateProject(p.id, { clientId, client: selectedClient.name });
+    }
+    toast.success("Projet créé");
+    onClose();
+    setTitle("");
+    setClientId(null);
+    navigate(`/project/${p.id}/brief`);
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <FolderKanban className="w-4 h-4 text-primary" />
+          Nouveau projet
+        </DialogTitle>
+        <DialogDescription>
+          Donnez-lui un nom et associez-le optionnellement à un client existant.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-2">
+        <div className="space-y-2">
+          <Label htmlFor="qc-project-title">Titre du projet *</Label>
+          <Input
+            id="qc-project-title"
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex : Refonte du site Acme"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canSubmit) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Client (optionnel)</Label>
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-between font-normal h-9"
+              >
+                <span className="inline-flex items-center gap-2 min-w-0">
+                  <UserSearch className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {selectedClient?.name ?? "Aucun client"}
+                  </span>
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+              <Command>
+                <CommandInput placeholder="Rechercher…" />
+                <CommandList>
+                  <CommandEmpty>Aucun client trouvé.</CommandEmpty>
+                  <CommandGroup>
+                    {clientId && (
+                      <CommandItem
+                        value="__none__"
+                        onSelect={() => {
+                          setClientId(null);
+                          setPickerOpen(false);
+                        }}
+                      >
+                        <Check className="w-3.5 h-3.5 mr-2 opacity-0" />
+                        <span className="text-xs text-muted-foreground">
+                          Sans client
+                        </span>
+                      </CommandItem>
+                    )}
+                    {clients.map((c) => (
+                      <CommandItem
+                        key={c.id}
+                        value={`${c.name} ${c.organization ?? ""} ${c.email ?? ""}`}
+                        onSelect={() => {
+                          setClientId(c.id);
+                          setPickerOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={`w-3.5 h-3.5 mr-2 ${
+                            c.id === clientId ? "opacity-100 text-primary" : "opacity-0"
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-foreground truncate">
+                            {c.name}
+                          </div>
+                          {(c.organization || c.email) && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {[c.organization, c.email].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+      <DialogFooter className="gap-2 sm:gap-0">
+        <Button variant="outline" onClick={onClose}>
+          Annuler
+        </Button>
+        <Button onClick={submit} disabled={!canSubmit}>
+          Créer le projet
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function ClientForm({ onClose }: { onClose: () => void }) {
+  const { addClient } = useClients();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [organization, setOrganization] = useState("");
+
+  const canSubmit = name.trim().length > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    addClient({
+      name: name.trim(),
+      email: email.trim() || undefined,
+      organization: organization.trim() || undefined,
+    });
+    toast.success("Client ajouté");
+    onClose();
+    setName("");
+    setEmail("");
+    setOrganization("");
+  }
+
+  function handleKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && canSubmit) {
+      e.preventDefault();
+      submit();
+    }
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-primary" />
+          Nouveau client
+        </DialogTitle>
+        <DialogDescription>
+          Détails additionnels (téléphone, adresse, notes) ajoutables ensuite depuis la fiche.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-2">
+        <div className="space-y-2">
+          <Label htmlFor="qc-client-name">Nom *</Label>
+          <Input
+            id="qc-client-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nom du contact"
+            onKeyDown={handleKey}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="qc-client-email">Email</Label>
+          <Input
+            id="qc-client-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="contact@exemple.ch"
+            onKeyDown={handleKey}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="qc-client-org">Société</Label>
+          <Input
+            id="qc-client-org"
+            value={organization}
+            onChange={(e) => setOrganization(e.target.value)}
+            placeholder="Optionnel"
+            onKeyDown={handleKey}
+          />
+        </div>
+      </div>
+      <DialogFooter className="gap-2 sm:gap-0">
+        <Button variant="outline" onClick={onClose}>
+          Annuler
+        </Button>
+        <Button onClick={submit} disabled={!canSubmit}>
+          Ajouter le client
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}

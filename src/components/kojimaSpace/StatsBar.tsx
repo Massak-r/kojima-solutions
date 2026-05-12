@@ -51,8 +51,8 @@ export function StatsBar() {
       transition={{ duration: 0.4 }}
       className="bg-card border border-border rounded-2xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
     >
-      <MiniStat icon={<LayoutList size={13} className="text-primary" />} label="Projets" value={activeProjects} onClick={() => navigate("/projects")} />
-      <MiniStat icon={<MessageSquare size={13} className="text-palette-amber" />} label="Réponses" value={pendingResponses} pulse={pendingResponses > 0} onClick={() => navigate("/projects")} />
+      <MiniStat icon={<LayoutList size={13} className="text-primary" />} label="Projets" value={activeProjects} onClick={() => navigate("/home?tab=kanban")} />
+      <MiniStat icon={<MessageSquare size={13} className="text-palette-amber" />} label="Réponses" value={pendingResponses} pulse={pendingResponses > 0} onClick={() => navigate("/home?tab=kanban")} />
       <MiniStat icon={<Receipt size={13} className="text-accent" />} label="À valider" value={invoicesToReview} pulse={invoicesToReview > 0} onClick={() => navigate("/quotes")} />
       <MiniStat icon={<TrendingUp size={13} className="text-palette-sage" />} label="Revenu" value={formatCHF(totalRevenue)} onClick={() => navigate("/quotes")} />
       <MiniStat icon={<AlertTriangle size={13} className="text-destructive" />} label="En retard" value={overdueInvoices} pulse={overdueInvoices > 0} onClick={() => navigate("/accounting")} />
