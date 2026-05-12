@@ -10,21 +10,10 @@ import { formatDateSwiss } from "@/lib/dateFormat";
 import { totalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { useInlineDelete } from "@/hooks/useInlineDelete";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 import { sendInvoiceReminder } from "@/api/invoiceReminder";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 function formatCurrency(value: number, lang: "fr" | "en"): string {
   return new Intl.NumberFormat(lang === "fr" ? "fr-CH" : "en-CH", {
@@ -77,6 +66,20 @@ export default function QuotesList() {
     () => quotes.filter((q) => q.isTemplate === true).length,
     [quotes],
   );
+
+  const { deleteWithUndo } = useUndoableDelete<Quote>({
+    hardDelete: (id) => deleteQuote(id),
+    restore: (quote) => addQuote(quote),
+    message: (q) => t(
+      q.isTemplate
+        ? "Modèle supprimé"
+        : q.docType === "invoice" ? "Facture supprimée" : "Devis supprimé",
+      q.isTemplate
+        ? "Template deleted"
+        : q.docType === "invoice" ? "Invoice deleted" : "Quote deleted",
+    ),
+    undoLabel: t("Annuler", "Undo"),
+  });
 
   async function handleSendReminder(q: Quote) {
     if (!q.clientEmail || sendingReminder) return;
@@ -470,39 +473,15 @@ export default function QuotesList() {
                             {t("Ouvrir", "Open")}
                           </Link>
                         </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                {t("Supprimer le devis ?", "Delete this quote?")}
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t(
-                                  "Cette action est irréversible.",
-                                  "This action cannot be undone."
-                                )}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t("Annuler", "Cancel")}</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => deleteQuote(q.id)}
-                              >
-                                {t("Supprimer", "Delete")}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteWithUndo(q)}
+                          title={t("Supprimer", "Delete")}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   </li>

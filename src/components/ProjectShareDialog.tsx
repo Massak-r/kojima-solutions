@@ -6,6 +6,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Copy, Check, User2, Users, Share2, Unlink, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -68,11 +78,10 @@ export function ProjectShareDialog({
     }
   }
 
-  async function revokeStakeholderLink() {
-    const ok = window.confirm(
-      "Révoquer le lien stakeholder ? Les personnes avec l'ancien lien ne pourront plus accéder au projet.",
-    );
-    if (!ok) return;
+  const [revokeOpen, setRevokeOpen] = useState(false);
+
+  async function performRevokeStakeholderLink() {
+    setRevokeOpen(false);
     setBusy(true);
     try {
       await unshareProject(project.id);
@@ -142,7 +151,7 @@ export function ProjectShareDialog({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={revokeStakeholderLink}
+                  onClick={() => setRevokeOpen(true)}
                   disabled={busy}
                   className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10"
                 >
@@ -184,6 +193,27 @@ export function ProjectShareDialog({
           </Button>
         </div>
       </DialogContent>
+
+      <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Révoquer le lien stakeholder ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Les personnes avec l'ancien lien ne pourront plus accéder au projet.
+              Vous pourrez en générer un nouveau à tout moment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={performRevokeStakeholderLink}
+            >
+              Révoquer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -11,6 +11,16 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { getCadrage } from "@/api/cadrage";
 import { getProjectModules } from "@/api/modules";
 import { KIND_LABELS, KIND_BADGE_CLASSES, STATUS_LABELS } from "@/types/project";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const STEPS = [
   { key: "brief", label: "Brief", icon: FileText },
@@ -46,6 +56,7 @@ export function ProjectStepNav({ projectId, currentStep, dirty }: ProjectStepNav
 
   const [cadrageDone, setCadrageDone] = useState(false);
   const [modulesDone, setModulesDone] = useState(false);
+  const [pendingStep, setPendingStep] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -73,10 +84,16 @@ export function ProjectStepNav({ projectId, currentStep, dirty }: ProjectStepNav
 
   function handleNavigate(stepKey: string) {
     if (dirty) {
-      const ok = window.confirm("Modifications non sauvegardées. Continuer ?");
-      if (!ok) return;
+      setPendingStep(stepKey);
+      return;
     }
     navigate(`/project/${projectId}/${stepKey}`);
+  }
+
+  function confirmPendingNavigate() {
+    const step = pendingStep;
+    setPendingStep(null);
+    if (step) navigate(`/project/${projectId}/${step}`);
   }
 
   return (
@@ -170,6 +187,27 @@ export function ProjectStepNav({ projectId, currentStep, dirty }: ProjectStepNav
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={pendingStep !== null}
+        onOpenChange={(open) => !open && setPendingStep(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifications non sauvegardées</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vos changements ne sont pas encore enregistrés. Continuer quittera
+              cette page sans sauvegarder.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Rester ici</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPendingNavigate}>
+              Quitter sans sauvegarder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

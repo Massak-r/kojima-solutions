@@ -18,6 +18,17 @@ import { ModuleResolver, generateQuoteLinesFromSteps } from "@/lib/moduleResolve
 import { MAINTENANCE_OPTIONS } from "@/data/moduleCatalog";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
+import { useUndoableDelete } from "@/hooks/useUndoableDelete";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   draft:         { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
@@ -50,7 +61,15 @@ export default function ProjectDocuments() {
   const [typeFilter, setTypeFilter] = useState("all");
   // null = list view | "new" | "edit:<quoteId>"
   const [mode, setMode] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [importOverwriteOpen, setImportOverwriteOpen] = useState(false);
+  const [pendingConvert, setPendingConvert] = useState<Quote | null>(null);
+
+  const { deleteWithUndo } = useUndoableDelete<Quote>({
+    hardDelete: (qid) => deleteQuote(qid),
+    restore: (quote) => addQuote(quote),
+    message: (q) => q.docType === "invoice" ? "Facture supprimée" : "Devis supprimé",
+    undoLabel: "Annuler",
+  });
 
   if (!project) {
     return (
@@ -72,15 +91,19 @@ export default function ProjectDocuments() {
       ? projectQuotes.filter((q) => q.docType === "invoice")
       : projectQuotes.filter((q) => q.docType !== "invoice");
 
-  async function handleImportFromModules() {
+  function handleImportFromModules() {
     if (!id || !project) return;
     const existingProjectQuotes = quotes.filter((q) => q.projectId === id);
     if (existingProjectQuotes.length > 0) {
-      const confirmed = window.confirm(
-        `${existingProjectQuotes.length} devis existe(nt) déjà pour ce projet. Créer un nouveau devis depuis les modules ?`
-      );
-      if (!confirmed) return;
+      setImportOverwriteOpen(true);
+      return;
     }
+    void performImportFromModules();
+  }
+
+  async function performImportFromModules() {
+    if (!id || !project) return;
+    setImportOverwriteOpen(false);
     const data = await getProjectModules(id);
     if (!data || data.modules.length === 0) {
       toast({ title: "Aucun module sélectionné", variant: "destructive" });
@@ -147,10 +170,12 @@ export default function ProjectDocuments() {
   }
 
   function handleConvertToInvoice(q: Quote) {
-    const confirmed = window.confirm(
-      `Convertir le devis ${q.quoteNumber || ""} en facture ?`
-    );
-    if (!confirmed) return;
+    setPendingConvert(q);
+  }
+
+  function performConvertToInvoice() {
+    const q = pendingConvert;
+    if (!q) return;
     const now = new Date();
     const invoiceNumber = `FAC-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
     updateQuote(q.id, {
@@ -160,6 +185,7 @@ export default function ProjectDocuments() {
       invoiceStatus: "to-validate",
     });
     toast({ title: "Devis converti en facture", description: invoiceNumber });
+    setPendingConvert(null);
   }
 
   const handleSaved = () => setMode(null);
@@ -310,20 +336,13 @@ export default function ProjectDocuments() {
                         >
                           <Pencil size={13} />
                         </button>
-                        {deleteConfirmId === q.id ? (
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="destructive" className="h-6 px-2 text-[10px]" onClick={() => { deleteQuote(q.id); setDeleteConfirmId(null); }}>Oui</Button>
-                            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setDeleteConfirmId(null)}>Non</Button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirmId(q.id)}
-                            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            title="Supprimer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => deleteWithUndo(q)}
+                          className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -333,6 +352,43 @@ export default function ProjectDocuments() {
           </section>
         )}
       </div>
+
+      <AlertDialog open={importOverwriteOpen} onOpenChange={setImportOverwriteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Créer un nouveau devis depuis les modules ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ce projet a déjà des devis. Un nouveau brouillon sera ajouté à la liste —
+              les devis existants ne sont pas modifiés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={performImportFromModules}>
+              Créer le devis
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingConvert !== null} onOpenChange={(open) => !open && setPendingConvert(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Convertir le devis en facture ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingConvert?.quoteNumber
+                ? `Le devis ${pendingConvert.quoteNumber} sera converti en facture avec un nouveau numéro FAC. Le statut passe en « À valider ».`
+                : "Le devis sera converti en facture avec un nouveau numéro FAC. Le statut passe en « À valider »."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={performConvertToInvoice}>
+              Convertir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
