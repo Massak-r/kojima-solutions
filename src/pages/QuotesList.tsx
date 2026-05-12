@@ -5,7 +5,7 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw } from "lucide-react";
+import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
 import { totalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
@@ -69,8 +69,14 @@ export default function QuotesList() {
   const [sortBy, setSortBy] = useState("newest");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [showTemplates, setShowTemplates] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [reminderSent, setReminderSent] = useState<Set<string>>(new Set());
+
+  const templateCount = useMemo(
+    () => quotes.filter((q) => q.isTemplate === true).length,
+    [quotes],
+  );
 
   async function handleSendReminder(q: Quote) {
     if (!q.clientEmail || sendingReminder) return;
@@ -100,6 +106,8 @@ export default function QuotesList() {
 
   const filtered = useMemo(() => {
     let list = [...quotes];
+    // Templates are surfaced in a separate view to keep the main list clean.
+    list = list.filter((q) => (q.isTemplate === true) === showTemplates);
     if (statusFilter !== "all") list = list.filter((q) => q.invoiceStatus === statusFilter);
     if (typeFilter !== "all") list = list.filter((q) => q.docType === typeFilter);
     if (searchQuery.trim()) {
@@ -120,7 +128,7 @@ export default function QuotesList() {
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return list;
-  }, [quotes, statusFilter, typeFilter, searchQuery, sortBy, dateFrom, dateTo]);
+  }, [quotes, statusFilter, typeFilter, searchQuery, sortBy, dateFrom, dateTo, showTemplates]);
 
   function renewInvoice(original: Quote) {
     const year = new Date().getFullYear();
@@ -172,12 +180,21 @@ export default function QuotesList() {
     const clone: Omit<Quote, "id" | "createdAt" | "updatedAt"> = {
       ...original,
       quoteNumber: newNumber,
+      // Duplicating a template produces a regular quote — the template stays
+      // intact and the operator picks up an editable draft.
+      isTemplate: false,
+      templateName: null,
+      invoiceStatus: "draft",
     };
     delete (clone as any).id;
     delete (clone as any).createdAt;
     delete (clone as any).updatedAt;
 
     const newQuote = addQuote(clone as any);
+    toast({ title: t(
+      original.isTemplate ? "Modèle dupliqué" : "Devis dupliqué",
+      original.isTemplate ? "Template duplicated" : "Quote duplicated",
+    ) });
     if (newQuote && typeof newQuote === "object" && "id" in newQuote) {
       navigate(`/quotes/${(newQuote as any).id}`);
     }
@@ -197,10 +214,17 @@ export default function QuotesList() {
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h1 className="font-display text-3xl md:text-4xl font-bold leading-tight">
-                {t("Devis & Factures", "Quotes & Invoices")}
+                {showTemplates
+                  ? t("Modèles", "Templates")
+                  : t("Devis & Factures", "Quotes & Invoices")}
               </h1>
               <p className="font-body text-primary-foreground/65 mt-1 text-sm">
-                {t("Gérez vos devis et factures clients.", "Manage your quotes and client invoices.")}
+                {showTemplates
+                  ? t(
+                      "Vos modèles réutilisables. Cliquez sur Dupliquer pour démarrer un nouveau devis.",
+                      "Your reusable templates. Click Duplicate to start a new quote.",
+                    )
+                  : t("Gérez vos devis et factures clients.", "Manage your quotes and client invoices.")}
               </p>
             </div>
             <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90 font-body text-sm gap-1.5">
@@ -274,6 +298,30 @@ export default function QuotesList() {
                     </button>
                   ))}
                 </div>
+                {/* Templates toggle */}
+                <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
+                <button
+                  onClick={() => setShowTemplates((v) => !v)}
+                  className={cn(
+                    "text-xs font-body px-2.5 py-1 rounded-full border transition-colors inline-flex items-center gap-1.5",
+                    showTemplates
+                      ? "bg-accent text-accent-foreground border-accent"
+                      : "text-muted-foreground border-border hover:bg-secondary"
+                  )}
+                  title={showTemplates
+                    ? t("Revenir aux devis", "Back to quotes")
+                    : t("Voir vos modèles", "View your templates")}
+                >
+                  <BookmarkCheck size={12} />
+                  {showTemplates
+                    ? t("Devis", "Quotes")
+                    : t("Modèles", "Templates")}
+                  {!showTemplates && templateCount > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      ({templateCount})
+                    </span>
+                  )}
+                </button>
               </div>
               {/* Sort + Date range */}
               <div className="flex flex-wrap items-center gap-2">
@@ -321,19 +369,31 @@ export default function QuotesList() {
                     <div className="glass-card-hover p-4 flex flex-wrap items-center justify-between gap-4">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1.5 py-0 shrink-0",
-                              q.docType === "invoice"
-                                ? "border-accent/40 text-accent"
-                                : "border-primary/40 text-primary"
-                            )}
-                          >
-                            {q.docType === "invoice" ? "FAC" : "DEV"}
-                          </Badge>
+                          {q.isTemplate ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 shrink-0 border-accent/40 text-accent inline-flex items-center gap-1"
+                            >
+                              <BookmarkCheck size={10} />
+                              {t("Modèle", "Template")}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 shrink-0",
+                                q.docType === "invoice"
+                                  ? "border-accent/40 text-accent"
+                                  : "border-primary/40 text-primary"
+                              )}
+                            >
+                              {q.docType === "invoice" ? "FAC" : "DEV"}
+                            </Badge>
+                          )}
                           <div className="font-medium text-foreground break-words">
-                            {q.quoteNumber} {q.projectTitle ? `· ${q.projectTitle}` : ""}
+                            {q.isTemplate && q.templateName
+                              ? q.templateName
+                              : `${q.quoteNumber}${q.projectTitle ? ` · ${q.projectTitle}` : ""}`}
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground">

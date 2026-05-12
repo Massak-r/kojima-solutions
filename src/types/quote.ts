@@ -44,6 +44,11 @@ export interface Quote {
   docType?: "quote" | "invoice";
   invoiceStatus?: "draft" | "to-validate" | "validated" | "paid" | "on-hold";
   paymentTerms?: string;
+
+  // Reusable template flag. Templates don't appear in the main list and serve
+  // as starting points for new quotes via the "Partir d'un modèle…" picker.
+  isTemplate?: boolean;
+  templateName?: string | null;
 }
 
 export const TVA_RATE = 8.1;

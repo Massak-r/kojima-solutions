@@ -2,11 +2,17 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuthForWrites();
 
-// Auto-migrate: add payment_terms column if missing (same pattern as client_address).
+// Auto-migrate: add payment_terms / template columns if missing (same pattern as client_address).
 try {
     $cols = array_column($pdo->query('SHOW COLUMNS FROM quotes')->fetchAll(), 'Field');
     if (!in_array('payment_terms', $cols)) {
         $pdo->exec('ALTER TABLE quotes ADD COLUMN payment_terms TEXT DEFAULT NULL');
+    }
+    if (!in_array('is_template', $cols)) {
+        $pdo->exec('ALTER TABLE quotes ADD COLUMN is_template TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    if (!in_array('template_name', $cols)) {
+        $pdo->exec('ALTER TABLE quotes ADD COLUMN template_name VARCHAR(255) DEFAULT NULL');
     }
 } catch (Throwable $e) {}
 
@@ -35,6 +41,8 @@ function mapQuote(array $row): array {
         'discountLabel'      => $row['discount_label'] ?? '',
         'docType'            => $row['doc_type'] ?? 'quote',
         'invoiceStatus'      => $row['invoice_status'] ?? 'draft',
+        'isTemplate'         => (bool)($row['is_template'] ?? 0),
+        'templateName'       => $row['template_name'] ?? null,
         'createdAt'          => $row['created_at'],
     ];
 }
@@ -70,8 +78,9 @@ if ($method === 'POST') {
     $pdo->prepare('
         INSERT INTO quotes (id, project_id, lang, doc_type, invoice_status, quote_number, validity_date, project_title,
             project_desc, conditions, client_name, client_email, client_company, client_address, payment_terms,
-            line_items, apply_tva, discount_enabled, discount_type, discount_value, discount_label)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            line_items, apply_tva, discount_enabled, discount_type, discount_value, discount_label,
+            is_template, template_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['projectId']          ?? null,
@@ -94,6 +103,8 @@ if ($method === 'POST') {
         $data['discountType']       ?? 'amount',
         (float)($data['discountValue'] ?? 0),
         $data['discountLabel']      ?? null,
+        (int)($data['isTemplate']     ?? false),
+        $data['templateName']       ?? null,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');
     $stmt->execute([$newId]);
@@ -111,7 +122,8 @@ if ($method === 'PUT') {
             project_title = ?, project_desc = ?, conditions = ?,
             client_name = ?, client_email = ?, client_company = ?, client_address = ?, payment_terms = ?,
             line_items = ?, apply_tva = ?, discount_enabled = ?,
-            discount_type = ?, discount_value = ?, discount_label = ?
+            discount_type = ?, discount_value = ?, discount_label = ?,
+            is_template = ?, template_name = ?
         WHERE id = ?
     ')->execute([
         $data['projectId']          ?? null,
@@ -134,6 +146,8 @@ if ($method === 'PUT') {
         $data['discountType']       ?? 'amount',
         (float)($data['discountValue'] ?? 0),
         $data['discountLabel']      ?? null,
+        (int)($data['isTemplate']     ?? false),
+        $data['templateName']       ?? null,
         $id,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');

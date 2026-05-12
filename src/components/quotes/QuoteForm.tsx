@@ -206,18 +206,23 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
       id: quoteId ?? crypto.randomUUID?.() ?? `q-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
+    const isTpl = data.isTemplate === true;
     if (quoteId) {
       updateQuote(quoteId, quote);
       toast.success(siteT(
-        data.docType === 'invoice' ? "Facture mise à jour" : "Devis mis à jour",
-        data.docType === 'invoice' ? "Invoice updated" : "Quote updated"
+        isTpl ? "Modèle mis à jour" :
+          data.docType === 'invoice' ? "Facture mise à jour" : "Devis mis à jour",
+        isTpl ? "Template updated" :
+          data.docType === 'invoice' ? "Invoice updated" : "Quote updated"
       ));
       if (onSaved) onSaved(quoteId);
     } else {
       addQuote(quote);
       toast.success(siteT(
-        data.docType === 'invoice' ? "Facture enregistrée" : "Devis enregistré",
-        data.docType === 'invoice' ? "Invoice saved" : "Quote saved"
+        isTpl ? "Modèle enregistré" :
+          data.docType === 'invoice' ? "Facture enregistrée" : "Devis enregistré",
+        isTpl ? "Template saved" :
+          data.docType === 'invoice' ? "Invoice saved" : "Quote saved"
       ));
       if (onSaved) {
         onSaved(quote.id);
@@ -648,23 +653,52 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
-          <Button onClick={handleSave} className="btn-primary-glow">
-            <Save className="w-4 h-4 mr-2" />
-            {quoteId
-              ? siteT(
-                  data.docType === 'invoice' ? "Mettre à jour la facture" : "Mettre à jour le devis",
-                  data.docType === 'invoice' ? "Update invoice" : "Update quote"
-                )
-              : siteT(
-                  data.docType === 'invoice' ? "Enregistrer la facture" : "Enregistrer le devis",
-                  data.docType === 'invoice' ? "Save invoice" : "Save quote"
-                )}
-          </Button>
-          <Button variant="outline" onClick={handleDownloadPdf}>
-            <Download className="w-4 h-4 mr-2" />
-            {siteT("Imprimer / Enregistrer PDF", "Print / Save PDF")}
-          </Button>
+        <div className="pt-4 border-t border-border space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <Switch
+                checked={data.isTemplate ?? false}
+                onCheckedChange={(v) => {
+                  set("isTemplate", v);
+                  if (!v) set("templateName", null);
+                }}
+              />
+              <span className="text-sm text-muted-foreground">
+                {siteT("Sauvegarder comme modèle", "Save as template")}
+              </span>
+            </label>
+            {data.isTemplate && (
+              <Input
+                value={data.templateName ?? ""}
+                onChange={(e) => set("templateName", e.target.value)}
+                placeholder={siteT("Nom du modèle (ex : Audit standard)", "Template name (e.g. Standard audit)")}
+                className="flex-1 min-w-[200px] h-8 text-sm"
+              />
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={handleSave} className="btn-primary-glow">
+              <Save className="w-4 h-4 mr-2" />
+              {data.isTemplate
+                ? siteT(
+                    quoteId ? "Mettre à jour le modèle" : "Enregistrer le modèle",
+                    quoteId ? "Update template" : "Save template"
+                  )
+                : quoteId
+                ? siteT(
+                    data.docType === 'invoice' ? "Mettre à jour la facture" : "Mettre à jour le devis",
+                    data.docType === 'invoice' ? "Update invoice" : "Update quote"
+                  )
+                : siteT(
+                    data.docType === 'invoice' ? "Enregistrer la facture" : "Enregistrer le devis",
+                    data.docType === 'invoice' ? "Save invoice" : "Save quote"
+                  )}
+            </Button>
+            <Button variant="outline" onClick={handleDownloadPdf}>
+              <Download className="w-4 h-4 mr-2" />
+              {siteT("Imprimer / Enregistrer PDF", "Print / Save PDF")}
+            </Button>
+          </div>
         </div>
       </div>
 
