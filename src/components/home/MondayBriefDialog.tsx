@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sunrise, Sparkles, Flame, Inbox, Target, Clock, ArrowRight, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Sunrise, Sparkles, Flame, Inbox, Target, Clock, ArrowRight, Loader2, Wand2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import { useAllSubtasks } from "@/hooks/useSubtasks";
 import { useSubtaskCompletions } from "@/hooks/useSubtaskCompletions";
 import { getGlobalWeekSummary, type GlobalWeekSummary } from "@/api/objectiveSessions";
 import { getInboxStats, type InboxStats } from "@/api/kojimaInbox";
+import { getWeeklyRecap, type WeeklyRecap } from "@/api/weeklyRecap";
 import {
   isoWeekOf,
   startOfIsoWeek,
@@ -57,6 +60,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
   const { data: personalCompl }     = useSubtaskCompletions("personal");
   const [weekSummary, setWeekSummary] = useState<GlobalWeekSummary | null>(null);
   const [inbox, setInbox]             = useState<InboxStats | null>(null);
+  const [recap, setRecap]             = useState<WeeklyRecap | null>(null);
   const [loading, setLoading]         = useState(false);
 
   useEffect(() => {
@@ -65,6 +69,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
     Promise.allSettled([
       getGlobalWeekSummary().then(setWeekSummary).catch(() => {}),
       getInboxStats().then(setInbox).catch(() => {}),
+      getWeeklyRecap().then(setRecap).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [open]);
 
@@ -148,8 +153,28 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: 0.05 }}
-              className="px-7 py-6 space-y-6"
+              className="px-7 py-6 space-y-6 max-h-[70vh] overflow-y-auto"
             >
+              {/* Agent recap (if posted by the Sunday remote routine) */}
+              {recap?.exists && recap.content_md && (
+                <section className="rounded-xl border border-violet-200/50 bg-gradient-to-br from-violet-50/60 via-card/40 to-card/30 dark:from-violet-500/10 dark:via-card/40 p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Wand2 size={11} className="text-violet-500" />
+                    <h3 className="text-[10px] font-display font-bold text-violet-700 dark:text-violet-300 uppercase tracking-widest">
+                      Récap de l'agent dominical
+                    </h3>
+                    {recap.generated_at && (
+                      <span className="text-[10px] font-mono text-muted-foreground/50 ml-auto tabular-nums">
+                        {new Date(recap.generated_at).toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/85 font-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{recap.content_md}</ReactMarkdown>
+                  </div>
+                </section>
+              )}
+
               {/* Semaine passée */}
               <section>
                 <h3 className="text-[10px] font-display font-bold text-foreground/60 uppercase tracking-widest mb-3">

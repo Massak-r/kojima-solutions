@@ -12,6 +12,7 @@ define('CRON_KEY',   '');                          // Optional: secret key to pr
 define('API_SECRET', '');                          // Required: secret key sent by frontend as X-API-Key header
 define('ADMIN_PASSWORD', '');                      // Required for server-validated admin login. Set to the same value you put in .env VITE_ADMIN_PASSWORD during transition; rotate when the cookie flow is the only path.
 define('ANALYTICS_SECRET', '');                    // Secret for daily visitor hash (analytics privacy)
+define('RECAP_UPLOAD_SECRET', '');                 // Narrow-scope secret used by the Sunday remote routine to POST a weekly recap (X-Recap-Upload-Key header). Distinct from API_SECRET to limit blast radius if the routine prompt leaks.
 
 // ── Web Push (VAPID) ────────────────────────────────────────────
 // Generate keys: openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout
