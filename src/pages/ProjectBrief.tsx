@@ -4,6 +4,7 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { ProjectDetailsPanel } from "@/components/ProjectDetailsPanel";
 import { LinkedObjectivesPanel } from "@/components/projects/LinkedObjectivesPanel";
+import { JournalWidget } from "@/components/projects/JournalWidget";
 import { getIntakeByProject, type IntakeResponse, type Tier } from "@/api/funnels";
 import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -194,6 +195,8 @@ export default function ProjectBrief() {
             </div>
           )}
         </section>
+
+        <JournalWidget projectTitle={project.title} />
       </div>
     </div>
   );

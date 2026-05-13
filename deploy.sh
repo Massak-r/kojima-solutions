@@ -37,6 +37,20 @@ if compgen -G "database/migrations/*" > /dev/null; then
 fi
 
 echo ""
+echo "▶  Syncing .kojima-journal/ (local-first markdown journals) ..."
+ssh -p ${SSH_PORT} "${SSH_USER}@${SSH_HOST}" "mkdir -p ${REMOTE_PATH}/.kojima-journal/projects"
+if [ -d ".kojima-journal" ]; then
+    # Sync the .htaccess + projects/ so the project_journal.php endpoint can read
+    # the .md files. Inbox stays local — server only needs project journals.
+    if [ -f ".kojima-journal/.htaccess" ]; then
+        scp -P ${SSH_PORT} ".kojima-journal/.htaccess" "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/.kojima-journal/.htaccess"
+    fi
+    if compgen -G ".kojima-journal/projects/*.md" > /dev/null; then
+        scp -P ${SSH_PORT} .kojima-journal/projects/*.md "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/.kojima-journal/projects/"
+    fi
+fi
+
+echo ""
 echo "✅  Deployed successfully!"
 echo "    https://kojima-solutions.ch"
 echo ""
