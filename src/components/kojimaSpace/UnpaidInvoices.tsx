@@ -13,7 +13,17 @@ export function UnpaidInvoices() {
 
   const unpaidInvoices = useMemo(
     () => quotes
-      .filter(q => q.invoiceStatus && q.invoiceStatus !== "paid" && q.invoiceStatus !== "draft" && q.invoiceStatus !== "on-hold")
+      // Only invoices: validated quotes (devis acceptés à facturer) live in
+      // <QuotesToInvoice /> so the "à facturer" vs "à encaisser" states are
+      // visually separated rather than conflated.
+      .filter((q) =>
+        q.docType === "invoice"
+        && !q.isTemplate
+        && q.invoiceStatus
+        && q.invoiceStatus !== "paid"
+        && q.invoiceStatus !== "draft"
+        && q.invoiceStatus !== "on-hold",
+      )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 8),
     [quotes],
