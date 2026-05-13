@@ -11,7 +11,7 @@ import { useObjectives } from "@/hooks/useObjectives";
 import { useAllSubtasks } from "@/hooks/useSubtasks";
 import { useSubtaskCompletions } from "@/hooks/useSubtaskCompletions";
 import { getGlobalWeekSummary, type GlobalWeekSummary } from "@/api/objectiveSessions";
-import { getInboxStats, type InboxStats } from "@/api/kojimaInbox";
+import { listInboxCaptures, type InboxList } from "@/api/inboxCaptures";
 import { getWeeklyRecap, type WeeklyRecap } from "@/api/weeklyRecap";
 import {
   isoWeekOf,
@@ -59,7 +59,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
   const { data: adminCompl }        = useSubtaskCompletions("admin");
   const { data: personalCompl }     = useSubtaskCompletions("personal");
   const [weekSummary, setWeekSummary] = useState<GlobalWeekSummary | null>(null);
-  const [inbox, setInbox]             = useState<InboxStats | null>(null);
+  const [inbox, setInbox]             = useState<InboxList | null>(null);
   const [recap, setRecap]             = useState<WeeklyRecap | null>(null);
   const [loading, setLoading]         = useState(false);
 
@@ -68,7 +68,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
     setLoading(true);
     Promise.allSettled([
       getGlobalWeekSummary().then(setWeekSummary).catch(() => {}),
-      getInboxStats().then(setInbox).catch(() => {}),
+      listInboxCaptures({ status: "pending", limit: 1 }).then(setInbox).catch(() => {}),
       getWeeklyRecap().then(setRecap).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [open]);
@@ -266,9 +266,9 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
                     icon={<Inbox size={13} className="text-violet-500" />}
                     label="Captures à trier"
                     value={
-                      !inbox || inbox.pendingLines === 0
+                      !inbox || inbox.pendingCount === 0
                         ? "Inbox vide"
-                        : `${inbox.pendingLines} en attente — /triage quand tu veux`
+                        : `${inbox.pendingCount} en attente — /triage quand tu veux`
                     }
                   />
                 </div>

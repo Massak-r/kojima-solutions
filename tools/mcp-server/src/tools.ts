@@ -20,6 +20,7 @@ import {
   listExpenses, createExpense, updateExpense,
   listPersonalCosts, createPersonalCost, updatePersonalCost,
   classifyPdf, generateBriefFromIntake, suggestQuoteLines,
+  listInboxCaptures, addInboxCapture, markCaptureTriaged, deleteInboxCapture,
   type ObjectiveSource, type ObjectiveSummary, type SubtaskItem,
 } from "./api.js";
 
@@ -432,6 +433,56 @@ export const TOOLS: ToolDefinition[] = [
       required: ["project_id"],
     },
   },
+  {
+    name: "list_inbox_captures",
+    description:
+      "List quick captures from the server-authoritative inbox. The user drops loose ideas/todos here via the Kojima Solutions web UI, the mobile PWA, or the /capture skill. /triage iterates over the pending ones and files them to the right destination via the other MCP tools.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["pending", "triaged", "all"], description: "Default 'pending'." },
+        source: { type: "string", enum: ["admin", "personal"], description: "Default 'admin'." },
+        limit:  { type: "number", description: "Max items to return (default 100, max 500)." },
+      },
+    },
+  },
+  {
+    name: "add_inbox_capture",
+    description:
+      "Add a quick capture to the inbox. Use this when the user dictates a loose thought during a conversation and asks you to 'capture' or 'note' it. The capture is server-authoritative — it appears immediately in the web UI and in the next /triage run.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text:         { type: "string", description: "Free-text content (max 2000 chars)." },
+        project_hint: { type: "string", description: "Optional project slug or name to bias future triage (free-form tag)." },
+        source:       { type: "string", enum: ["admin", "personal"], description: "Default 'admin'." },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "mark_capture_triaged",
+    description:
+      "Mark an inbox capture as triaged once /triage has filed it. The `destination` is a short free-form audit label like 'subtask:PASC 2026 / Email send 16 mai' or 'note:Kaleido'. Keeps the captures table tidy without losing history.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id:          { type: "string", description: "Capture UUID." },
+        destination: { type: "string", description: "Short audit label of where it was filed." },
+      },
+      required: ["id", "destination"],
+    },
+  },
+  {
+    name: "delete_inbox_capture",
+    description:
+      "Hard-delete a capture. Prefer mark_capture_triaged for normal flow; this is for spam, duplicates, or user-explicit 'forget it'.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -661,6 +712,27 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
 
     case "suggest_quote_lines":
       return await suggestQuoteLines(args.project_id);
+
+    // ── Inbox captures (DB-backed quick capture, /triage source) ────
+    case "list_inbox_captures":
+      return await listInboxCaptures({
+        status: args.status ?? "pending",
+        source: args.source ?? "admin",
+        limit:  args.limit,
+      });
+
+    case "add_inbox_capture":
+      return await addInboxCapture({
+        text:        args.text,
+        projectHint: args.project_hint,
+        source:      args.source ?? "admin",
+      });
+
+    case "mark_capture_triaged":
+      return await markCaptureTriaged(args.id, args.destination);
+
+    case "delete_inbox_capture":
+      return await deleteInboxCapture(args.id);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

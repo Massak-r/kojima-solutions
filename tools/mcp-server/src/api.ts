@@ -317,3 +317,37 @@ export const updatePersonalCost = (id: string, data: Record<string, unknown>) =>
 export const classifyPdf             = (docId: string)     => call<any>("auto/classify_pdf.php",       { method: "POST", body: JSON.stringify({ docId }) });
 export const generateBriefFromIntake = (intakeId: string)  => call<any>("auto/generate_brief.php",     { method: "POST", body: JSON.stringify({ intakeId }) });
 export const suggestQuoteLines       = (projectId: string) => call<any>(`auto/suggest_quote_lines.php?project_id=${projectId}`);
+
+// ── Inbox captures (DB-backed quick capture) ─────────────────────
+export interface InboxCapture {
+  id: string;
+  source: ObjectiveSource;
+  text: string;
+  project_hint: string | null;
+  created_at: string;
+  triaged_at: string | null;
+  triaged_destination: string | null;
+}
+
+export interface InboxList {
+  pendingCount: number;
+  items: InboxCapture[];
+}
+
+export const listInboxCaptures = (opts?: { status?: "pending" | "triaged" | "all"; source?: ObjectiveSource; limit?: number }) => {
+  const params = new URLSearchParams({
+    status: opts?.status ?? "pending",
+    source: opts?.source ?? "admin",
+    limit:  String(opts?.limit ?? 100),
+  });
+  return call<InboxList>(`inbox.php?${params}`);
+};
+
+export const addInboxCapture = (data: { text: string; projectHint?: string; source?: ObjectiveSource }) =>
+  call<InboxCapture>("inbox.php", { method: "POST", body: JSON.stringify(data) });
+
+export const markCaptureTriaged = (id: string, destination: string) =>
+  call<{ id: string }>(`inbox.php?id=${id}`, { method: "PATCH", body: JSON.stringify({ triaged: true, destination }) });
+
+export const deleteInboxCapture = (id: string) =>
+  call<void>(`inbox.php?id=${id}`, { method: "DELETE" });

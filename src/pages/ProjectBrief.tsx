@@ -5,6 +5,8 @@ import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { ProjectDetailsPanel } from "@/components/ProjectDetailsPanel";
 import { LinkedObjectivesPanel } from "@/components/projects/LinkedObjectivesPanel";
 import { JournalWidget } from "@/components/projects/JournalWidget";
+import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
+import { projectJournalSlug } from "@/api/projectJournal";
 import { getIntakeByProject, type IntakeResponse, type Tier } from "@/api/funnels";
 import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -198,6 +200,7 @@ export default function ProjectBrief() {
 
         <JournalWidget projectTitle={project.title} />
       </div>
+      <QuickCaptureFab projectHint={projectJournalSlug(project.title)} />
     </div>
   );
 }
