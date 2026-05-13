@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuotes } from "@/hooks/useQuotes";
 import { QuotePreview } from "@/components/quotes/QuotePreview";
+import { buildQuoteFilename } from "@/types/quote";
 
 export default function QuotePrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -10,6 +11,11 @@ export default function QuotePrintPage() {
 
   useEffect(() => {
     if (!quote) return;
+    // Set document.title so the browser's "Save as PDF" suggests a clean,
+    // client-facing filename like "Devis_DEV-2026-001_Acme-SA.pdf".
+    const originalTitle = document.title;
+    document.title = buildQuoteFilename(quote);
+
     // Inject @page rule + html/body height reset for clean single-page output
     const style = document.createElement("style");
     style.id = "quote-print-page-style";
@@ -27,6 +33,7 @@ export default function QuotePrintPage() {
       if (timer !== undefined) clearTimeout(timer);
       if (document.head.contains(style)) document.head.removeChild(style);
       document.body.classList.remove("quote-print-mode");
+      document.title = originalTitle;
     };
   }, [quote]);
 

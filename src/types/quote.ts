@@ -95,6 +95,25 @@ export function quoteNumberPrefix(docType: "quote" | "invoice"): string {
   return docType === "invoice" ? "FAC" : "DEV";
 }
 
+function slugifyForFilename(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+/** Client-facing filename for the printed PDF (without extension).
+ *  Format: "Devis_DEV-2026-001_Acme-SA" or "Facture_FAC-2026-001_Jean-Dupont".
+ *  Browsers append ".pdf" automatically when saving from the print dialog. */
+export function buildQuoteFilename(quote: Pick<Quote, "docType" | "quoteNumber" | "clientCompany" | "clientName">): string {
+  const docLabel = (quote.docType ?? "quote") === "invoice" ? "Facture" : "Devis";
+  const number = (quote.quoteNumber || "SansNumero").trim();
+  const who = slugifyForFilename(quote.clientCompany || quote.clientName || "Client") || "Client";
+  return `${docLabel}_${number}_${who}`;
+}
+
 /** Compute the next sequential quote number (DEV-YYYY-NNN or FAC-YYYY-NNN). */
 export function nextQuoteNumber(
   existing: Pick<Quote, "quoteNumber" | "docType">[],
