@@ -1,4 +1,4 @@
-import { Star, ChevronRight, CornerDownRight, Hourglass, CalendarPlus, Repeat, FolderKanban, Flame, Sparkles } from "lucide-react";
+import { Star, ChevronRight, CornerDownRight, Hourglass, CalendarPlus, Repeat, FolderKanban, Flame, Sparkles, Circle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 import type { SubtaskItem, Recurrence } from "@/api/todoSubtasks";
@@ -7,7 +7,36 @@ import type { SprintItem } from "@/components/sprint/SprintCapProvider";
 import type { StoredProject } from "@/contexts/ProjectsContext";
 import { EFFORT_CONFIG } from "@/components/todos/SubtaskCard";
 import { daysSinceFlagged, STALE_THRESHOLD_DAYS } from "./helpers";
-import { recurrenceShortLabel } from "@/lib/recurrencePeriod";
+import {
+  recurrenceShortLabel,
+  currentPeriodFor,
+  previousPeriod,
+  isPeriodDone,
+  periodEnd,
+} from "@/lib/recurrencePeriod";
+import { useSubtaskCompletions } from "@/hooks/useSubtaskCompletions";
+
+/** Count consecutive done periods walking backward from current.
+ *  Current period being pending doesn't break the streak — it's just not yet
+ *  done. Past periods must be done to keep counting. */
+function computeStreakCount(
+  recurrence: Recurrence,
+  createdAtISO: string,
+  completionDates: string[] | undefined,
+): number {
+  if (!completionDates || completionDates.length === 0) return 0;
+  const today = new Date();
+  const created = new Date(createdAtISO);
+  let cursor = currentPeriodFor(recurrence, today);
+  let streak = isPeriodDone(cursor, completionDates) ? 1 : 0;
+  cursor = previousPeriod(cursor);
+  while (periodEnd(cursor) >= created) {
+    if (!isPeriodDone(cursor, completionDates)) break;
+    streak++;
+    cursor = previousPeriod(cursor);
+  }
+  return streak;
+}
 
 interface SprintBacklogProps {
   items: SprintItem[];
@@ -20,12 +49,21 @@ interface SprintBacklogProps {
   onJump: (item: SprintItem) => void;
   onPostpone: (subId: string) => void;
   onToggleTier: (item: SprintItem) => void;
+  onComplete: (item: SprintItem) => void;
 }
 
 export function SprintBacklog({
   items, subtaskById, objectivesById, projectsById,
-  backlogPending, backlogDone, isOverCap, onJump, onPostpone, onToggleTier,
+  backlogPending, backlogDone, isOverCap, onJump, onPostpone, onToggleTier, onComplete,
 }: SprintBacklogProps) {
+  // Streak data: merge admin + personal completion maps. Subtask IDs are
+  // UUID4 so cross-source collisions don't happen.
+  const { data: adminCompletions }    = useSubtaskCompletions("admin");
+  const { data: personalCompletions } = useSubtaskCompletions("personal");
+  const completionsMap = useMemo(
+    () => ({ ...(adminCompletions ?? {}), ...(personalCompletions ?? {}) }),
+    [adminCompletions, personalCompletions],
+  );
   const mustItems = items.filter(i => itemTier(i) === "must" && !isItemCompleted(i));
   const niceItems = items.filter(i => itemTier(i) === "nice" && !isItemCompleted(i));
   const doneItems = items.filter(i => isItemCompleted(i));
@@ -105,9 +143,11 @@ export function SprintBacklog({
         subtaskById={subtaskById}
         objectivesById={objectivesById}
         projectsById={projectsById}
+        completionsMap={completionsMap}
         onJump={onJump}
         onPostpone={onPostpone}
         onToggleTier={onToggleTier}
+        onComplete={onComplete}
       />
 
       {/* Nice-to-have zone */}
@@ -117,9 +157,11 @@ export function SprintBacklog({
         subtaskById={subtaskById}
         objectivesById={objectivesById}
         projectsById={projectsById}
+        completionsMap={completionsMap}
         onJump={onJump}
         onPostpone={onPostpone}
         onToggleTier={onToggleTier}
+        onComplete={onComplete}
       />
 
       {/* Done zone (completed items, collapsed style) */}
@@ -136,9 +178,11 @@ export function SprintBacklog({
                 subtaskById={subtaskById}
                 objectivesById={objectivesById}
                 projectsById={projectsById}
+                completionsMap={completionsMap}
                 onJump={onJump}
                 onPostpone={onPostpone}
                 onToggleTier={onToggleTier}
+                onComplete={onComplete}
               />
             ))}
           </ul>
@@ -154,12 +198,14 @@ interface TierZoneProps {
   subtaskById: Record<string, SubtaskItem>;
   objectivesById: Record<string, UnifiedObjective>;
   projectsById: Record<string, StoredProject>;
+  completionsMap: Record<string, string[]>;
   onJump: (item: SprintItem) => void;
   onPostpone: (subId: string) => void;
   onToggleTier: (item: SprintItem) => void;
+  onComplete: (item: SprintItem) => void;
 }
 
-function TierZone({ kind, items, subtaskById, objectivesById, projectsById, onJump, onPostpone, onToggleTier }: TierZoneProps) {
+function TierZone({ kind, items, subtaskById, objectivesById, projectsById, completionsMap, onJump, onPostpone, onToggleTier, onComplete }: TierZoneProps) {
   if (items.length === 0 && kind === "nice") return null; // no nice = nothing to show
   const isMust = kind === "must";
 
@@ -198,9 +244,11 @@ function TierZone({ kind, items, subtaskById, objectivesById, projectsById, onJu
               subtaskById={subtaskById}
               objectivesById={objectivesById}
               projectsById={projectsById}
+              completionsMap={completionsMap}
               onJump={onJump}
               onPostpone={onPostpone}
               onToggleTier={onToggleTier}
+              onComplete={onComplete}
             />
           ))}
         </ul>
@@ -227,12 +275,14 @@ interface RowProps {
   subtaskById: Record<string, SubtaskItem>;
   objectivesById: Record<string, UnifiedObjective>;
   projectsById: Record<string, StoredProject>;
+  completionsMap: Record<string, string[]>;
   onJump: (item: SprintItem) => void;
   onPostpone: (subId: string) => void;
   onToggleTier: (item: SprintItem) => void;
+  onComplete: (item: SprintItem) => void;
 }
 
-function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJump, onPostpone, onToggleTier }: RowProps) {
+function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, completionsMap, onJump, onPostpone, onToggleTier, onComplete }: RowProps) {
   const completed = isItemCompleted(item);
   const tier = itemTier(item);
   const TierIcon = tier === "must" ? Flame : Sparkles;
@@ -245,20 +295,32 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
     const effortCfg = sub.effortSize ? EFFORT_CONFIG[sub.effortSize] : null;
     const ageDays = daysSinceFlagged(sub);
     const isStale = !sub.completed && ageDays >= STALE_THRESHOLD_DAYS;
+    const streak = sub.recurrence
+      ? computeStreakCount(sub.recurrence, sub.createdAt, completionsMap[sub.id])
+      : 0;
 
     return (
       <li className="relative group">
         <button
+          onClick={(e) => { e.stopPropagation(); onComplete(item); }}
+          className={cn(
+            "absolute left-2 top-1/2 -translate-y-1/2 z-10 p-0.5 rounded-full transition-all hover:scale-110",
+            completed ? "text-emerald-500" : "text-muted-foreground/40 hover:text-emerald-500",
+          )}
+          title={completed
+            ? (sub.recurrence ? "Décocher cette période" : "Marquer non terminé")
+            : (sub.recurrence ? "Marquer fait pour cette période" : "Marquer terminé")}
+          aria-label={completed ? "Décocher" : "Cocher"}
+        >
+          {completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+        </button>
+        <button
           onClick={() => onJump(item)}
           className={cn(
-            "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-2.5 py-2 pr-20",
+            "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 pl-9 pr-20 py-2",
             completed && "opacity-50",
           )}
         >
-          <Star
-            size={13}
-            className={cn("shrink-0 mt-0.5 fill-current", completed ? "text-muted-foreground/40" : "text-amber-400")}
-          />
           <div className="flex-1 min-w-0">
             <div className={cn(
               "text-sm font-body font-medium text-foreground break-words",
@@ -289,6 +351,15 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
                 >
                   <Repeat size={9} />
                   {sub.recurrence === "daily" ? "Jour" : sub.recurrence === "weekdays" ? "L-V" : sub.recurrence === "weekly" ? "Hebdo" : "Mois"}
+                </span>
+              )}
+              {sub.recurrence && streak > 0 && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                  title={`${streak} période${streak > 1 ? "s" : ""} d'affilée`}
+                >
+                  <Flame size={9} className="fill-current" />
+                  {streak}
                 </span>
               )}
               {isStale && (
@@ -339,16 +410,23 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, onJ
   return (
     <li className="relative group">
       <button
+        onClick={(e) => { e.stopPropagation(); onComplete(item); }}
+        className={cn(
+          "absolute left-2 top-1/2 -translate-y-1/2 z-10 p-0.5 rounded-full transition-all hover:scale-110",
+          completed ? "text-emerald-500" : "text-muted-foreground/40 hover:text-emerald-500",
+        )}
+        title={completed ? "Marquer non terminé" : "Marquer terminé"}
+        aria-label={completed ? "Décocher" : "Cocher"}
+      >
+        {completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+      </button>
+      <button
         onClick={() => onJump(item)}
         className={cn(
-          "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 px-2.5 py-2 pr-12",
+          "w-full text-left rounded-lg border border-transparent hover:border-border/40 hover:bg-card/60 transition-all flex items-start gap-2.5 pl-9 pr-12 py-2",
           completed && "opacity-50",
         )}
       >
-        <Star
-          size={13}
-          className={cn("shrink-0 mt-0.5 fill-current", completed ? "text-muted-foreground/40" : "text-amber-400")}
-        />
         <div className="flex-1 min-w-0">
           <div className={cn(
             "text-sm font-body font-medium text-foreground break-words",

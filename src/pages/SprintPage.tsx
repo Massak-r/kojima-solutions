@@ -409,6 +409,17 @@ export default function SprintPage() {
                       updateProjectTask(item.projectId, item.task.id, { sprintTier: next });
                     }
                   }}
+                  onComplete={(item) => {
+                    if (item.kind === "subtask") {
+                      updateSubtaskMut.mutate({
+                        id: item.subtask.id,
+                        patch: { completed: !item.subtask.completed },
+                      });
+                    } else {
+                      const nextStatus = item.task.status === "completed" ? "open" : "completed";
+                      updateProjectTask(item.projectId, item.task.id, { status: nextStatus });
+                    }
+                  }}
                 />
               ) : null}
 
