@@ -8,6 +8,8 @@ import { SprintSummary } from "@/components/home/SprintSummary";
 import { StreamsList } from "@/components/home/StreamsList";
 import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
 import { OverviewTab } from "@/components/home/OverviewTab";
+import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
+import { isoWeekOf } from "@/lib/recurrencePeriod";
 
 type Tab = "streams" | "kanban" | "overview";
 
@@ -38,6 +40,28 @@ export default function Home() {
   const today = new Date().toLocaleDateString("fr-CH", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
+
+  // Monday morning brief: pops once per ISO week on Mondays. localStorage key
+  // is per-week so dismissing only mutes this week; next Monday it re-opens.
+  const [mondayBriefOpen, setMondayBriefOpen] = useState(false);
+  useEffect(() => {
+    const now = new Date();
+    if (now.getDay() !== 1) return; // 1 = Monday
+    const { year, week } = isoWeekOf(now);
+    const key = `monday-brief-${year}-${week}`;
+    try {
+      if (!localStorage.getItem(key)) {
+        setMondayBriefOpen(true);
+      }
+    } catch {}
+  }, []);
+  function handleMondayBriefChange(next: boolean) {
+    setMondayBriefOpen(next);
+    if (!next) {
+      const { year, week } = isoWeekOf(new Date());
+      try { localStorage.setItem(`monday-brief-${year}-${week}`, "1"); } catch {}
+    }
+  }
 
   function handleNewProject() {
     openQuickCreate("project");
@@ -113,6 +137,8 @@ export default function Home() {
         {tab === "kanban" && <ProjectStatusKanban />}
         {tab === "overview" && <OverviewTab />}
       </main>
+
+      <MondayBriefDialog open={mondayBriefOpen} onOpenChange={handleMondayBriefChange} />
     </div>
   );
 }

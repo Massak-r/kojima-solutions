@@ -40,6 +40,18 @@ if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && ! -f "$DAILY_MARKER" ]]; then
   touch "$DAILY_MARKER"
 fi
 
+# ── Inbox journal pending (any weekday) ────────────────────────────
+# Count un-triaged entries in .kojima-journal/inbox.md so Claude can nudge
+# about /triage. A pending entry: starts with "- [ ]" and is NOT wrapped in
+# "~~...~~" (struck-through = already filed by /triage).
+INBOX_PATH=".kojima-journal/inbox.md"
+if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && -f "$INBOX_PATH" ]]; then
+  INBOX_PENDING=$(grep -E '^[[:space:]]*-[[:space:]]*\[[[:space:]]*\]' "$INBOX_PATH" | grep -vc '~~' || true)
+  if [[ "$INBOX_PENDING" -gt 0 ]]; then
+    PARTS+=("ADDENDUM JOURNAL : il y a $INBOX_PENDING capture(s) non triée(s) dans .kojima-journal/inbox.md. Mentionne-le au bout du brief et propose de lancer /triage si l'utilisateur le souhaite (ne le lance pas automatiquement).")
+  fi
+fi
+
 # ── Clients en attente (lundi + jeudi) ─────────────────────────────
 if [[ ( "$DOW" -eq 1 || "$DOW" -eq 4 ) && "$HOUR" -ge 7 && ! -f "$CLIENTS_MARKER" ]]; then
   PARTS+=($'RÉCAP CLIENTS EN ATTENTE : Appelle list_projects (projets actifs en attente d\'une action), list_intakes (demandes en statut "new" ou "reviewed" non converties), et list_quotes (devis en "draft" ou "to-validate"). Présente un récap en 3 sections :\n  1) Projets nécessitant une action client (status on-hold ou bloqué)\n  2) Intakes non traités (avec délai depuis création)\n  3) Devis en attente de signature (avec délai depuis création)\nPour chaque élément, indique le nombre de jours depuis le dernier mouvement.')
