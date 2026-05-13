@@ -192,13 +192,52 @@ const Header = () => {
                     {offlineQueueSize}
                   </span>
                 )}
-                <Link
-                  to="/settings"
-                  className="ml-1 flex items-center gap-1.5 text-muted-foreground/50 hover:text-foreground transition-colors text-xs px-2 py-1.5 rounded-lg hover:bg-secondary"
-                  title="Réglages"
-                >
-                  <Settings size={13} />
-                </Link>
+                <div className="relative ml-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOverflowOpen((v) => !v); }}
+                    className="flex items-center gap-1.5 text-muted-foreground/50 hover:text-foreground transition-colors text-xs px-2 py-1.5 rounded-lg hover:bg-secondary"
+                    title="Plus"
+                    aria-label="Plus"
+                  >
+                    <MoreVertical size={13} />
+                  </button>
+                  <AnimatePresence>
+                    {overflowOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute right-0 top-full mt-1 w-44 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+                      >
+                        <Link
+                          to="/documents"
+                          onClick={() => setOverflowOpen(false)}
+                          className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                            location.pathname === "/documents"
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`}
+                        >
+                          <Shield size={14} />
+                          Documents
+                        </Link>
+                        <Link
+                          to="/settings"
+                          onClick={() => setOverflowOpen(false)}
+                          className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors border-t border-border ${
+                            location.pathname === "/settings"
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`}
+                        >
+                          <Settings size={14} />
+                          Réglages
+                        </Link>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <button
                   onClick={() => navigate("/")}
                   className="ml-1 flex items-center gap-1.5 text-muted-foreground/60 hover:text-foreground transition-colors text-xs"
