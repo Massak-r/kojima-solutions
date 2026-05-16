@@ -72,11 +72,12 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
 
   return (
     <>
-      {/* FAB — bottom-right, above mobile BottomNav (h-16) */}
+      {/* FAB — bottom-right, stacked above QuickActionFAB (which sits at
+        *  bottom-24 sm:bottom-8). Stays clear of the mobile BottomNav (h-16). */}
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed right-4 z-40 bottom-20 md:bottom-6 md:right-6",
+          "fixed right-4 z-40 bottom-40 md:bottom-24 md:right-6",
           "h-12 w-12 rounded-full bg-violet-600 text-white shadow-lg",
           "hover:bg-violet-700 hover:scale-105 active:scale-95 transition-all",
           "flex items-center justify-center group",
@@ -109,7 +110,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className={cn(
                 "fixed z-50",
-                "left-4 right-4 bottom-20 md:bottom-24 md:left-auto md:right-6 md:w-[420px]",
+                "left-4 right-4 bottom-40 md:bottom-40 md:left-auto md:right-6 md:w-[420px]",
                 "rounded-2xl bg-card border border-border shadow-2xl overflow-hidden",
               )}
               onClick={e => e.stopPropagation()}

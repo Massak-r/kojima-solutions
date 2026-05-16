@@ -48,6 +48,14 @@ export function markCaptureTriaged(id: string, destination: string): Promise<{ i
   });
 }
 
+/** Edit the capture text in place (rare — usually only to clean up a typo). */
+export function updateCaptureText(id: string, text: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ text }),
+  });
+}
+
 export function deleteInboxCapture(id: string): Promise<void> {
   return apiFetch<void>(`inbox.php?id=${id}`, { method: "DELETE" });
 }

@@ -10,6 +10,7 @@ import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
 import { OverviewTab } from "@/components/home/OverviewTab";
 import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
+import { InboxPanel } from "@/components/home/InboxPanel";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
 
 type Tab = "streams" | "kanban" | "overview";
@@ -131,6 +132,7 @@ export default function Home() {
         {tab === "streams" && (
           <div className="space-y-5">
             <AlertsZone />
+            <InboxPanel />
             <SprintSummary />
             <StreamsList />
           </div>

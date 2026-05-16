@@ -1,0 +1,478 @@
+import { useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
+  Sparkles, ChevronDown, FolderOpen,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import {
+  listInboxCaptures, markCaptureTriaged, deleteInboxCapture, updateCaptureText,
+  type InboxCapture, type InboxList,
+} from "@/api/inboxCaptures";
+import { createSubtask } from "@/api/todoSubtasks";
+import { createDecision } from "@/api/objectiveDecisions";
+import { useObjectives } from "@/hooks/useObjectives";
+import { subtasksQueryKey } from "@/hooks/useSubtasks";
+import type { UnifiedObjective } from "@/api/objectiveSource";
+
+const PENDING_KEY = ["inbox-captures", "admin", "pending"] as const;
+
+type PickerMode = "subtask" | "decision" | null;
+
+export function InboxPanel() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: objectives = [] } = useObjectives();
+
+  const { data, isLoading } = useQuery<InboxList>({
+    queryKey: PENDING_KEY,
+    queryFn: () => listInboxCaptures({ status: "pending", source: "admin", limit: 50 }),
+    staleTime: 30_000,
+  });
+
+  const items = data?.items ?? [];
+
+  const triage = useMutation({
+    mutationFn: ({ id, destination }: { id: string; destination: string }) =>
+      markCaptureTriaged(id, destination),
+    onMutate: async ({ id }) => {
+      await qc.cancelQueries({ queryKey: PENDING_KEY });
+      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
+      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
+        p ? { ...p, items: p.items.filter(i => i.id !== id), pendingCount: Math.max(0, p.pendingCount - 1) } : p,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      toast({ title: "Action échouée", description: "Réessaye ?", variant: "destructive" });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteInboxCapture(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: PENDING_KEY });
+      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
+      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
+        p ? { ...p, items: p.items.filter(i => i.id !== id), pendingCount: Math.max(0, p.pendingCount - 1) } : p,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      toast({ title: "Suppression échouée", variant: "destructive" });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+  });
+
+  const editText = useMutation({
+    mutationFn: ({ id, text }: { id: string; text: string }) => updateCaptureText(id, text),
+    onMutate: async ({ id, text }) => {
+      await qc.cancelQueries({ queryKey: PENDING_KEY });
+      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
+      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
+        p ? { ...p, items: p.items.map(i => i.id === id ? { ...i, text } : i) } : p,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      toast({ title: "Modification échouée", variant: "destructive" });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+  });
+
+  async function convertToSubtask(capture: InboxCapture, objective: UnifiedObjective) {
+    try {
+      await createSubtask({
+        parentId: objective.id,
+        source: objective.source,
+        text: capture.text,
+      });
+      await markCaptureTriaged(capture.id, `subtask:${objective.text.slice(0, 80)}`);
+      qc.invalidateQueries({ queryKey: subtasksQueryKey });
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      toast({ title: "Convertie en étape", description: `Ajoutée à « ${objective.text} »` });
+    } catch (e) {
+      toast({
+        title: "Conversion échouée",
+        description: e instanceof Error ? e.message : "Réessaye ?",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function convertToDecision(capture: InboxCapture, objective: UnifiedObjective) {
+    try {
+      await createDecision({
+        source: objective.source,
+        objectiveId: objective.id,
+        title: capture.text,
+      });
+      await markCaptureTriaged(capture.id, `decision:${objective.text.slice(0, 80)}`);
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      toast({ title: "Décision archivée", description: `Sous « ${objective.text} »` });
+    } catch (e) {
+      toast({
+        title: "Conversion échouée",
+        description: e instanceof Error ? e.message : "Réessaye ?",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Hide entirely when there's nothing pending (and not loading)
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <section className="rounded-2xl border border-violet-200/50 dark:border-violet-500/20 bg-gradient-to-br from-violet-50/40 via-card/40 to-card/30 dark:from-violet-500/8 backdrop-blur-sm p-4 sm:p-5">
+      <header className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Inbox size={14} className="text-violet-600 dark:text-violet-400" />
+          <h2 className="font-display text-xs font-bold text-foreground/75 uppercase tracking-wider">
+            Inbox à trier
+          </h2>
+          <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
+            · {items.length}
+          </span>
+        </div>
+        <span className="text-[10px] font-body text-muted-foreground/60 italic">
+          Garde · convertit · supprime
+        </span>
+      </header>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 size={16} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <ul className="space-y-1.5">
+          <AnimatePresence initial={false}>
+            {items.map(item => (
+              <motion.li
+                key={item.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -12, transition: { duration: 0.15 } }}
+                transition={{ duration: 0.18 }}
+              >
+                <CaptureRow
+                  capture={item}
+                  objectives={objectives}
+                  busy={triage.isPending || remove.isPending || editText.isPending}
+                  onKeep={() => triage.mutate({ id: item.id, destination: "kept-as-note" })}
+                  onDelete={() => remove.mutate(item.id)}
+                  onEdit={(text) => editText.mutate({ id: item.id, text })}
+                  onConvertSubtask={(obj) => convertToSubtask(item, obj)}
+                  onConvertDecision={(obj) => convertToDecision(item, obj)}
+                />
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+function CaptureRow({
+  capture, objectives, busy,
+  onKeep, onDelete, onEdit, onConvertSubtask, onConvertDecision,
+}: {
+  capture: InboxCapture;
+  objectives: UnifiedObjective[];
+  busy: boolean;
+  onKeep: () => void;
+  onDelete: () => void;
+  onEdit: (text: string) => void;
+  onConvertSubtask: (obj: UnifiedObjective) => void;
+  onConvertDecision: (obj: UnifiedObjective) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(capture.text);
+  const [picker, setPicker] = useState<PickerMode>(null);
+
+  const objectivesOnly = useMemo(
+    () => objectives.filter(o => o.isObjective && !o.completed),
+    [objectives],
+  );
+
+  const created = useMemo(() => {
+    const d = new Date(capture.created_at);
+    const diffMs = Date.now() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60_000);
+    if (diffMin < 1) return "à l'instant";
+    if (diffMin < 60) return `il y a ${diffMin}min`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `il y a ${diffHr}h`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 7) return `il y a ${diffDay}j`;
+    return d.toLocaleDateString("fr-CH", { day: "numeric", month: "short" });
+  }, [capture.created_at]);
+
+  function saveEdit() {
+    const next = draft.trim();
+    if (next && next !== capture.text) onEdit(next);
+    setEditing(false);
+  }
+
+  function cancelEdit() {
+    setDraft(capture.text);
+    setEditing(false);
+  }
+
+  return (
+    <div className={cn(
+      "rounded-xl border border-border/50 bg-card/70 px-3 py-2.5 group transition-colors",
+      "hover:border-violet-300/60 dark:hover:border-violet-500/30",
+    )}>
+      {/* Row 1 — text + meta */}
+      <div className="flex items-start gap-2.5">
+        <Sparkles size={11} className="text-violet-500 mt-1 shrink-0" />
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <textarea
+              value={draft}
+              autoFocus
+              onChange={e => setDraft(e.target.value)}
+              onBlur={saveEdit}
+              onKeyDown={e => {
+                if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveEdit(); }
+              }}
+              rows={2}
+              className="w-full text-sm font-body bg-background border border-border rounded-md px-2 py-1 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 resize-none"
+            />
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-left text-sm font-body text-foreground/90 leading-snug w-full hover:text-foreground transition-colors"
+              title="Cliquer pour éditer"
+            >
+              {capture.text}
+            </button>
+          )}
+          <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-muted-foreground/60">
+            <span className="tabular-nums">{created}</span>
+            {capture.project_hint && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100/60 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 normal-case">
+                <FolderOpen size={9} />
+                {capture.project_hint}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2 — actions */}
+      {!editing && (
+        <div className="flex items-center gap-1 mt-2 pl-[18px] flex-wrap">
+          <ActionPill
+            onClick={onKeep}
+            disabled={busy}
+            tone="emerald"
+            icon={<Check size={11} />}
+            label="Garder"
+            tooltip="Marquer comme note conservée"
+          />
+          <ActionPill
+            onClick={() => setPicker(p => p === "subtask" ? null : "subtask")}
+            disabled={busy || objectivesOnly.length === 0}
+            tone="amber"
+            active={picker === "subtask"}
+            icon={<Target size={11} />}
+            label="Subtask"
+            chevron
+            tooltip={objectivesOnly.length === 0 ? "Aucun objectif actif" : "Convertir en étape sous un objectif"}
+          />
+          <ActionPill
+            onClick={() => setPicker(p => p === "decision" ? null : "decision")}
+            disabled={busy || objectivesOnly.length === 0}
+            tone="sky"
+            active={picker === "decision"}
+            icon={<ArrowRight size={11} />}
+            label="Décision"
+            chevron
+            tooltip={objectivesOnly.length === 0 ? "Aucun objectif actif" : "Archiver comme décision sur un objectif"}
+          />
+          <div className="flex-1" />
+          <button
+            onClick={() => setEditing(true)}
+            disabled={busy}
+            className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-30"
+            aria-label="Éditer"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={busy}
+            className="p-1.5 rounded-md text-muted-foreground/50 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors disabled:opacity-30"
+            aria-label="Supprimer"
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      )}
+
+      {/* Row 3 — objective picker (when subtask or decision is selected) */}
+      <AnimatePresence>
+        {picker && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            <ObjectivePicker
+              objectives={objectivesOnly}
+              hint={capture.project_hint}
+              onPick={(obj) => {
+                if (picker === "subtask") onConvertSubtask(obj);
+                else                       onConvertDecision(obj);
+                setPicker(null);
+              }}
+              onCancel={() => setPicker(null)}
+              modeLabel={picker === "subtask" ? "Subtask" : "Décision"}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+function ActionPill({
+  onClick, disabled, tone, active, icon, label, chevron, tooltip,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  tone: "emerald" | "amber" | "sky";
+  active?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  chevron?: boolean;
+  tooltip?: string;
+}) {
+  const TONES: Record<typeof tone, { active: string; idle: string }> = {
+    emerald: {
+      active: "bg-emerald-600 text-white",
+      idle:   "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20",
+    },
+    amber: {
+      active: "bg-amber-600 text-white",
+      idle:   "text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20",
+    },
+    sky: {
+      active: "bg-sky-600 text-white",
+      idle:   "text-sky-700 bg-sky-50 hover:bg-sky-100 dark:text-sky-300 dark:bg-sky-500/10 dark:hover:bg-sky-500/20",
+    },
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={tooltip}
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px] font-body font-medium rounded-full px-2 py-0.5 transition-colors",
+        active ? TONES[tone].active : TONES[tone].idle,
+        disabled && "opacity-40 cursor-not-allowed hover:bg-transparent",
+      )}
+    >
+      {icon}
+      {label}
+      {chevron && <ChevronDown size={9} className={cn("transition-transform", active && "rotate-180")} />}
+    </button>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+function ObjectivePicker({
+  objectives, hint, onPick, onCancel, modeLabel,
+}: {
+  objectives: UnifiedObjective[];
+  hint: string | null;
+  onPick: (obj: UnifiedObjective) => void;
+  onCancel: () => void;
+  modeLabel: string;
+}) {
+  const [filter, setFilter] = useState("");
+  // Pre-score: if hint matches any objective text, surface it first
+  const sorted = useMemo(() => {
+    const hintLower = (hint ?? "").toLowerCase();
+    const filterLower = filter.toLowerCase();
+    return [...objectives]
+      .filter(o => !filterLower || o.text.toLowerCase().includes(filterLower) || (o.category ?? "").toLowerCase().includes(filterLower))
+      .sort((a, b) => {
+        if (hintLower) {
+          const am = a.text.toLowerCase().includes(hintLower) ? 0 : 1;
+          const bm = b.text.toLowerCase().includes(hintLower) ? 0 : 1;
+          if (am !== bm) return am - bm;
+        }
+        return a.text.localeCompare(b.text);
+      });
+  }, [objectives, hint, filter]);
+
+  return (
+    <div className="mt-2.5 ml-[18px] rounded-lg border border-border/60 bg-background/60 p-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground">
+          → {modeLabel} sous…
+        </span>
+        <input
+          autoFocus
+          type="text"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          placeholder="Filtrer…"
+          className="flex-1 text-xs font-body bg-transparent border-b border-border/40 focus:outline-none focus:border-primary/60 px-1 py-0.5"
+        />
+        <button
+          onClick={onCancel}
+          className="text-muted-foreground/50 hover:text-foreground transition-colors p-0.5"
+          aria-label="Annuler"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      {sorted.length === 0 ? (
+        <div className="text-[11px] font-body text-muted-foreground/60 italic px-2 py-2">
+          Aucun objectif trouvé.
+        </div>
+      ) : (
+        <ul className="max-h-[160px] overflow-y-auto space-y-0.5 -mx-1">
+          {sorted.slice(0, 30).map(o => (
+            <li key={`${o.source}:${o.id}`}>
+              <button
+                onClick={() => onPick(o)}
+                className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/70 transition-colors group"
+              >
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  o.source === "admin" ? "bg-indigo-400" : "bg-rose-400",
+                )} />
+                <span className="text-xs font-body text-foreground truncate flex-1">{o.text}</span>
+                {o.category && (
+                  <span className="text-[10px] font-mono text-muted-foreground/50 truncate max-w-[100px]">
+                    {o.category}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
