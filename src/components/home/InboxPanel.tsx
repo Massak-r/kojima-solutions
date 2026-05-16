@@ -238,18 +238,45 @@ function CaptureRow({
         <Sparkles size={11} className="text-violet-500 mt-1 shrink-0" />
         <div className="flex-1 min-w-0">
           {editing ? (
-            <textarea
-              value={draft}
-              autoFocus
-              onChange={e => setDraft(e.target.value)}
-              onBlur={saveEdit}
-              onKeyDown={e => {
-                if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveEdit(); }
-              }}
-              rows={2}
-              className="w-full text-sm font-body bg-background border border-border rounded-md px-2 py-1 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 resize-none"
-            />
+            <div className="space-y-1.5">
+              <textarea
+                value={draft}
+                autoFocus
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveEdit(); }
+                }}
+                rows={Math.min(14, Math.max(3, Math.ceil(draft.length / 50)))}
+                className="w-full text-sm font-body bg-background border border-border rounded-md px-2 py-1.5 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 resize-y min-h-[72px] max-h-[60vh] leading-relaxed"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-mono text-muted-foreground/50 tabular-nums">
+                  {draft.trim().length} car · ⌘↵ enregistrer · Échap annuler · poignée ↘ pour agrandir
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={cancelEdit}
+                    className="text-[11px] font-body text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-secondary transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    disabled={!draft.trim()}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-[11px] font-body font-semibold px-2.5 py-1 rounded-md transition-colors",
+                      draft.trim()
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "bg-muted text-muted-foreground/50 cursor-not-allowed",
+                    )}
+                  >
+                    <Check size={11} />
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <button
               onClick={() => setEditing(true)}
