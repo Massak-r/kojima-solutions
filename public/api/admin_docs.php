@@ -28,23 +28,42 @@ function generateShareToken(): string {
     return bin2hex(random_bytes(24)); // 48-char hex token
 }
 
-/** True once the scan-triage columns (status, urgent) exist — i.e. the
- * migration has run. Lets the endpoint keep working in the window between a
- * deploy and the migration being applied. */
+/** Ensures the scan-triage columns (status, urgent) exist, adding them on the
+ * fly the first time they're needed. This lets the À-trier feature work
+ * without any separate manual migration step. */
 function adminDocsHasTriage(PDO $pdo): bool {
     static $has = null;
-    if ($has === null) {
-        try {
-            $pdo->query('SELECT status, urgent FROM admin_docs LIMIT 0');
-            $has = true;
-        } catch (Throwable $e) {
-            $has = false;
-        }
+    if ($has !== null) return $has;
+
+    // Already present?
+    try {
+        $pdo->query('SELECT status, urgent FROM admin_docs LIMIT 0');
+        return $has = true;
+    } catch (Throwable $e) {
+        // Missing — self-heal below.
     }
-    return $has;
+
+    // Add the columns. We only reach here when they're confirmed absent.
+    try {
+        $pdo->exec(
+            "ALTER TABLE admin_docs "
+            . "ADD COLUMN status ENUM('to_sort','filed') NOT NULL DEFAULT 'filed', "
+            . "ADD COLUMN urgent TINYINT(1) NOT NULL DEFAULT 0"
+        );
+    } catch (Throwable $e2) {
+        // A concurrent request may have won the race — the re-check decides.
+    }
+
+    try {
+        $pdo->query('SELECT status, urgent FROM admin_docs LIMIT 0');
+        return $has = true;
+    } catch (Throwable $e3) {
+        return $has = false;
+    }
 }
 
 if ($method === 'GET') {
+    adminDocsHasTriage($pdo); // self-heal the triage columns on first load
     $rows = $pdo->query('SELECT * FROM admin_docs ORDER BY sort_order, created_at DESC')->fetchAll();
     ok(array_map('mapDoc', $rows));
 }
