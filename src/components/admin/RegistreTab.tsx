@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Plus, Pencil, Trash2, Loader2, AlertTriangle, Bell, Folder, X, Check, Copy,
+  Plus, Pencil, Trash2, Loader2, AlertTriangle, Bell, Folder, X, Check, Copy, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -23,11 +23,11 @@ import { useCreateSubtask, useUpdateSubtask } from "@/hooks/useSubtasks";
 import type { DocFolder } from "@/api/adminDocs";
 import type {
   RegistryEntry, RegistryEntryType, RegistryScope, RegistryStatus,
-  BankMeta, InsuranceMeta, SubscriptionMeta, TaxMeta, TaxChecklistItem,
+  BankMeta, InsuranceMeta, SubscriptionMeta, TaxMeta, TaxChecklistItem, CommonMeta,
 } from "@/types/adminRegistry";
 import {
   TYPE_LABELS, SCOPE_LABELS, STATUS_LABELS, REMIND_OPTIONS,
-  defaultMeta, daysUntilAction, isExpiringSoon,
+  defaultMeta, daysUntilAction, isExpiringSoon, pickCommonMeta,
 } from "@/types/adminRegistry";
 
 const TYPE_ORDER: RegistryEntryType[] = ['bank', 'insurance', 'subscription', 'tax'];
@@ -279,6 +279,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
   const [formNextActionDate, setFormNextActionDate] = useState('');
   const [formRemindDays,     setFormRemindDays]     = useState(30);
   const [formMeta,           setFormMeta]           = useState<MetaState>({});
+  const [formExtras,         setFormExtras]         = useState<CommonMeta>({});
 
   // Delete + alert
   const [deleteId,   setDeleteId]   = useState<string | null>(null);
@@ -328,6 +329,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     setFormNextActionDate('');
     setFormRemindDays(30);
     setFormMeta(defaultMeta('bank'));
+    setFormExtras({});
     setDialogOpen(true);
   }
 
@@ -342,6 +344,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     setFormNextActionDate(entry.nextActionDate ?? '');
     setFormRemindDays(entry.remindDays);
     setFormMeta((entry.meta as MetaState) ?? defaultMeta(entry.type));
+    setFormExtras(pickCommonMeta(entry.meta));
     setDialogOpen(true);
   }
 
@@ -363,7 +366,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
         notes:          formNotes || null,
         nextActionDate: formNextActionDate || null,
         remindDays:     formRemindDays,
-        meta:           formMeta,
+        meta:           { ...formMeta, ...formExtras } as MetaState,
         sortOrder:      editingEntry?.sortOrder ?? 0,
       };
 
@@ -442,6 +445,10 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
         add('Documents', `${done} / ${checklist.length}`, false);
       }
     }
+
+    // Custom identifiers — available on every entry type.
+    if (m.id1Value) add(String(m.id1Label || 'Identifiant 1'), String(m.id1Value));
+    if (m.id2Value) add(String(m.id2Label || 'Identifiant 2'), String(m.id2Value));
 
     if (pairs.length === 0) return null;
 
@@ -535,6 +542,11 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
                   {entriesByType[type]!.map(entry => {
                     const days = daysUntilAction(entry);
                     const expiring = isExpiringSoon(entry) && entry.status !== 'inactive' && entry.status !== 'expired';
+                    const meta = entry.meta as Record<string, unknown> | null;
+                    const rawLink = meta && typeof meta.linkUrl === 'string' ? meta.linkUrl.trim() : '';
+                    const linkHref = rawLink && !/^https?:\/\//i.test(rawLink) ? `https://${rawLink}` : rawLink;
+                    const linkLabel = meta && typeof meta.linkLabel === 'string' && meta.linkLabel.trim()
+                      ? meta.linkLabel.trim() : 'Aller plus loin';
                     return (
                       <motion.div
                         key={entry.id}
@@ -561,6 +573,11 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
                               )}
                             </div>
                             {renderMetaSummary(entry)}
+                            {entry.notes && (
+                              <p className="text-xs text-muted-foreground font-body mt-2 whitespace-pre-wrap break-words">
+                                {entry.notes}
+                              </p>
+                            )}
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                               {entry.nextActionDate && (
                                 <span className="text-xs text-muted-foreground font-body">
@@ -575,6 +592,17 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
                                   <Folder size={11} />
                                   {folderMap.get(entry.folderId)}
                                 </button>
+                              )}
+                              {linkHref && (
+                                <a
+                                  href={linkHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-body transition-colors"
+                                >
+                                  <ExternalLink size={11} />
+                                  {linkLabel}
+                                </a>
                               )}
                             </div>
                           </div>
@@ -672,6 +700,26 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
               {formType === 'insurance'    && <InsuranceMetaFields    meta={formMeta as InsuranceMeta}    onChange={m => setFormMeta(m)} />}
               {formType === 'subscription' && <SubscriptionMetaFields meta={formMeta as SubscriptionMeta} onChange={m => setFormMeta(m)} />}
               {formType === 'tax'          && <TaxMetaFields          meta={formMeta as TaxMeta}          onChange={m => setFormMeta(m)} />}
+            </div>
+
+            {/* Identifiers — generic, shown as copyable chips on the card */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-body">Identifiants (copiables sur la fiche)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={formExtras.id1Label ?? ''} onChange={e => setFormExtras(p => ({ ...p, id1Label: e.target.value }))} placeholder="Libellé — ex. N° de police" className="h-8 text-sm font-body" />
+                <Input value={formExtras.id1Value ?? ''} onChange={e => setFormExtras(p => ({ ...p, id1Value: e.target.value }))} placeholder="Valeur" className="h-8 text-sm font-body" />
+                <Input value={formExtras.id2Label ?? ''} onChange={e => setFormExtras(p => ({ ...p, id2Label: e.target.value }))} placeholder="Libellé — ex. N° client" className="h-8 text-sm font-body" />
+                <Input value={formExtras.id2Value ?? ''} onChange={e => setFormExtras(p => ({ ...p, id2Value: e.target.value }))} placeholder="Valeur" className="h-8 text-sm font-body" />
+              </div>
+            </div>
+
+            {/* "Go further" link */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-body">Lien « aller plus loin »</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Input value={formExtras.linkLabel ?? ''} onChange={e => setFormExtras(p => ({ ...p, linkLabel: e.target.value }))} placeholder="Libellé" className="h-8 text-sm font-body" />
+                <Input value={formExtras.linkUrl ?? ''} onChange={e => setFormExtras(p => ({ ...p, linkUrl: e.target.value }))} placeholder="https://portail..." className="col-span-2 h-8 text-sm font-body" />
+              </div>
             </div>
 
             {/* Next action + remind */}

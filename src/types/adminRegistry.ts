@@ -2,7 +2,21 @@ export type RegistryEntryType = 'bank' | 'insurance' | 'subscription' | 'tax';
 export type RegistryScope    = 'personal' | 'business' | 'both';
 export type RegistryStatus   = 'active' | 'inactive' | 'expiring' | 'expired';
 
-export interface BankMeta {
+/**
+ * Fields shared by every registry entry, stored inside the `meta` JSON blob:
+ * one free "go further" link and up to two custom identifiers. Kept in `meta`
+ * so no DB migration is needed — the column is schemaless JSON.
+ */
+export interface CommonMeta {
+  linkLabel?: string;
+  linkUrl?:   string;
+  id1Label?:  string;
+  id1Value?:  string;
+  id2Label?:  string;
+  id2Value?:  string;
+}
+
+export interface BankMeta extends CommonMeta {
   bank?:          string;
   accountType?:   string;
   iban?:          string;
@@ -11,7 +25,7 @@ export interface BankMeta {
   ebankingUrl?:   string;
 }
 
-export interface InsuranceMeta {
+export interface InsuranceMeta extends CommonMeta {
   insurer?:          string;
   insuranceType?:    string;
   policyNumber?:     string;
@@ -20,7 +34,7 @@ export interface InsuranceMeta {
   startDate?:        string;
 }
 
-export interface SubscriptionMeta {
+export interface SubscriptionMeta extends CommonMeta {
   provider?:       string;
   amount?:         string;
   frequency?:      string;
@@ -34,7 +48,7 @@ export interface TaxChecklistItem {
   done:  boolean;
 }
 
-export interface TaxMeta {
+export interface TaxMeta extends CommonMeta {
   fiscalYear?: string;
   checklist?:  TaxChecklistItem[];
 }
@@ -86,6 +100,21 @@ export function defaultMeta(type: RegistryEntryType): RegistryMeta {
     case 'subscription': return {};
     case 'tax':          return { checklist: [] };
   }
+}
+
+const COMMON_META_KEYS: (keyof CommonMeta)[] = [
+  'linkLabel', 'linkUrl', 'id1Label', 'id1Value', 'id2Label', 'id2Value',
+];
+
+/** Extracts just the shared fields (link, identifiers) from a meta blob. */
+export function pickCommonMeta(meta: RegistryMeta | null | undefined): CommonMeta {
+  const m = (meta ?? {}) as Record<string, unknown>;
+  const out: CommonMeta = {};
+  for (const key of COMMON_META_KEYS) {
+    const value = m[key];
+    if (typeof value === 'string' && value) out[key] = value;
+  }
+  return out;
 }
 
 export function daysUntilAction(entry: RegistryEntry): number | null {
