@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Plus, Pencil, Trash2, Loader2, AlertTriangle, Bell, Folder, X, Check,
+  Plus, Pencil, Trash2, Loader2, AlertTriangle, Bell, Folder, X, Check, Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -185,6 +185,45 @@ function Pill({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
+// ── Copyable info chip ────────────────────────────────────────────────────────
+
+/** A labelled value (IBAN, BIC, n° de police…) that copies itself to the
+ * clipboard in one click, with a brief green confirmation. */
+function CopyChip({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API blocked (insecure context / permissions) — fail quietly.
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={`Copier : ${value}`}
+      aria-label={`Copier ${label}`}
+      className={cn(
+        "group/chip inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-body transition-colors",
+        copied
+          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+          : "border-border/70 text-muted-foreground hover:border-primary/40 hover:bg-secondary",
+      )}
+    >
+      <span className="text-foreground/60">{label}&nbsp;:</span>
+      <span className={cn("font-medium", copied ? "text-emerald-700" : "text-foreground")}>{value}</span>
+      {copied
+        ? <Check size={11} className="shrink-0" />
+        : <Copy size={11} className="shrink-0 opacity-50 group-hover/chip:opacity-100 transition-opacity" />}
+    </button>
+  );
+}
+
 // ── Status / scope badge helpers ──────────────────────────────────────────────
 
 function statusBadgeClass(status: RegistryStatus): string {
@@ -349,7 +388,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     if (deleteId !== id) { setDeleteId(id); return; }
     setEntries(prev => prev.filter(e => e.id !== id));
     setDeleteId(null);
-    try { await deleteRegistryItem(id); } catch {}
+    try { await deleteRegistryItem(id); } catch { /* optimistic delete — UI already updated */ }
   }
 
   async function handleCreateAlert(entry: RegistryEntry) {
@@ -377,35 +416,45 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     const m = entry.meta as Record<string, unknown> | null;
     if (!m) return null;
 
-    const pairs: [string, string][] = [];
+    const pairs: { label: string; value: string; copyable: boolean }[] = [];
+    const add = (label: string, value: string, copyable = true) =>
+      pairs.push({ label, value, copyable });
+
     if (entry.type === 'bank') {
-      if (m.bank)        pairs.push(['Banque', String(m.bank)]);
-      if (m.accountType) pairs.push(['Type', String(m.accountType)]);
-      if (m.iban)        pairs.push(['IBAN', String(m.iban)]);
+      if (m.bank)        add('Banque', String(m.bank));
+      if (m.accountType) add('Type', String(m.accountType));
+      if (m.iban)        add('IBAN', String(m.iban));
+      if (m.bic)         add('BIC', String(m.bic));
     } else if (entry.type === 'insurance') {
-      if (m.insurer)       pairs.push(['Assureur', String(m.insurer)]);
-      if (m.insuranceType) pairs.push(['Type', String(m.insuranceType)]);
-      if (m.premium)       pairs.push(['Prime', `CHF ${m.premium}${m.premiumFrequency ? ` / ${m.premiumFrequency}` : ''}`]);
+      if (m.insurer)       add('Assureur', String(m.insurer));
+      if (m.insuranceType) add('Type', String(m.insuranceType));
+      if (m.policyNumber)  add('N° police', String(m.policyNumber));
+      if (m.premium)       add('Prime', `CHF ${m.premium}${m.premiumFrequency ? ` / ${m.premiumFrequency}` : ''}`);
     } else if (entry.type === 'subscription') {
-      if (m.provider) pairs.push(['Fournisseur', String(m.provider)]);
-      if (m.amount)   pairs.push(['Montant', `CHF ${m.amount}${m.frequency ? ` / ${m.frequency}` : ''}`]);
-      if (m.category) pairs.push(['Catégorie', String(m.category)]);
+      if (m.provider) add('Fournisseur', String(m.provider));
+      if (m.amount)   add('Montant', `CHF ${m.amount}${m.frequency ? ` / ${m.frequency}` : ''}`);
+      if (m.category) add('Catégorie', String(m.category));
     } else if (entry.type === 'tax') {
-      if (m.fiscalYear) pairs.push(['Exercice', String(m.fiscalYear)]);
+      if (m.fiscalYear) add('Exercice', String(m.fiscalYear));
       const checklist = (m.checklist as TaxChecklistItem[] | undefined) ?? [];
       if (checklist.length) {
         const done = checklist.filter(c => c.done).length;
-        pairs.push(['Documents', `${done} / ${checklist.length}`]);
+        add('Documents', `${done} / ${checklist.length}`, false);
       }
     }
 
+    if (pairs.length === 0) return null;
+
     return (
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
-        {pairs.map(([k, v]) => (
-          <span key={k} className="text-xs font-body text-muted-foreground">
-            <span className="text-foreground/60">{k} :</span> {v}
-          </span>
-        ))}
+      <div className="flex flex-wrap gap-x-2 gap-y-1.5 mt-2">
+        {pairs.map(p => p.copyable
+          ? <CopyChip key={p.label} label={p.label} value={p.value} />
+          : (
+            <span key={p.label} className="inline-flex items-center text-xs font-body text-muted-foreground px-2 py-0.5">
+              <span className="text-foreground/60">{p.label}&nbsp;:</span>&nbsp;{p.value}
+            </span>
+          )
+        )}
       </div>
     );
   }
