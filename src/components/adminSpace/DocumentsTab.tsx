@@ -19,6 +19,7 @@ import {
   type DocFolderLink,
   type AdminDocItem, type DocFolder,
 } from "@/api/adminDocs";
+import { useInvalidateAdminDocs } from "@/hooks/useAdminDocs";
 import { SortableItem } from "./SortableItem";
 import { FolderCard } from "./FolderCard";
 import { DocumentRow } from "./DocumentRow";
@@ -27,6 +28,7 @@ import { NewFolderDialog } from "./NewFolderDialog";
 
 export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null }) {
   const { toast } = useToast();
+  const invalidate = useInvalidateAdminDocs();
   const [docs, setDocs] = useState<AdminDocItem[]>([]);
   const [folders, setFolders] = useState<DocFolder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +197,19 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     setDocs(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d));
     setEditId(null);
     try { await updateDoc(id, patch); } catch {}
+  }
+
+  async function handleSendToTriage(id: string) {
+    const doc = docs.find(d => d.id === id);
+    setDocs(prev => prev.filter(d => d.id !== id)); // optimistic — leaves the folder view
+    try {
+      await updateDoc(id, { status: "to_sort", folderId: null });
+      await invalidate();
+      toast({ title: "Renvoyé vers À trier", description: "Le document est de retour dans la boîte de tri." });
+    } catch {
+      if (doc) setDocs(prev => [doc, ...prev]); // restore on failure
+      toast({ title: "Erreur", description: "Action impossible.", variant: "destructive" });
+    }
   }
 
   async function handleCreateFolder() {
@@ -479,6 +494,7 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
                           onCancelDelete={() => setDeleteId(null)}
                           onShare={() => handleShare(doc)}
                           onUnshare={() => handleUnshare(doc)}
+                          onSendToTriage={() => handleSendToTriage(doc.id)}
                           onJumpToFolder={isSearching && doc.folderId ? () => { setCurrentFolderId(doc.folderId); setSearchQuery(""); } : undefined}
                         />
                       )}

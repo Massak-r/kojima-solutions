@@ -6,7 +6,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  FileText, ExternalLink, Trash2, Pencil, Check, X, Link2, Link2Off, Folder, GripVertical,
+  FileText, ExternalLink, Trash2, Pencil, Check, X, Link2, Link2Off, Folder, GripVertical, Inbox,
 } from "lucide-react";
 import type { AdminDocItem } from "@/api/adminDocs";
 import { DOC_CATEGORIES, YEAR_OPTIONS, formatBytes, formatDate } from "./helpers";
@@ -27,6 +27,7 @@ interface DocumentRowProps {
   onCancelDelete: () => void;
   onShare: () => void;
   onUnshare: () => void;
+  onSendToTriage: () => void;
   onJumpToFolder?: () => void;
 }
 
@@ -34,7 +35,7 @@ export function DocumentRow({
   doc, isEditing, isDeleting, isSearching, folderName, handleProps, viewUrl,
   onStartEdit, onSaveEdit, onCancelEdit,
   onStartDelete, onConfirmDelete, onCancelDelete,
-  onShare, onUnshare, onJumpToFolder,
+  onShare, onUnshare, onSendToTriage, onJumpToFolder,
 }: DocumentRowProps) {
   const [title, setTitle] = useState(doc.title);
   const [category, setCategory] = useState(doc.category);
@@ -134,6 +135,13 @@ export function DocumentRow({
             <Link2 size={14} />
           </button>
         )}
+        <button
+          onClick={onSendToTriage}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          title="Renvoyer vers À trier"
+        >
+          <Inbox size={14} />
+        </button>
         <button
           onClick={onStartEdit}
           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
