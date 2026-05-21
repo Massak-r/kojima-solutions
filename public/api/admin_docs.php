@@ -11,6 +11,8 @@ function mapDoc(array $row): array {
         'id'           => $row['id'],
         'title'        => $row['title'],
         'category'     => $row['category'],
+        'status'       => $row['status'] ?? 'filed',
+        'urgent'       => (bool)($row['urgent'] ?? false),
         'folderId'     => $row['folder_id'],
         'year'         => $row['year'] ? (int)$row['year'] : null,
         'shareToken'   => $row['share_token'],
@@ -24,6 +26,22 @@ function mapDoc(array $row): array {
 
 function generateShareToken(): string {
     return bin2hex(random_bytes(24)); // 48-char hex token
+}
+
+/** True once the scan-triage columns (status, urgent) exist — i.e. the
+ * migration has run. Lets the endpoint keep working in the window between a
+ * deploy and the migration being applied. */
+function adminDocsHasTriage(PDO $pdo): bool {
+    static $has = null;
+    if ($has === null) {
+        try {
+            $pdo->query('SELECT status, urgent FROM admin_docs LIMIT 0');
+            $has = true;
+        } catch (Throwable $e) {
+            $has = false;
+        }
+    }
+    return $has;
 }
 
 if ($method === 'GET') {
@@ -46,6 +64,8 @@ if ($method === 'POST') {
     $category = trim($_POST['category'] ?? '') ?: 'Général';
     $folderId = trim($_POST['folderId'] ?? '') ?: null;
     $year     = isset($_POST['year']) && $_POST['year'] !== '' ? (int)$_POST['year'] : null;
+    $status   = (($_POST['status'] ?? '') === 'to_sort') ? 'to_sort' : 'filed';
+    $urgent   = (!empty($_POST['urgent']) && $_POST['urgent'] !== '0') ? 1 : 0;
     $docId    = uuid();
     $filename = $docId . '.pdf';
 
@@ -54,10 +74,17 @@ if ($method === 'POST') {
     $dest = $uploadsDir . '/' . $filename;
     if (!move_uploaded_file($file['tmp_name'], $dest)) fail('Failed to save file', 500);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO admin_docs (id, title, category, folder_id, year, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,NOW())'
-    );
-    $stmt->execute([$docId, $title, $category, $folderId, $year, $filename, $file['name'], $file['size']]);
+    if (adminDocsHasTriage($pdo)) {
+        $stmt = $pdo->prepare(
+            'INSERT INTO admin_docs (id, title, category, status, urgent, folder_id, year, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())'
+        );
+        $stmt->execute([$docId, $title, $category, $status, $urgent, $folderId, $year, $filename, $file['name'], $file['size']]);
+    } else {
+        $stmt = $pdo->prepare(
+            'INSERT INTO admin_docs (id, title, category, folder_id, year, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,NOW())'
+        );
+        $stmt->execute([$docId, $title, $category, $folderId, $year, $filename, $file['name'], $file['size']]);
+    }
 
     $row = $pdo->prepare('SELECT * FROM admin_docs WHERE id=?');
     $row->execute([$docId]);
@@ -91,6 +118,14 @@ if ($method === 'PUT' && $id) {
     if (array_key_exists('folderId', $data)) { $fields[] = 'folder_id = ?'; $params[] = $data['folderId']; }
     if (array_key_exists('year', $data))       { $fields[] = 'year = ?';       $params[] = $data['year']; }
     if (array_key_exists('sortOrder', $data)) { $fields[] = 'sort_order = ?'; $params[] = (int)$data['sortOrder']; }
+    if (adminDocsHasTriage($pdo)) {
+        if (isset($data['status']) && in_array($data['status'], ['to_sort', 'filed'], true)) {
+            $fields[] = 'status = ?'; $params[] = $data['status'];
+        }
+        if (array_key_exists('urgent', $data)) {
+            $fields[] = 'urgent = ?'; $params[] = $data['urgent'] ? 1 : 0;
+        }
+    }
     if (empty($fields)) fail('Nothing to update');
     $params[] = $id;
     $pdo->prepare('UPDATE admin_docs SET ' . implode(', ', $fields) . ' WHERE id=?')->execute($params);

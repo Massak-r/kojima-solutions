@@ -5,10 +5,12 @@ import {
   TrendingUp,
   Wallet,
   FileText,
+  FolderOpen,
   Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
+import { useAdminDocs } from "@/hooks/useAdminDocs";
 
 const BOTTOM_NAV = [
   { to: "/home",       label: "Accueil",    icon: LayoutDashboard },
@@ -16,6 +18,7 @@ const BOTTOM_NAV = [
   { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
   { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
+  { to: "/documents",  label: "Documents",  icon: FolderOpen      },
 ];
 
 const ADMIN_PREFIXES = [
@@ -34,10 +37,21 @@ export function useIsAdminPage() {
   return ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/** Small red count badge for the Documents nav item — pending scans to sort. */
+function NavCountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="absolute -top-1.5 -right-2.5 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 export default function BottomNav() {
   const { pathname } = useLocation();
   const isAdminPage = ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
   const sprintActive = useAnyFocusSessionActive();
+  const { pendingCount } = useAdminDocs({ enabled: isAdminPage });
 
   if (!isAdminPage) return null;
 
@@ -56,12 +70,17 @@ export default function BottomNav() {
               (to === "/home" && pathname.startsWith("/project/")) ||
               (to === "/quotes" && pathname.startsWith("/quote"));
             const showBadge = to === "/sprint" && sprintActive;
+            const docCount = to === "/documents" ? pendingCount : 0;
             return (
               <Link
                 key={to}
                 to={to}
                 aria-current={active ? "page" : undefined}
-                aria-label={showBadge ? `${label} · session en cours` : label}
+                aria-label={
+                  showBadge ? `${label} · session en cours`
+                  : docCount > 0 ? `${label} · ${docCount} à trier`
+                  : label
+                }
                 className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-colors ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
@@ -81,6 +100,7 @@ export default function BottomNav() {
                       "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
                     )} />
                   )}
+                  <NavCountBadge count={docCount} />
                 </div>
                 <span className="text-[10px] font-medium leading-tight">
                   {label}
@@ -99,12 +119,17 @@ export default function BottomNav() {
             (to === "/home" && pathname.startsWith("/project/")) ||
             (to === "/quotes" && pathname.startsWith("/quote"));
           const showBadge = to === "/sprint" && sprintActive;
+          const docCount = to === "/documents" ? pendingCount : 0;
           return (
             <Link
               key={to}
               to={to}
               aria-current={active ? "page" : undefined}
-              aria-label={sprintActive && to === "/sprint" ? `${label} · session en cours` : label}
+              aria-label={
+                sprintActive && to === "/sprint" ? `${label} · session en cours`
+                : docCount > 0 ? `${label} · ${docCount} à trier`
+                : label
+              }
               className={`relative flex flex-col items-center justify-center gap-0.5 w-14 py-2.5 rounded-lg transition-colors ${
                 active
                   ? "text-primary bg-primary/10"
@@ -127,6 +152,7 @@ export default function BottomNav() {
                     "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
                   )} />
                 )}
+                <NavCountBadge count={docCount} />
               </div>
               <span className="text-[9px] font-medium leading-tight">
                 {label}

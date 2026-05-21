@@ -1,9 +1,14 @@
 import { apiFetch } from './client';
 
+/** 'to_sort' = sitting in the scan inbox awaiting filing; 'filed' = archived in a folder. */
+export type AdminDocStatus = 'to_sort' | 'filed';
+
 export interface AdminDocItem {
   id:           string;
   title:        string;
   category:     string;
+  status:       AdminDocStatus;
+  urgent:       boolean;
   folderId:     string | null;
   year:         number | null;
   shareToken:   string | null;
@@ -44,6 +49,8 @@ export async function uploadDoc(
   category: string,
   folderId?: string | null,
   year?: number | null,
+  status: AdminDocStatus = 'filed',
+  urgent = false,
 ): Promise<AdminDocItem> {
   const form = new FormData();
   form.append('file', file);
@@ -51,6 +58,8 @@ export async function uploadDoc(
   form.append('category', category);
   if (folderId) form.append('folderId', folderId);
   if (year != null) form.append('year', String(year));
+  form.append('status', status);
+  form.append('urgent', urgent ? '1' : '0');
   const csrf = (typeof document !== 'undefined' && document.cookie.match(/(?:^|; )kojima_csrf=([^;]*)/)?.[1]) || '';
   const res = await fetch(`${BASE}/api/admin_docs.php`, {
     method: 'POST',
@@ -65,7 +74,7 @@ export async function uploadDoc(
   return res.json();
 }
 
-export function updateDoc(id: string, data: Partial<Pick<AdminDocItem, 'title' | 'category' | 'folderId' | 'year' | 'sortOrder'>>) {
+export function updateDoc(id: string, data: Partial<Pick<AdminDocItem, 'title' | 'category' | 'folderId' | 'year' | 'sortOrder' | 'status' | 'urgent'>>) {
   return apiFetch<AdminDocItem>(`admin_docs.php?id=${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

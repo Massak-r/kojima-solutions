@@ -11,6 +11,7 @@ import { OverviewTab } from "@/components/home/OverviewTab";
 import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
+import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
 
 type Tab = "streams" | "kanban" | "overview";
@@ -107,6 +108,8 @@ export default function Home() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+        <PendingDocsBanner className="mb-5" />
+
         {/* Tabs */}
         <div className="flex gap-1 p-0.5 bg-muted/40 rounded-full w-fit mb-6">
           <TabButton

@@ -252,6 +252,8 @@ CREATE TABLE IF NOT EXISTS admin_docs (
   id            VARCHAR(36)   NOT NULL,
   title         VARCHAR(255)  NOT NULL,
   category      VARCHAR(100)  NOT NULL DEFAULT 'Général',
+  status        ENUM('to_sort','filed') NOT NULL DEFAULT 'filed',
+  urgent        TINYINT(1)    NOT NULL DEFAULT 0,
   folder_id     VARCHAR(36)   NULL,
   year          SMALLINT      NULL,
   share_token   VARCHAR(64)   NULL,
@@ -262,6 +264,7 @@ CREATE TABLE IF NOT EXISTS admin_docs (
   created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE INDEX idx_share_token (share_token),
+  INDEX idx_admin_docs_status (status),
   FOREIGN KEY (folder_id) REFERENCES admin_doc_folders(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

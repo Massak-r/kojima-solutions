@@ -58,7 +58,8 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
 
   useEffect(() => {
     Promise.all([listDocs(), listFolders()])
-      .then(([d, f]) => { setDocs(d); setFolders(f); })
+      // 'to_sort' docs live in the À-trier scan inbox, not the folder tree.
+      .then(([d, f]) => { setDocs(d.filter(doc => doc.status !== "to_sort")); setFolders(f); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
