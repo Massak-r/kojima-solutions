@@ -21,6 +21,9 @@ export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Largest PDF the upload endpoint (admin_docs.php) will accept. */
+export const MAX_PDF_SIZE = 25 * 1024 * 1024;
+
 /**
  * Read a picked file fully into memory immediately. Android revokes the
  * temporary content URI behind a `File` after any `await` gap (e.g. while a
@@ -30,6 +33,23 @@ export function formatDate(iso: string): string {
 export async function bufferFile(file: File): Promise<File> {
   const buf = await file.arrayBuffer();
   return new File([buf], file.name, { type: file.type, lastModified: file.lastModified });
+}
+
+/**
+ * Merges several PDF files into one, preserving the given order. `pdf-lib` is
+ * imported on demand so it stays out of the main bundle — it only loads the
+ * first time a user assembles a multi-PDF document.
+ */
+export async function mergePdfs(files: File[], outputName = "document.pdf"): Promise<File> {
+  const { PDFDocument } = await import("pdf-lib");
+  const merged = await PDFDocument.create();
+  for (const file of files) {
+    const src = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+  }
+  const bytes = await merged.save();
+  return new File([bytes], outputName, { type: "application/pdf" });
 }
 
 /**

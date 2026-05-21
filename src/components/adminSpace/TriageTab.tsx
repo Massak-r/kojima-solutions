@@ -1,21 +1,23 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ScanLine, Upload, Zap } from "lucide-react";
+import { Loader2, ScanLine, Upload, Zap, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   uploadDoc, updateDoc, deleteDoc, getDocViewUrl, listFolders,
 } from "@/api/adminDocs";
 import { useAdminDocs, useInvalidateAdminDocs } from "@/hooks/useAdminDocs";
-import { bufferFile } from "./helpers";
+import { bufferFile, MAX_PDF_SIZE } from "./helpers";
 import { ScanSortDialog } from "./ScanSortDialog";
+import { BatchAssembleDialog } from "./BatchAssembleDialog";
 import { TriageDocCard } from "./TriageDocCard";
 
-const MAX_SIZE = 25 * 1024 * 1024; // 25 MB — matches the server limit.
+const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 
 /**
  * The "À trier" scan inbox. Drop a scanned PDF, choose where it goes (a folder
  * now, or the triage queue for later), and clear the queue card by card.
+ * Several PDFs at once open the assembler — order them, merge into one document.
  */
 export function TriageTab() {
   const { toast } = useToast();
@@ -27,7 +29,7 @@ export function TriageTab() {
   const [dragging, setDragging] = useState(false);
   const dragCounter = useRef(0);
 
-  // ── Scan-sort dialog state ──────────────────────────────────
+  // ── Scan-sort dialog (single document) ──────────────────────
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [fileMeta, setFileMeta] = useState({ name: "", size: 0 });
@@ -38,20 +40,31 @@ export function TriageTab() {
   const [folderId, setFolderId] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
 
+  // ── Batch-assemble dialog (several PDFs → one document) ─────
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [batchPreparing, setBatchPreparing] = useState(false);
+
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function acceptFile(raw: File) {
-    const isPdf = raw.type === "application/pdf" || /\.pdf$/i.test(raw.name);
-    if (!isPdf) {
+  /** Routes picked/dropped files: one PDF → sort dialog, several → assembler. */
+  function handleFiles(raw: File[]) {
+    const pdfs = raw.filter(isPdf);
+    if (pdfs.length === 0) {
       toast({ title: "Format non supporté", description: "Seuls les fichiers PDF sont acceptés.", variant: "destructive" });
       return;
     }
-    if (raw.size > MAX_SIZE) {
-      toast({ title: "Fichier trop lourd", description: "Maximum 25 Mo par document.", variant: "destructive" });
+    if (pdfs.some((f) => f.size > MAX_PDF_SIZE)) {
+      toast({ title: "Fichier trop lourd", description: "Maximum 25 Mo par PDF.", variant: "destructive" });
       return;
     }
-    // Start reading the bytes synchronously — Android revokes the file's
-    // content URI once the open dialog introduces an await gap.
+    if (pdfs.length === 1) void acceptSingle(pdfs[0]);
+    else void acceptBatch(pdfs);
+  }
+
+  async function acceptSingle(raw: File) {
+    // Read the bytes synchronously — Android revokes the content URI once the
+    // open dialog introduces an await gap.
     const bufferPromise = bufferFile(raw);
     setTitle(raw.name.replace(/\.pdf$/i, ""));
     setCategory("Général");
@@ -71,17 +84,54 @@ export function TriageTab() {
     }
   }
 
+  async function acceptBatch(raw: File[]) {
+    // Kick off every read synchronously, then open the assembler.
+    const bufferPromises = raw.map(bufferFile);
+    setBatchFiles([]);
+    setBatchPreparing(true);
+    setBatchOpen(true);
+    try {
+      setBatchFiles(await Promise.all(bufferPromises));
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de lire un des fichiers.", variant: "destructive" });
+      setBatchOpen(false);
+    } finally {
+      setBatchPreparing(false);
+    }
+  }
+
+  /** Opens the assembler empty — for adding PDFs one by one. */
+  function openAssembler() {
+    setBatchFiles([]);
+    setBatchPreparing(false);
+    setBatchOpen(true);
+  }
+
+  /** The assembler merged several PDFs — hand the result to the sort dialog. */
+  function handleBatchMerged(merged: File) {
+    setBatchOpen(false);
+    setBatchFiles([]);
+    setTitle(merged.name.replace(/\.pdf$/i, ""));
+    setCategory("Général");
+    setFolderId(null);
+    setUrgent(false);
+    setFileMeta({ name: merged.name, size: merged.size });
+    setPendingFile(merged); // already an in-memory File — no buffering needed
+    setPreparing(false);
+    setDialogOpen(true);
+  }
+
   function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) void acceptFile(f);
+    const list = Array.from(e.target.files ?? []);
     e.target.value = "";
+    if (list.length) handleFiles(list);
   }
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
     dragCounter.current = 0;
-    const f = e.dataTransfer.files?.[0];
-    if (f) void acceptFile(f);
+    const list = Array.from(e.dataTransfer.files ?? []);
+    if (list.length) handleFiles(list);
   }
   function onDragEnter(e: React.DragEvent) {
     e.preventDefault();
@@ -191,32 +241,43 @@ export function TriageTab() {
       onDrop={onDrop}
     >
       {/* Scan drop zone */}
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        className={cn(
-          "w-full rounded-2xl border-2 border-dashed transition-all p-8 sm:p-10 flex flex-col items-center justify-center text-center",
-          dragging
-            ? "border-primary bg-primary/5 scale-[1.01]"
-            : "border-border hover:border-primary/50 hover:bg-secondary/30",
-        )}
-      >
-        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-          <ScanLine size={26} className="text-primary" />
-        </div>
-        <p className="font-display font-semibold text-base">Zone de scan</p>
-        <p className="text-sm text-muted-foreground font-body mt-1 max-w-sm">
-          Glisse-dépose tes PDF scannés ici, ou clique pour parcourir.
-          On te demandera ensuite où les classer.
-        </p>
-        <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary">
-          <Upload size={13} /> Choisir un PDF
-        </span>
-      </button>
+      <div className="space-y-2.5">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className={cn(
+            "w-full rounded-2xl border-2 border-dashed transition-all p-8 sm:p-10 flex flex-col items-center justify-center text-center",
+            dragging
+              ? "border-primary bg-primary/5 scale-[1.01]"
+              : "border-border hover:border-primary/50 hover:bg-secondary/30",
+          )}
+        >
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
+            <ScanLine size={26} className="text-primary" />
+          </div>
+          <p className="font-display font-semibold text-base">Zone de scan</p>
+          <p className="text-sm text-muted-foreground font-body mt-1 max-w-sm">
+            Glisse-dépose tes PDF scannés ici, ou clique pour parcourir.
+            Dépose-en plusieurs d'un coup pour les assembler en un document.
+          </p>
+          <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary">
+            <Upload size={13} /> Choisir un ou plusieurs PDF
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={openAssembler}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-xs font-body text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+        >
+          <Layers size={14} className="text-primary" />
+          Plusieurs PDF pour un seul document ? Assemble-les dans l'ordre
+        </button>
+      </div>
       <input
         ref={fileRef}
         type="file"
         accept=".pdf,application/pdf"
+        multiple
         className="hidden"
         onChange={onFileInput}
       />
@@ -276,6 +337,14 @@ export function TriageTab() {
         setUrgent={setUrgent}
         saving={saving}
         onSubmit={handleSubmit}
+      />
+
+      <BatchAssembleDialog
+        open={batchOpen}
+        onOpenChange={(v) => { if (!v) { setBatchOpen(false); setBatchFiles([]); } }}
+        initialFiles={batchFiles}
+        preparing={batchPreparing}
+        onMerged={handleBatchMerged}
       />
     </div>
   );
