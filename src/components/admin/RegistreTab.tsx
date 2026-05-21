@@ -58,7 +58,6 @@ function InsuranceMetaFields({ meta, onChange }: { meta: InsuranceMeta; onChange
     <div className="grid grid-cols-2 gap-3">
       <Field label="Assureur"><Input value={meta.insurer ?? ''} onChange={f('insurer')} placeholder="Generali" className="h-8 text-sm font-body" /></Field>
       <Field label="Type d'assurance"><Input value={meta.insuranceType ?? ''} onChange={f('insuranceType')} placeholder="RC / Vie / Santé" className="h-8 text-sm font-body" /></Field>
-      <Field label="N° police"><Input value={meta.policyNumber ?? ''} onChange={f('policyNumber')} placeholder="CH-12345" className="h-8 text-sm font-body" /></Field>
       <Field label="Prime (CHF)"><Input value={meta.premium ?? ''} onChange={f('premium')} placeholder="500" className="h-8 text-sm font-body" /></Field>
       <Field label="Fréquence">
         <Select value={meta.premiumFrequency ?? ''} onValueChange={v => onChange({ ...meta, premiumFrequency: v })}>
@@ -343,8 +342,17 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
     setFormNotes(entry.notes ?? '');
     setFormNextActionDate(entry.nextActionDate ?? '');
     setFormRemindDays(entry.remindDays);
-    setFormMeta((entry.meta as MetaState) ?? defaultMeta(entry.type));
-    setFormExtras(pickCommonMeta(entry.meta));
+    // The legacy insurance-only "N° police" field is superseded by the generic
+    // identifiers — strip it from meta and fold any saved value into Identifiant 1.
+    const rawMeta = (entry.meta ?? {}) as Record<string, unknown>;
+    const { policyNumber, ...cleanMeta } = rawMeta;
+    setFormMeta(entry.meta ? (cleanMeta as MetaState) : defaultMeta(entry.type));
+    const extras = pickCommonMeta(entry.meta);
+    if (typeof policyNumber === 'string' && policyNumber && !extras.id1Value) {
+      extras.id1Label = extras.id1Label || 'N° de police';
+      extras.id1Value = policyNumber;
+    }
+    setFormExtras(extras);
     setDialogOpen(true);
   }
 
@@ -503,17 +511,23 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
       {/* Filters + Add */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 space-y-2">
-          <div className="flex gap-1.5 flex-wrap">
-            <Pill active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>Tout</Pill>
-            {TYPE_ORDER.map(t => (
-              <Pill key={t} active={typeFilter === t} onClick={() => setTypeFilter(t)}>{TYPE_LABELS[t]}</Pill>
-            ))}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-body font-semibold uppercase tracking-wide text-muted-foreground/70 w-[72px] shrink-0">Catégorie</span>
+            <div className="flex gap-1.5 flex-wrap flex-1">
+              <Pill active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>Tout</Pill>
+              {TYPE_ORDER.map(t => (
+                <Pill key={t} active={typeFilter === t} onClick={() => setTypeFilter(t)}>{TYPE_LABELS[t]}</Pill>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1.5 flex-wrap">
-            <Pill active={scopeFilter === 'all'} onClick={() => setScopeFilter('all')}>Tout</Pill>
-            {(['personal', 'business'] as RegistryScope[]).map(s => (
-              <Pill key={s} active={scopeFilter === s} onClick={() => setScopeFilter(s)}>{SCOPE_LABELS[s]}</Pill>
-            ))}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-body font-semibold uppercase tracking-wide text-muted-foreground/70 w-[72px] shrink-0">Périmètre</span>
+            <div className="flex gap-1.5 flex-wrap flex-1">
+              <Pill active={scopeFilter === 'all'} onClick={() => setScopeFilter('all')}>Tout</Pill>
+              {(['personal', 'business'] as RegistryScope[]).map(s => (
+                <Pill key={s} active={scopeFilter === s} onClick={() => setScopeFilter(s)}>{SCOPE_LABELS[s]}</Pill>
+              ))}
+            </div>
           </div>
         </div>
         <Button onClick={openCreate} className="gap-2 shrink-0">
