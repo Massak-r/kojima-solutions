@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, ScanLine, Upload, Zap, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   uploadDoc, updateDoc, deleteDoc, getDocViewUrl, listFolders,
 } from "@/api/adminDocs";
@@ -21,6 +22,7 @@ const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
  */
 export function TriageTab() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { pendingDocs, isLoading } = useAdminDocs();
   const invalidate = useInvalidateAdminDocs();
   const { data: folders = [] } = useQuery({ queryKey: ["admin-doc-folders"], queryFn: listFolders });
@@ -257,8 +259,9 @@ export function TriageTab() {
           </div>
           <p className="font-display font-semibold text-base">Zone de scan</p>
           <p className="text-sm text-muted-foreground font-body mt-1 max-w-sm">
-            Glisse-dépose tes PDF scannés ici, ou clique pour parcourir.
-            Dépose-en plusieurs d'un coup pour les assembler en un document.
+            {isMobile
+              ? "Touche pour choisir un ou plusieurs PDF. Sélectionne-en plusieurs d'un coup pour les assembler en un document."
+              : "Glisse-dépose tes PDF scannés ici, ou clique pour parcourir. Dépose-en plusieurs d'un coup pour les assembler en un document."}
           </p>
           <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary">
             <Upload size={13} /> Choisir un ou plusieurs PDF

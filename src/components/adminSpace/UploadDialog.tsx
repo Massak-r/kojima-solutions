@@ -1,6 +1,7 @@
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -34,11 +35,11 @@ export function UploadDialog({
   onUpload, onCancel,
 }: UploadDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md font-body">
-        <DialogHeader>
-          <DialogTitle>Ajouter un document</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-md font-body">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Ajouter un document</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="space-y-3 py-2">
           {pendingFile && (
             <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-xl text-sm">
@@ -62,7 +63,7 @@ export function UploadDialog({
               autoFocus
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-muted-foreground mb-1.5 font-body">Catégorie</p>
               <Select value={uploadCat} onValueChange={setUploadCat}>
@@ -84,14 +85,14 @@ export function UploadDialog({
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
           <Button onClick={onUpload} disabled={uploading || !uploadTitle.trim()}>
             {uploading ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
             Enregistrer
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

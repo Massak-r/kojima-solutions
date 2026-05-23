@@ -1,6 +1,7 @@
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Folder, FolderPlus } from "lucide-react";
@@ -19,11 +20,11 @@ export function NewFolderDialog({
   open, onOpenChange, name, setName, parentFolderName, onCreate, onCancel,
 }: NewFolderDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm font-body">
-        <DialogHeader>
-          <DialogTitle>Nouveau dossier</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-sm font-body">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Nouveau dossier</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="py-2">
           {parentFolderName && (
             <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -39,13 +40,13 @@ export function NewFolderDialog({
             autoFocus
           />
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
           <Button onClick={onCreate} disabled={!name.trim()}>
             <FolderPlus size={14} className="mr-1" /> Créer
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

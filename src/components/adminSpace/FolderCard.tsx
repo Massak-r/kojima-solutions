@@ -113,20 +113,21 @@ export function FolderCard({
               {folder.shareToken && <Link2 size={7} className="absolute -top-0.5 -right-0.5 text-primary" />}
             </div>
             <span className="font-body text-sm font-medium flex-1 break-words" onClick={() => onSelect(folder.id)}>{folder.name}</span>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {/* Actions visible on mobile (no hover), hover-revealed on desktop. */}
+            <div className="flex gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
               {folder.shareToken ? (
-                <button onClick={e => { e.stopPropagation(); onUnshare(folder); }} className="p-1 text-primary hover:text-destructive" title="Supprimer le partage"><Link2Off size={11} /></button>
+                <button onClick={e => { e.stopPropagation(); onUnshare(folder); }} className="p-2 md:p-1 text-primary hover:text-destructive" title="Supprimer le partage" aria-label="Supprimer le partage"><Link2Off size={13} /></button>
               ) : (
-                <button onClick={e => { e.stopPropagation(); onShare(folder); }} className="p-1 text-muted-foreground hover:text-primary" title="Partager le dossier"><Link2 size={11} /></button>
+                <button onClick={e => { e.stopPropagation(); onShare(folder); }} className="p-2 md:p-1 text-muted-foreground hover:text-primary" title="Partager le dossier" aria-label="Partager le dossier"><Link2 size={13} /></button>
               )}
-              <button onClick={e => { e.stopPropagation(); onStartEdit(); }} className="p-1 text-muted-foreground hover:text-foreground"><Pencil size={11} /></button>
+              <button onClick={e => { e.stopPropagation(); onStartEdit(); }} className="p-2 md:p-1 text-muted-foreground hover:text-foreground" title="Modifier" aria-label="Modifier"><Pencil size={13} /></button>
               {isDeleting ? (
                 <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                  <Button size="sm" variant="destructive" className="h-6 text-[10px] px-2" onClick={onConfirmDelete}>OK</Button>
-                  <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={onCancelDelete}>Non</Button>
+                  <Button size="sm" variant="destructive" className="h-7 text-xs px-2" onClick={onConfirmDelete}>OK</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={onCancelDelete}>Non</Button>
                 </div>
               ) : (
-                <button onClick={e => { e.stopPropagation(); onStartDelete(); }} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 size={11} /></button>
+                <button onClick={e => { e.stopPropagation(); onStartDelete(); }} className="p-2 md:p-1 text-muted-foreground hover:text-destructive" title="Supprimer" aria-label="Supprimer"><Trash2 size={13} /></button>
               )}
             </div>
           </div>

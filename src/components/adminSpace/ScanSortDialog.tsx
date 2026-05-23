@@ -1,6 +1,7 @@
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -45,11 +46,11 @@ export function ScanSortDialog({
   const busy = saving || preparing;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!busy) onOpenChange(v); }}>
-      <DialogContent className="max-w-md font-body">
-        <DialogHeader>
-          <DialogTitle>Où classer ce document ?</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!busy) onOpenChange(v); }}>
+      <ResponsiveDialogContent className="max-w-md font-body">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Où classer ce document ?</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
         <div className="space-y-3.5 py-2">
           {/* File chip */}
@@ -72,8 +73,8 @@ export function ScanSortDialog({
             />
           </div>
 
-          {/* Category + destination folder */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Category + destination folder — stacked on mobile, side-by-side on ≥sm */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Catégorie</p>
               <Select value={category} onValueChange={setCategory}>
@@ -113,7 +114,7 @@ export function ScanSortDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+        <ResponsiveDialogFooter className="gap-2">
           <Button
             variant="outline"
             className="gap-1.5"
@@ -132,8 +133,8 @@ export function ScanSortDialog({
             {busy ? <Loader2 size={14} className="animate-spin" /> : <FolderInput size={14} />}
             Classer ici
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
