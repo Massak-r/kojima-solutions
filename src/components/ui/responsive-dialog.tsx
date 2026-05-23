@@ -102,10 +102,13 @@ ResponsiveDialogDescription.displayName = "ResponsiveDialogDescription";
 export function ResponsiveDialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const { isMobile } = React.useContext(Ctx);
   if (isMobile) {
+    // `flex-col` keeps DOM order: consumers declare buttons as Cancel-first,
+    // primary-last, so the primary action lands at the BOTTOM of the
+    // bottom-sheet — where the thumb naturally rests.
     return (
       <div
         className={cn(
-          "mt-4 flex flex-col-reverse gap-2 pt-3 border-t border-border/50",
+          "mt-4 flex flex-col gap-2 pt-3 border-t border-border/50 [&>button]:w-full",
           className,
         )}
         {...props}

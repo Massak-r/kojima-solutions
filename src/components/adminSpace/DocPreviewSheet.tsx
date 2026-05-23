@@ -36,6 +36,12 @@ export function DocPreviewSheet({ open, onOpenChange, title, viewUrl }: DocPrevi
     </div>
   );
 
+  // No `sandbox` attribute on purpose: Chrome's built-in PDF viewer is wired
+  // up as a sub-process that refuses to load inside any sandboxed frame
+  // (net::ERR_BLOCKED_BY_CLIENT, even with allow-scripts allow-same-origin).
+  // Defense-in-depth instead lives server-side: admin_files.php only serves
+  // files matching `^UUID\.pdf$` and admin_docs.php validates PDF magic
+  // bytes on upload, so an HTML payload can't be smuggled into this iframe.
   const iframe = (
     <iframe
       src={viewUrl}

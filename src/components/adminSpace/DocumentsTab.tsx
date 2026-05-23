@@ -7,7 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -280,7 +280,13 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     }
   }
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // PointerSensor covers mouse + modern pointer events; TouchSensor with a
+  // small delay keeps finger-taps on the action buttons from accidentally
+  // starting a drag while still allowing finger-drag reorder on mobile.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
 
   const handleFolderDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;

@@ -31,9 +31,6 @@ interface BatchAssembleDialogProps {
  * don't reshuffle dnd-kit's identity). */
 type Entry = { id: string; file: File };
 
-let entrySeq = 0;
-const wrap = (file: File): Entry => ({ id: `pdf-${++entrySeq}`, file });
-
 /**
  * Collects several scanned PDFs, lets the user order them (page 1, 2, 3…) and
  * merges them into one document. The merged file is handed back to the parent,
@@ -49,11 +46,24 @@ export function BatchAssembleDialog({
   const [entries, setEntries] = useState<Entry[]>([]);
   const [merging, setMerging] = useState(false);
   const addRef = useRef<HTMLInputElement>(null);
+  const seqRef = useRef(0);
+  const seededFor = useRef(false);
 
-  // Seed working list whenever the dialog opens with a fresh set of files.
+  const wrap = useCallback((file: File): Entry => {
+    seqRef.current += 1;
+    return { id: `pdf-${seqRef.current}`, file };
+  }, []);
+
+  // Rising-edge: seed exactly once per "open" cycle, even if `initialFiles`
+  // gets a new reference while the dialog is already open.
   useEffect(() => {
-    if (open) setEntries(initialFiles.map(wrap));
-  }, [open, initialFiles]);
+    if (open && !seededFor.current) {
+      seededFor.current = true;
+      setEntries(initialFiles.map(wrap));
+    } else if (!open) {
+      seededFor.current = false;
+    }
+  }, [open, initialFiles, wrap]);
 
   const busy = merging || preparing;
 
@@ -85,7 +95,7 @@ export function BatchAssembleDialog({
     if (picked.length === 0) return;
     try {
       const buffered = await Promise.all(picked.map(bufferFile));
-      setEntries((prev) => [...prev, ...buffered.map(wrap)]);
+      setEntries((prev) => [...prev, ...buffered.map((f) => wrap(f))]);
     } catch {
       toast({ title: "Erreur", description: "Impossible de lire le fichier.", variant: "destructive" });
     }
