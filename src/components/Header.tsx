@@ -134,6 +134,9 @@ const Header = () => {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6 }}
+        // paddingTop respects the iOS notch / Android status bar on PWA
+        // standalone, so the inner h-16 content row never tucks under it.
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         className={cn(
           "fixed top-0 left-0 right-0 z-50 glass-card border-t-0 border-x-0 rounded-none no-print transition-all duration-300",
           scrolled && "shadow-md backdrop-blur-2xl",

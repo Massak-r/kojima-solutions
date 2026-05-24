@@ -1,23 +1,31 @@
 {
   "name": "Kojima Space",
   "short_name": "Kojima",
-  "description": "Kojima Solutions — Espace admin",
+  "description": "Kojima Solutions — Espace admin : projets, devis, trésorerie, documents.",
+  "lang": "fr-CH",
+  "dir": "ltr",
+  "categories": ["productivity", "business", "finance"],
   "start_url": "/space",
+  "id": "/space",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f5f0eb",
   "theme_color": "#2b4c72",
   "orientation": "any",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/maskable-icon-512x512.png",
@@ -28,21 +36,31 @@
   ],
   "shortcuts": [
     {
-      "name": "Espace",
-      "short_name": "Espace",
-      "url": "/space",
+      "name": "À trier",
+      "short_name": "Trier",
+      "description": "Documents en attente de tri",
+      "url": "/documents?tab=triage",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Projets",
-      "short_name": "Projets",
-      "url": "/projects",
+      "name": "Sprint du jour",
+      "short_name": "Sprint",
+      "description": "Tâches engagées aujourd'hui",
+      "url": "/sprint",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Personnel",
-      "short_name": "Perso",
-      "url": "/personal",
+      "name": "Capture rapide",
+      "short_name": "Capture",
+      "description": "Note ou idée à trier plus tard",
+      "url": "/home?capture=1",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Nouveau devis",
+      "short_name": "Devis",
+      "description": "Créer un devis ou une facture",
+      "url": "/quotes/new",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
