@@ -21,7 +21,10 @@ export function QuickActionFAB() {
   const isAdminPage = useIsAdminPage();
   const { open: openQuickCreate } = useQuickCreate();
 
-  const isOnObjectivesView = location.pathname === "/space-full";
+  // Match Home's Objectifs tab specifically — when already there, scroll
+  // to the inline input instead of round-tripping through navigation.
+  const isOnObjectivesView =
+    location.pathname === "/home" && location.search.includes("tab=objectives");
 
   const ACTIONS: Action[] = [
     {
@@ -36,7 +39,7 @@ export function QuickActionFAB() {
             setTimeout(() => input.focus(), 400);
           }
         } else {
-          navigate("/space-full?focus=new-objective");
+          navigate("/home?tab=objectives&focus=new-objective");
         }
       },
     },

@@ -266,7 +266,7 @@ export default function SprintPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate("/space-full?focus=new-objective")}
+          onClick={() => navigate("/home?tab=objectives&focus=new-objective")}
           className="shrink-0 gap-1.5 rounded-full"
           title="Créer un nouvel objectif"
         >
@@ -447,7 +447,7 @@ export default function SprintPage() {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => navigate("/space-full?focus=new-objective")}
+                      onClick={() => navigate("/home?tab=objectives&focus=new-objective")}
                       className="gap-1.5 rounded-full"
                     >
                       <Plus size={13} />

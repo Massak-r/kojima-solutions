@@ -39,7 +39,6 @@ const QuoteNew              = lazy(() => import("./pages/QuoteNew"));
 const QuoteEdit             = lazy(() => import("./pages/QuoteEdit"));
 const QuotePrintPage        = lazy(() => import("./pages/QuotePrintPage"));
 const Home                  = lazy(() => import("./pages/Home"));
-const KojimaSpace           = lazy(() => import("./pages/KojimaSpace"));
 const ProjectSteps          = lazy(() => import("./pages/ProjectSteps"));
 const ClientDashboard       = lazy(() => import("./pages/ClientDashboard"));
 const ProjectDocuments      = lazy(() => import("./pages/ProjectDocuments"));
@@ -143,7 +142,7 @@ const App = () => (
                       {/* Protected admin routes */}
                       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
                       <Route path="/space" element={<Navigate to="/home" replace />} />
-                      <Route path="/space-full" element={<ProtectedRoute><KojimaSpace /></ProtectedRoute>} />
+                      <Route path="/space-full" element={<Navigate to="/home?tab=objectives" replace />} />
                       <Route path="/quotes" element={<ProtectedRoute><QuotesList /></ProtectedRoute>} />
                       <Route path="/quotes/new" element={<ProtectedRoute><QuoteNew /></ProtectedRoute>} />
                       <Route path="/quotes/:id" element={<ProtectedRoute><QuoteEdit /></ProtectedRoute>} />

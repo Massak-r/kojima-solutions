@@ -81,7 +81,7 @@ export function NewIntakes() {
               className="flex items-center gap-2 px-5 py-2.5 hover:bg-secondary/20 transition-colors group"
             >
               <button
-                onClick={() => navigate("/space-full")}
+                onClick={() => navigate("/home?tab=overview")}
                 className="flex-1 min-w-0 text-left"
               >
                 <div className="text-sm font-body font-medium text-foreground/80 truncate">
@@ -108,7 +108,7 @@ export function NewIntakes() {
                 <span className="hidden sm:inline">Convertir</span>
               </button>
               <button
-                onClick={() => navigate("/space-full")}
+                onClick={() => navigate("/home?tab=overview")}
                 className="shrink-0 p-1 text-muted-foreground/30 hover:text-foreground transition-colors"
                 aria-label="Ouvrir la demande complète"
               >

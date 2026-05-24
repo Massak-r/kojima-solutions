@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3 } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { AlertsZone } from "@/components/home/AlertsZone";
@@ -8,13 +8,14 @@ import { SprintSummary } from "@/components/home/SprintSummary";
 import { StreamsList } from "@/components/home/StreamsList";
 import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
 import { OverviewTab } from "@/components/home/OverviewTab";
+import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
 import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
 
-type Tab = "streams" | "kanban" | "overview";
+type Tab = "streams" | "kanban" | "overview" | "objectives";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function Home() {
   const initialTab: Tab =
     tabFromUrl === "kanban" ? "kanban" :
     tabFromUrl === "overview" ? "overview" :
+    tabFromUrl === "objectives" ? "objectives" :
     "streams";
   const [tab, setTab] = useState<Tab>(initialTab);
 
@@ -39,6 +41,26 @@ export default function Home() {
       setSearchParams(next, { replace: true });
     }
   }, [tab, searchParams, setSearchParams]);
+
+  // ?focus=new-objective: switch to the Objectifs tab, scroll the inline
+  // AddObjectiveForm input into view and focus it. This is what the FAB +
+  // SprintPage CTAs call when they want to send the user straight into
+  // objective creation from anywhere in the app.
+  useEffect(() => {
+    if (searchParams.get("focus") !== "new-objective") return;
+    setTab("objectives");
+    const t = setTimeout(() => {
+      const input = document.getElementById("new-objective-input");
+      if (input) {
+        input.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => (input as HTMLElement).focus(), 350);
+      }
+    }, 500);
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+    return () => clearTimeout(t);
+  }, [searchParams, setSearchParams]);
 
   const today = new Date().toLocaleDateString("fr-CH", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -125,6 +147,12 @@ export default function Home() {
             onClick={() => setTab("kanban")}
           />
           <TabButton
+            label="Objectifs"
+            icon={Target}
+            active={tab === "objectives"}
+            onClick={() => setTab("objectives")}
+          />
+          <TabButton
             label="Aperçu"
             icon={BarChart3}
             active={tab === "overview"}
@@ -141,6 +169,7 @@ export default function Home() {
           </div>
         )}
         {tab === "kanban" && <ProjectStatusKanban />}
+        {tab === "objectives" && <ObjectivesSection />}
         {tab === "overview" && <OverviewTab />}
       </main>
 

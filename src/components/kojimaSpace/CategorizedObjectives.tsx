@@ -90,7 +90,7 @@ export function CategorizedObjectives({
                         </button>
                         <div className={cn("w-1 h-1 rounded-full shrink-0", catColors.dot)} />
                         <button
-                          onClick={() => navigate(`/objective/${todo.source}/${todo.id}`, { state: { from: "/space-full" } })}
+                          onClick={() => navigate(`/objective/${todo.source}/${todo.id}`, { state: { from: "/home?tab=objectives" } })}
                           className="flex-1 text-left truncate text-sm font-body text-foreground hover:text-primary transition-colors"
                         >
                           {todo.text}
@@ -207,7 +207,7 @@ export function CategorizedObjectives({
                   onSubtaskUpdate={(subId, data) => actions.onSubtaskUpdate(todo.id, subId, data)}
                   onMoveUp={idx > 0 ? () => actions.onSwapOrder(todo.id, active[idx - 1].id) : undefined}
                   onMoveDown={idx < active.length - 1 ? () => actions.onSwapOrder(todo.id, active[idx + 1].id) : undefined}
-                  onOpenWorkspace={() => navigate(`/objective/${todo.source}/${todo.id}`, { state: { from: "/space-full" } })}
+                  onOpenWorkspace={() => navigate(`/objective/${todo.source}/${todo.id}`, { state: { from: "/home?tab=objectives" } })}
                   deleteConfirming={todoDeleteId === todo.id}
                   onDeleteConfirm={() => actions.onDeleteTodo(todo.id)}
                   onDeleteCancel={() => setTodoDeleteId(null)}
@@ -258,7 +258,7 @@ export function CategorizedObjectives({
                     onSubtaskToggle={subId => actions.onSubtaskToggle(t.id, subId)}
                     onSubtaskAdd={(text, due) => actions.onSubtaskAdd(t.id, text, due)}
                     onSubtaskDelete={subId => actions.onSubtaskDelete(t.id, subId)}
-                    onOpenWorkspace={() => navigate(`/objective/${t.source}/${t.id}`, { state: { from: "/space-full" } })}
+                    onOpenWorkspace={() => navigate(`/objective/${t.source}/${t.id}`, { state: { from: "/home?tab=objectives" } })}
                     deleteConfirming={todoDeleteId === t.id}
                     onDeleteConfirm={() => actions.onDeleteTodo(t.id)}
                     onDeleteCancel={() => setTodoDeleteId(null)}
