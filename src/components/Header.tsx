@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CloudOff, Lock, LogOut, Menu, MoreVertical, Settings, Shield, X, User } from "lucide-react";
+import { ArrowLeft, CloudOff, Lock, LogOut, Menu, MoreVertical, Settings, Shield, Users, X, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
@@ -214,9 +214,21 @@ const Header = () => {
                         className="absolute right-0 top-full mt-1 w-44 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
                       >
                         <Link
-                          to="/documents"
+                          to="/clients"
                           onClick={() => setOverflowOpen(false)}
                           className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                            location.pathname === "/clients"
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`}
+                        >
+                          <Users size={14} />
+                          Clients
+                        </Link>
+                        <Link
+                          to="/documents"
+                          onClick={() => setOverflowOpen(false)}
+                          className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors border-t border-border ${
                             location.pathname === "/documents"
                               ? "bg-primary/10 text-primary font-medium"
                               : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -315,12 +327,24 @@ const Header = () => {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -4 }}
                       transition={{ duration: 0.12 }}
-                      className="absolute right-0 top-full mt-1 w-40 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+                      className="absolute right-0 top-full mt-1 w-44 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
                     >
+                      <Link
+                        to="/clients"
+                        onClick={() => setOverflowOpen(false)}
+                        className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-colors ${
+                          location.pathname === "/clients"
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                      >
+                        <Users size={15} />
+                        Clients
+                      </Link>
                       <Link
                         to="/documents"
                         onClick={() => setOverflowOpen(false)}
-                        className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-colors ${
+                        className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-colors border-t border-border ${
                           location.pathname === "/documents"
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground"
