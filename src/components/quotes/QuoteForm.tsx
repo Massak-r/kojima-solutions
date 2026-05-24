@@ -346,12 +346,15 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                 value={data.clientName}
                 onChange={(e) => set("clientName", e.target.value)}
                 placeholder={siteT("Nom du client", "Client name")}
+                autoComplete="name"
               />
             </div>
             <div className="space-y-2">
               <Label>Email *</Label>
               <Input
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={data.clientEmail}
                 onChange={(e) => set("clientEmail", e.target.value)}
                 placeholder="email@exemple.ch"

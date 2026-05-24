@@ -131,6 +131,7 @@ export function StakeholderManager({ projectId }: Props) {
           <div className="grid grid-cols-2 gap-2">
             <Input
               placeholder="Nom"
+              autoComplete="name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               className="text-xs h-8"
@@ -138,6 +139,8 @@ export function StakeholderManager({ projectId }: Props) {
             />
             <Input
               type="email"
+              inputMode="email"
+              autoComplete="email"
               placeholder="Email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}

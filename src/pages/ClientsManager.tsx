@@ -133,12 +133,15 @@ export default function ClientsManager() {
                   value={form.organization ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, organization: e.target.value }))}
                   placeholder="Company name"
+                  autoComplete="organization"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Email</Label>
                 <Input
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={form.email ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   placeholder="email@example.com"
@@ -147,6 +150,9 @@ export default function ClientsManager() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Phone</Label>
                 <Input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   value={form.phone ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="+41 xx xxx xx xx"

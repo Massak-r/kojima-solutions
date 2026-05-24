@@ -56,6 +56,7 @@ export function Step5Contact({
       <motion.div variants={staggerItem} className="relative">
         <Input
           placeholder="Nom complet *"
+          autoComplete="name"
           value={contactName}
           onChange={e => setContactName(e.target.value)}
           onBlur={() => setNameTouched(true)}
@@ -70,6 +71,8 @@ export function Step5Contact({
         <Input
           placeholder="Email *"
           type="email"
+          inputMode="email"
+          autoComplete="email"
           value={contactEmail}
           onChange={e => setContactEmail(e.target.value)}
           onBlur={() => setEmailTouched(true)}
@@ -91,6 +94,8 @@ export function Step5Contact({
         <Input
           placeholder="Téléphone (optionnel)"
           type="tel"
+          inputMode="tel"
+          autoComplete="tel"
           value={contactPhone}
           onChange={e => setContactPhone(e.target.value)}
           className="h-11"
@@ -99,6 +104,7 @@ export function Step5Contact({
       <motion.div variants={staggerItem}>
         <Input
           placeholder="Entreprise (optionnel)"
+          autoComplete="organization"
           value={contactCompany}
           onChange={e => setContactCompany(e.target.value)}
           className="h-11"

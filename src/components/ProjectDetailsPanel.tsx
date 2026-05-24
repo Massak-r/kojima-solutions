@@ -319,6 +319,7 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                 </p>
                 <Input
                   placeholder="Nom *"
+                  autoComplete="name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="h-8 text-xs"
@@ -330,24 +331,32 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                 />
                 <Input
                   placeholder="Organisation"
+                  autoComplete="organization"
                   value={formOrg}
                   onChange={(e) => setFormOrg(e.target.value)}
                   className="h-8 text-xs"
                 />
                 <Input
                   placeholder="Email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
                   className="h-8 text-xs"
                 />
                 <Input
                   placeholder="Téléphone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   value={formPhone}
                   onChange={(e) => setFormPhone(e.target.value)}
                   className="h-8 text-xs"
                 />
                 <Input
                   placeholder="Adresse"
+                  autoComplete="street-address"
                   value={formAddress}
                   onChange={(e) => setFormAddress(e.target.value)}
                   className="h-8 text-xs"
