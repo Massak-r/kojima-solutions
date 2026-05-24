@@ -479,7 +479,11 @@ export function SubtaskCard({
                         className={cn(
                           "text-[10px] font-body font-bold px-2 py-0.5 rounded-full transition-all",
                           priority === p
-                            ? p === "high" ? "bg-red-100 text-red-700" : p === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
+                            ? p === "high"
+                              ? "bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300"
+                              : p === "medium"
+                                ? "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                : "bg-gray-100 dark:bg-gray-500/15 text-gray-600 dark:text-gray-300"
                             : "text-muted-foreground/25 hover:text-muted-foreground/50",
                         )}
                       >

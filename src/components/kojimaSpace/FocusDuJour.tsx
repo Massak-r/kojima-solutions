@@ -31,12 +31,12 @@ export function FocusDuJour({ subtasksMap, todos, hiddenCats, onToggleSubtask, o
   }
 
   return (
-    <div className="rounded-xl bg-amber-50/50 border border-amber-200/40 mb-4 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200/30">
+    <div className="rounded-xl bg-amber-50/50 dark:bg-amber-500/10 border border-amber-200/40 dark:border-amber-500/30 mb-4 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200/30 dark:border-amber-500/20">
         <Sun size={14} className="text-amber-500 shrink-0" />
-        <span className="text-xs font-display font-bold text-amber-800">Focus du jour</span>
-        <span className="text-xs font-mono text-amber-600 font-semibold">{flagDone}/{flagged.length}</span>
-        <div className="flex-1 h-1.5 bg-amber-200/40 rounded-full overflow-hidden">
+        <span className="text-xs font-display font-bold text-amber-800 dark:text-amber-200">Focus du jour</span>
+        <span className="text-xs font-mono text-amber-600 dark:text-amber-300 font-semibold">{flagDone}/{flagged.length}</span>
+        <div className="flex-1 h-1.5 bg-amber-200/40 dark:bg-amber-500/20 rounded-full overflow-hidden">
           <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${(flagDone / flagged.length) * 100}%` }} />
         </div>
       </div>

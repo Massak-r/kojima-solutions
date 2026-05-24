@@ -21,9 +21,9 @@ import type { ModuleComplexity } from "@/types/module";
 import { createEmptyQuote } from "@/types/quote";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
-  new:       { label: "Nouveau",  cls: "bg-red-100 text-red-600" },
-  reviewed:  { label: "Vu",       cls: "bg-amber-100 text-amber-700" },
-  converted: { label: "Converti", cls: "bg-emerald-100 text-emerald-700" },
+  new:       { label: "Nouveau",  cls: "bg-red-100     dark:bg-red-500/15     text-red-600     dark:text-red-300" },
+  reviewed:  { label: "Vu",       cls: "bg-amber-100   dark:bg-amber-500/15   text-amber-700   dark:text-amber-300" },
+  converted: { label: "Converti", cls: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
 };
 
 const TIER_LABELS: Record<string, string> = {
@@ -33,9 +33,9 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const TIER_COLORS: Record<string, string> = {
-  essential: "bg-gray-100 text-gray-700",
-  professional: "bg-blue-100 text-blue-700",
-  custom: "bg-violet-100 text-violet-700",
+  essential:    "bg-gray-100   dark:bg-gray-500/15   text-gray-700   dark:text-gray-300",
+  professional: "bg-blue-100   dark:bg-blue-500/15   text-blue-700   dark:text-blue-300",
+  custom:       "bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300",
 };
 
 function formatCHF(n: number): string {

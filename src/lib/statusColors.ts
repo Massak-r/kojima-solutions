@@ -21,24 +21,26 @@ export const PAYMENT_STATUS = {
 } as const;
 
 // ── Objective / todo status ──────────────────────────────────────────
+// Dark-mode partners use the /15 tint + -300 text pattern that the rest
+// of the app standardised on (PROJECT_STATUS / PAYMENT_STATUS above).
 export const STATUS_CONFIG: Record<TodoStatus, { label: string; bg: string; text: string }> = {
-  not_started: { label: "Non commencé", bg: "bg-gray-100",    text: "text-gray-700" },
-  in_progress: { label: "En cours",     bg: "bg-blue-100",    text: "text-blue-800" },
-  done:        { label: "Terminé",       bg: "bg-emerald-100", text: "text-emerald-800" },
-  blocked:     { label: "Bloqué",        bg: "bg-red-100",     text: "text-red-800" },
+  not_started: { label: "Non commencé", bg: "bg-gray-100    dark:bg-gray-500/15",    text: "text-gray-700  dark:text-gray-300" },
+  in_progress: { label: "En cours",     bg: "bg-blue-100    dark:bg-blue-500/15",    text: "text-blue-800  dark:text-blue-300" },
+  done:        { label: "Terminé",      bg: "bg-emerald-100 dark:bg-emerald-500/15", text: "text-emerald-800 dark:text-emerald-300" },
+  blocked:     { label: "Bloqué",       bg: "bg-red-100     dark:bg-red-500/15",     text: "text-red-800   dark:text-red-300" },
 };
 
 // ── Priority (objectives + subtasks) ─────────────────────────────────
 export const PRIORITY_BORDER: Record<TodoPriority, string> = {
-  low:    "border-l-gray-300",
-  medium: "border-l-amber-400",
-  high:   "border-l-red-500",
+  low:    "border-l-gray-300 dark:border-l-gray-600",
+  medium: "border-l-amber-400 dark:border-l-amber-500",
+  high:   "border-l-red-500 dark:border-l-red-400",
 };
 
 export const STATUS_OPTIONS: TodoStatus[] = ["not_started", "in_progress", "done", "blocked"];
 
 export const PRIORITY_OPTIONS: { key: TodoPriority; label: string; color: string }[] = [
-  { key: "low",    label: "Basse",   color: "bg-gray-100 text-gray-700" },
-  { key: "medium", label: "Moyenne", color: "bg-amber-100 text-amber-800" },
-  { key: "high",   label: "Haute",   color: "bg-red-100 text-red-800" },
+  { key: "low",    label: "Basse",   color: "bg-gray-100  dark:bg-gray-500/15  text-gray-700  dark:text-gray-300" },
+  { key: "medium", label: "Moyenne", color: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
+  { key: "high",   label: "Haute",   color: "bg-red-100   dark:bg-red-500/15   text-red-800   dark:text-red-300" },
 ];

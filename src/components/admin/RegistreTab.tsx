@@ -228,9 +228,9 @@ function CopyChip({ label, value }: { label: string; value: string }) {
 
 function statusBadgeClass(status: RegistryStatus): string {
   switch (status) {
-    case 'active':   return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    case 'expiring': return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'expired':  return 'bg-red-100 text-red-700 border-red-200';
+    case 'active':   return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
+    case 'expiring': return 'bg-amber-100   dark:bg-amber-500/15   text-amber-700   dark:text-amber-300   border-amber-200   dark:border-amber-500/30';
+    case 'expired':  return 'bg-red-100     dark:bg-red-500/15     text-red-700     dark:text-red-300     border-red-200     dark:border-red-500/30';
     case 'inactive': return 'bg-muted text-muted-foreground border-border';
   }
 }
@@ -238,8 +238,8 @@ function statusBadgeClass(status: RegistryStatus): string {
 function scopeBadgeClass(scope: RegistryScope): string {
   switch (scope) {
     case 'personal': return 'bg-secondary text-secondary-foreground border-border';
-    case 'business': return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'both':     return 'bg-purple-100 text-purple-700 border-purple-200';
+    case 'business': return 'bg-blue-100   dark:bg-blue-500/15   text-blue-700   dark:text-blue-300   border-blue-200   dark:border-blue-500/30';
+    case 'both':     return 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30';
   }
 }
 
