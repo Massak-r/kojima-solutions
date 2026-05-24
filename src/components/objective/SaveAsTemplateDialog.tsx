@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Loader2, BookmarkPlus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { saveAsTemplate } from "@/api/objectiveTemplates";
@@ -46,11 +49,11 @@ export function SaveAsTemplateDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setName(defaultName ?? ""); setDesc(""); } }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Enregistrer comme modèle</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setName(defaultName ?? ""); setDesc(""); } }}>
+      <ResponsiveDialogContent className="max-w-md">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Enregistrer comme modèle</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="space-y-3">
           <div className="text-xs font-body text-muted-foreground">
             Capture l'arborescence actuelle des étapes dans un modèle réutilisable.
@@ -77,14 +80,14 @@ export function SaveAsTemplateDialog({
             />
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 pt-2">
+        <ResponsiveDialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuler</Button>
           <Button onClick={handleSave} disabled={!name.trim() || saving}>
             {saving ? <Loader2 size={14} className="mr-1 animate-spin" /> : <BookmarkPlus size={14} className="mr-1" />}
             Enregistrer
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

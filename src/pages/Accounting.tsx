@@ -13,7 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download } from "lucide-react";
 import { downloadCSV } from "@/lib/csvExport";
 import {
@@ -882,11 +884,11 @@ export default function Accounting() {
       </button>
 
       {/* Quick-add dialog */}
-      <Dialog open={showQuickAdd} onOpenChange={setShowQuickAdd}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-display">Dépense rapide</DialogTitle>
-          </DialogHeader>
+      <ResponsiveDialog open={showQuickAdd} onOpenChange={setShowQuickAdd}>
+        <ResponsiveDialogContent className="max-w-sm">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="font-display">Dépense rapide</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
           <form
             onSubmit={(e) => {
               handleAddExpense(e);
@@ -932,8 +934,8 @@ export default function Accounting() {
               Ajouter
             </Button>
           </form>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 }
