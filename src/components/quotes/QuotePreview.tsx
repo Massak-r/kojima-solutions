@@ -136,7 +136,7 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
                 </p>
               )}
             </div>
-            <div className="w-48 shrink-0 text-right">
+            <div className="w-32 sm:w-48 shrink-0 text-right">
               <div className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
                 {isFr ? "Client" : "Client"}
               </div>
@@ -153,9 +153,9 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="mt-6 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-            <table className="w-full border-collapse text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+          {/* Table — horizontal scroll on phones so narrow viewports don't crush the columns */}
+          <div className="mt-6 rounded-lg overflow-x-auto border border-gray-200 shadow-sm">
+            <table className="w-full min-w-[420px] border-collapse text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
               <thead>
                 <tr className="border-b border-gray-200" style={{ backgroundColor: accentBg }}>
                   <th className="border-r border-gray-200 p-3 text-left font-semibold text-gray-800">

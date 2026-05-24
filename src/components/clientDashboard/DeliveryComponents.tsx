@@ -39,9 +39,9 @@ export function ImageLightbox({ delivery, initialIndex, onClose }: {
       className="fixed inset-0 z-50 bg-black/95 flex"
       onClick={onClose}
     >
-      {/* Left panel */}
+      {/* Left panel — narrower on phones so the media fills more space */}
       <div
-        className="w-64 shrink-0 bg-black/60 border-r border-white/10 flex flex-col p-5 gap-4"
+        className="w-40 sm:w-64 shrink-0 bg-black/60 border-r border-white/10 flex flex-col p-3 sm:p-5 gap-4"
         onClick={(e) => e.stopPropagation()}
       >
         <button
