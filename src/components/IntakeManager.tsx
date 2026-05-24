@@ -192,8 +192,16 @@ export function IntakeManager() {
           <Loader2 size={18} className="animate-spin text-muted-foreground/30" />
         </div>
       ) : intakes.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-xs text-muted-foreground/40 font-body">Aucune demande pour l'instant.</p>
+        <div className="text-center py-8 space-y-3">
+          <p className="text-xs text-muted-foreground/50 font-body">Aucune demande pour l'instant.</p>
+          <a
+            href="/intake"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary hover:underline"
+          >
+            Voir le formulaire public →
+          </a>
         </div>
       ) : (
         <div className="divide-y divide-border/30">

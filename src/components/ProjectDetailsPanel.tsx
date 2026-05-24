@@ -244,7 +244,10 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
           <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
             <div className="max-h-52 overflow-y-auto">
               {clients.length === 0 && !isFormOpen && (
-                <p className="px-3 py-2 text-xs text-muted-foreground">Aucun client pour l'instant.</p>
+                <div className="px-3 py-3 text-center space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Aucun client enregistré.</p>
+                  <p className="text-[10px] text-muted-foreground/60">Utilise « Ajouter rapidement » ci-dessous pour créer le premier.</p>
+                </div>
               )}
               {clients.map((c) => (
                 <div
