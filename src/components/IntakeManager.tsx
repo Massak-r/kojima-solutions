@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Inbox, ChevronDown, ChevronRight, Loader2, Eye, Mail,
   Plus, Package,
@@ -7,18 +6,12 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useProjects } from "@/contexts/ProjectsContext";
-import { useQuotes } from "@/hooks/useQuotes";
-import { useClients } from "@/contexts/ClientsContext";
-import { useToast } from "@/hooks/use-toast";
 import {
   listIntakeResponses, updateIntakeResponse,
-  type IntakeResponse, type Tier,
+  type IntakeResponse,
 } from "@/api/funnels";
-import { ModuleResolver } from "@/lib/moduleResolver";
 import { getModuleById } from "@/data/moduleCatalog";
-import type { ModuleComplexity } from "@/types/module";
-import { createEmptyQuote } from "@/types/quote";
+import { useConvertIntake } from "@/hooks/useConvertIntake";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   new:       { label: "Nouveau",  cls: "bg-red-100     dark:bg-red-500/15     text-red-600     dark:text-red-300" },
@@ -43,14 +36,13 @@ function formatCHF(n: number): string {
 }
 
 export function IntakeManager() {
-  const navigate = useNavigate();
-  const { createProject, updateProject } = useProjects();
-  const { addQuote } = useQuotes();
-  const { clients, addClient } = useClients();
-  const { toast } = useToast();
   const [intakes, setIntakes] = useState<IntakeResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const convertToProject = useConvertIntake((updated) => {
+    setIntakes((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  });
 
   useEffect(() => {
     listIntakeResponses()
@@ -64,108 +56,6 @@ export function IntakeManager() {
       const updated = await updateIntakeResponse(id, { status: "reviewed" as IntakeResponse["status"] });
       setIntakes((prev) => prev.map((i) => (i.id === id ? updated : i)));
     } catch {}
-  }
-
-  async function convertToProject(intake: IntakeResponse) {
-    const responses = intake.responses ?? {};
-    const projectType = (responses.projectType as string) ?? "";
-    const selectedModules = (responses.selectedModules as { id: string; complexity: string }[]) ?? [];
-    const estimate = responses.estimate as { low?: number; high?: number; yearly?: number } | undefined;
-    const pageCount = (responses.pageCount as string) ?? "multi";
-    const maintenance = (responses.maintenance as string) ?? "none";
-    const hostingTier = (responses.hostingTier as string) ?? "simple";
-    const company = (responses.company as string) ?? "";
-
-    // Find or create client by email
-    let clientId: string | undefined;
-    if (intake.clientEmail) {
-      const existing = clients.find(
-        (c) => c.email?.toLowerCase() === intake.clientEmail.toLowerCase()
-      );
-      if (existing) {
-        clientId = existing.id;
-      } else {
-        const newClient = addClient({
-          name: intake.clientName || "Client",
-          email: intake.clientEmail,
-          organization: company || undefined,
-        });
-        clientId = newClient.id;
-      }
-    }
-
-    // Create project
-    const p = createProject();
-    updateProject(p.id, {
-      title: projectType || intake.clientName || "Nouveau projet",
-      client: intake.clientName || "",
-      clientId,
-    });
-
-    // Build quote line items from intake modules
-    const moduleLines = selectedModules.length > 0
-      ? new ModuleResolver(
-          selectedModules.map((m) => ({
-            moduleId: m.id,
-            complexity: m.complexity as ModuleComplexity,
-          }))
-        ).toQuoteLines()
-      : [];
-
-    // Add base project line
-    const baseLineId = crypto.randomUUID?.() ?? `line-${Date.now()}`;
-    const baseLine = {
-      id: baseLineId,
-      description: "Base projet (design, responsive, mise en ligne)",
-      quantity: 1,
-      unitPrice: 1500,
-    };
-
-    // Add page count surcharge if applicable
-    const pageExtras: Record<string, number> = { single: 0, multi: 500, large: 1500 };
-    const pageExtra = pageExtras[pageCount] ?? 0;
-    const lines = [baseLine, ...moduleLines];
-    if (pageExtra > 0) {
-      const pageLabels: Record<string, string> = { multi: "Multi-pages (3-10)", large: "Site étendu (10+)" };
-      lines.push({
-        id: crypto.randomUUID?.() ?? `line-page-${Date.now()}`,
-        description: `Pages supplémentaires (${pageLabels[pageCount] ?? pageCount})`,
-        quantity: 1,
-        unitPrice: pageExtra,
-      });
-    }
-
-    // Create draft quote
-    const quoteBase = createEmptyQuote("fr");
-    const now = new Date();
-    const quoteId = crypto.randomUUID?.() ?? `q-${Date.now()}`;
-    const quote = {
-      ...quoteBase,
-      id: quoteId,
-      createdAt: now.toISOString(),
-      projectId: p.id,
-      clientName: intake.clientName || "",
-      clientEmail: intake.clientEmail || "",
-      clientCompany: company,
-      projectTitle: projectType || "Nouveau projet",
-      projectDescription: estimate
-        ? `Estimation: CHF ${formatCHF(estimate.low ?? 0)} – ${formatCHF(estimate.high ?? 0)}`
-        : "",
-      lineItems: lines,
-    };
-    addQuote(quote);
-
-    // Mark intake as converted
-    try {
-      const updated = await updateIntakeResponse(intake.id, {
-        status: "converted" as IntakeResponse["status"],
-        projectId: p.id,
-      });
-      setIntakes((prev) => prev.map((i) => (i.id === intake.id ? updated : i)));
-    } catch {}
-
-    toast({ title: "Projet + devis créés", description: `${moduleLines.length} module(s) importé(s)` });
-    navigate(`/quotes/${quoteId}`);
   }
 
   const newCount = intakes.filter((i) => i.status === "new").length;
