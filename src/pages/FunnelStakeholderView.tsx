@@ -14,6 +14,7 @@ import {
   type ProjectFunnel, type FunnelPhase, type FunnelGate, type GateOption, type GateComment, type Tier,
 } from "@/api/funnels";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
+import { formatDateSwiss, formatDateShort, formatDateTime } from "@/lib/dateFormat";
 
 const TIER_LABELS: Record<Tier, string> = {
   essential: "Essentiel",
@@ -351,7 +352,7 @@ function StakeholderGateCard({ gate, stakeholderName, onRefresh }: {
             })()
           )}>
             <Clock size={9} className="inline mr-0.5" />
-            {new Date(gate.deadline).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+            {formatDateShort(gate.deadline)}
           </span>
         )}
         {!isLocked && (
@@ -374,7 +375,7 @@ function StakeholderGateCard({ gate, stakeholderName, onRefresh }: {
           {gate.status === "approved" && (
             <div className="flex items-center gap-2 text-xs text-emerald-600 font-body">
               <CheckCircle2 size={12} />
-              Validé {gate.approvedAt && `le ${new Date(gate.approvedAt).toLocaleDateString("fr-CH")}`}
+              Validé {gate.approvedAt && `le ${formatDateSwiss(gate.approvedAt)}`}
               {gate.approvedBy && ` par ${gate.approvedBy}`}
             </div>
           )}
@@ -478,7 +479,7 @@ function StakeholderGateCard({ gate, stakeholderName, onRefresh }: {
                         <Badge variant="secondary" className="text-[7px] px-1 py-0 bg-violet-100 text-violet-600">Stakeholder</Badge>
                       )}
                       <span className="text-[9px] text-muted-foreground/30 font-body">
-                        {new Date(comment.createdAt).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {formatDateTime(comment.createdAt)}
                       </span>
                     </div>
                     <p className="text-xs font-body text-foreground/70">{comment.message}</p>

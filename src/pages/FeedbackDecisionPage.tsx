@@ -13,6 +13,7 @@ import type { FeedbackRequest, VoteOption } from "@/types/timeline";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
 import { RevisionCounter } from "@/components/feedback/RevisionCounter";
 import { FeedbackAuditLog } from "@/components/feedback/FeedbackAuditLog";
+import { formatDateSwiss, formatDateSwissLong } from "@/lib/dateFormat";
 import { StakeholderVoteSummary } from "@/components/feedback/StakeholderVoteSummary";
 
 export default function FeedbackDecisionPage() {
@@ -136,7 +137,7 @@ export default function FeedbackDecisionPage() {
           {isResolved && (
             <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 gap-1">
               <CheckCircle2 size={12} /> Choix confirmé
-              {request.respondedAt && ` le ${new Date(request.respondedAt).toLocaleDateString("fr-CH")}`}
+              {request.respondedAt && ` le ${formatDateSwiss(request.respondedAt)}`}
             </Badge>
           )}
           {request.deadline && (
@@ -146,7 +147,7 @@ export default function FeedbackDecisionPage() {
               isUrgent ? "bg-amber-100 text-amber-700" :
               "bg-secondary text-muted-foreground",
             )}>
-              Echéance : {new Date(request.deadline).toLocaleDateString("fr-CH")}
+              Echéance : {formatDateSwiss(request.deadline)}
               {deadlineDays !== null && (
                 isOverdue ? " (dépassée)" :
                 deadlineDays === 0 ? " (aujourd'hui)" :
@@ -267,9 +268,13 @@ export default function FeedbackDecisionPage() {
           <StakeholderVoteSummary votes={request.stakeholderVotes} options={request.options} type="vote" />
         )}
 
-        {/* Confirm button */}
+        {/* Confirm button — sticky CTA with safe-area-aware bottom padding so
+            it clears the iOS home indicator in standalone mode. */}
         {!isResolved && (
-          <div className="sticky bottom-6 z-20">
+          <div
+            className="sticky bottom-6 z-20"
+            style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          >
             <Button
               size="lg"
               className="w-full gap-2 h-12 text-base shadow-lg"
@@ -301,9 +306,7 @@ export default function FeedbackDecisionPage() {
               </p>
               {request.respondedAt && (
                 <p className="font-body text-xs text-emerald-600/70">
-                  {new Date(request.respondedAt).toLocaleDateString("fr-CH", {
-                    day: "numeric", month: "long", year: "numeric",
-                  })}
+                  {formatDateSwissLong(request.respondedAt)}
                 </p>
               )}
             </div>

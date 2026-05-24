@@ -75,6 +75,9 @@ const ClientLogin = () => {
           >
             <Input
               type="email"
+              inputMode="email"
+              autoComplete="email"
+              enterKeyHint="go"
               placeholder="votre@email.com"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(""); }}

@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Delivery } from "@/types/project";
 import { cn } from "@/lib/utils";
 import { printViaIframe } from "@/lib/printUtils";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { listProjectQuotes, updateQuote } from "@/api/quotes";
 import { totalQuote, type Quote } from "@/types/quote";
 import { getCadrage, type Cadrage } from "@/api/cadrage";
@@ -158,6 +159,8 @@ export default function ClientDashboard() {
           >
             <Input
               type="email"
+              inputMode="email"
+              autoComplete="email"
               placeholder="votre@email.com"
               value={emailInput}
               onChange={(e) => { setEmailInput(e.target.value); setEmailError(""); }}
@@ -353,9 +356,9 @@ export default function ClientDashboard() {
                 {(project.startDate || project.endDate) && (
                   <span className="font-body text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarDays size={11} />
-                    {project.startDate && new Date(project.startDate).toLocaleDateString()}
+                    {project.startDate && formatDateSwiss(project.startDate)}
                     {project.startDate && project.endDate && " → "}
-                    {project.endDate && new Date(project.endDate).toLocaleDateString()}
+                    {project.endDate && formatDateSwiss(project.endDate)}
                   </span>
                 )}
               </div>
@@ -704,7 +707,7 @@ export default function ClientDashboard() {
                                   {req.message}: <em className="text-foreground">{req.response}</em>
                                   {req.respondedAt && (
                                     <span className="ml-2 text-[10px] text-muted-foreground/50 not-italic">
-                                      {new Date(req.respondedAt).toLocaleDateString()}
+                                      {formatDateSwiss(req.respondedAt)}
                                     </span>
                                   )}
                                 </span>
@@ -760,7 +763,7 @@ export default function ClientDashboard() {
                         {q.quoteNumber || `Document #${q.id.slice(0, 8)}`}
                       </p>
                       <p className="font-body text-xs text-muted-foreground">
-                        {q.createdAt ? new Date(q.createdAt).toLocaleDateString("fr-CH") : ""}
+                        {q.createdAt ? formatDateSwiss(q.createdAt) : ""}
                         {q.clientName ? ` · ${q.clientName}` : ""}
                       </p>
                     </div>

@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getProjectByShareToken, type StakeholderProject, type StakeholderStep } from "@/api/stakeholder";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { addStepComment, castStakeholderVote } from "@/api/steps";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
 import type { FeedbackRequest, StakeholderVote, VoteOption } from "@/types/timeline";
@@ -33,7 +34,7 @@ const REQUEST_ICONS: Record<string, { icon: typeof Type; color: string }> = {
 
 function DeadlineBadge({ deadline }: { deadline: string }) {
   const diff = Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  const label = new Date(deadline).toLocaleDateString("fr-CH");
+  const label = formatDateSwiss(deadline);
 
   let cls = "text-muted-foreground border-border";
   if (diff < 0) cls = "text-red-600 bg-red-50 border-red-200 font-semibold";
@@ -389,7 +390,7 @@ function StakeholderStepCard({ step, phaseTitle, stakeholderName, onRefresh }: {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-body font-semibold">{c.authorName}</span>
                           <span className="text-[9px] text-muted-foreground">
-                            {new Date(c.createdAt).toLocaleDateString("fr-CH")}
+                            {formatDateSwiss(c.createdAt)}
                           </span>
                         </div>
                         <p className="text-[11px] font-body text-foreground/70">{c.message}</p>
@@ -514,6 +515,8 @@ export default function StakeholderView() {
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 placeholder="Votre nom..."
+                autoComplete="name"
+                enterKeyHint="done"
                 className="flex-1 text-sm font-body bg-background border border-border/50 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
                 onKeyDown={(e) => e.key === "Enter" && handleSetName()}
               />

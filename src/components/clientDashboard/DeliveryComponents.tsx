@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { Delivery } from "@/types/project";
 import { cn } from "@/lib/utils";
+import { formatDateSwiss } from "@/lib/dateFormat";
 
 // ── Image Lightbox ────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ export function DeliveryCard({ d, onLightbox, isFinal = false }: {
             </div>
             {d.createdAt && (
               <p className="font-body text-[10px] text-muted-foreground/60 mb-1">
-                {new Date(d.createdAt).toLocaleDateString()}
+                {formatDateSwiss(d.createdAt)}
               </p>
             )}
             {d.description && (

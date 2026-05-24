@@ -14,6 +14,7 @@ import {
   type ProjectFunnel, type FunnelGate, type GateOption, type GateComment,
 } from "@/api/funnels";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
+import { formatDateSwiss, formatDateTime } from "@/lib/dateFormat";
 
 const TYPE_LABELS: Record<string, string> = {
   choice: "Quelle direction preferez-vous ?",
@@ -201,7 +202,7 @@ export default function GateDecisionPage() {
           {isApproved && (
             <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 gap-1">
               <CheckCircle2 size={12} /> Valide
-              {gate.approvedAt && ` le ${new Date(gate.approvedAt).toLocaleDateString("fr-CH")}`}
+              {gate.approvedAt && ` le ${formatDateSwiss(gate.approvedAt)}`}
               {gate.approvedBy && ` par ${gate.approvedBy}`}
             </Badge>
           )}
@@ -218,7 +219,7 @@ export default function GateDecisionPage() {
               "bg-secondary text-muted-foreground",
             )}>
               <Clock size={10} />
-              Echeance : {new Date(gate.deadline).toLocaleDateString("fr-CH")}
+              Echeance : {formatDateSwiss(gate.deadline)}
               {deadlineDays !== null && (
                 isOverdue ? " (depassee)" :
                 deadlineDays === 0 ? " (aujourd'hui)" :
@@ -504,7 +505,7 @@ function CommentBubble({ comment }: { comment: GateComment }) {
           {comment.authorName || (isAdmin ? "Equipe" : "Client")}
         </span>
         <span className="text-[10px] text-muted-foreground/40 font-body">
-          {new Date(comment.createdAt).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+          {formatDateTime(comment.createdAt)}
         </span>
       </div>
       <p className="text-sm font-body text-foreground/70 break-words">{comment.message}</p>

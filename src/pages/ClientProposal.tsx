@@ -21,6 +21,7 @@ import {
 import { listProjectQuotes } from "@/api/quotes";
 import { totalQuote, type Quote } from "@/types/quote";
 import { printViaIframe } from "@/lib/printUtils";
+import { formatChf } from "@/lib/currency";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -172,7 +173,12 @@ export default function ClientProposal() {
           </div>
           <form onSubmit={handleEmailSubmit} className="bg-card border border-border rounded-2xl p-6 shadow-card space-y-4">
             <Input
-              type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              enterKeyHint="go"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
               placeholder="votre@email.ch"
             />
             {emailError && <p className="text-xs text-destructive">{emailError}</p>}
@@ -279,7 +285,7 @@ export default function ClientProposal() {
 
                 {tierBudget > 0 && (
                   <p className="font-display text-2xl font-bold mt-3">
-                    {tierBudget.toLocaleString("fr-CH")} <span className="text-sm font-normal text-muted-foreground">CHF</span>
+                    {formatChf(tierBudget)} <span className="text-sm font-normal text-muted-foreground">CHF</span>
                   </p>
                 )}
 
@@ -355,7 +361,7 @@ export default function ClientProposal() {
                           </div>
                           {phase.budget != null && phase.budget > 0 && (
                             <span className="font-display font-bold text-sm text-foreground/70 shrink-0">
-                              {phase.budget.toLocaleString("fr-CH")} CHF
+                              {formatChf(phase.budget)} CHF
                             </span>
                           )}
                         </div>
@@ -389,7 +395,7 @@ export default function ClientProposal() {
               <div key={phase.id} className="flex items-center justify-between text-sm font-body">
                 <span className="text-muted-foreground/70">{phase.title}</span>
                 <span className="font-medium">
-                  {(phase.budget ?? 0) > 0 ? `${phase.budget!.toLocaleString("fr-CH")} CHF` : "-"}
+                  {(phase.budget ?? 0) > 0 ? `${formatChf(phase.budget)} CHF` : "-"}
                 </span>
               </div>
             ))}
@@ -399,7 +405,7 @@ export default function ClientProposal() {
                 <div className="border-t border-border/30 pt-3 flex items-center justify-between">
                   <span className="font-display font-semibold">Total</span>
                   <span className="font-display text-xl font-bold">
-                    {totalBudget.toLocaleString("fr-CH")} <span className="text-sm font-normal text-muted-foreground">CHF</span>
+                    {formatChf(totalBudget)} <span className="text-sm font-normal text-muted-foreground">CHF</span>
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground/30 font-body">
@@ -429,7 +435,7 @@ export default function ClientProposal() {
                     <div className="flex items-center gap-2">
                       <Download size={12} className="text-muted-foreground/30" />
                       <span className="font-body text-foreground/70">{q.quoteNumber || "Devis"}</span>
-                      <span className="text-xs text-muted-foreground/40">{totalQuote(q).toLocaleString("fr-CH")} CHF</span>
+                      <span className="text-xs text-muted-foreground/40">{formatChf(totalQuote(q))} CHF</span>
                     </div>
                     <button
                       onClick={() => printViaIframe(`/quotes/${q.id}/print`)}
