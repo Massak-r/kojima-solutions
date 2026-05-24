@@ -232,8 +232,22 @@ export default function Dashboard() {
           </section>
         )}
         {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 size={24} className="animate-spin text-muted-foreground" />
+          // Skeleton placeholders — better perceived performance than a
+          // bare spinner on the busiest admin page.
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border border-border/40 bg-card/40 p-4 space-y-3 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 bg-muted rounded w-3/4" />
+                    <div className="h-2.5 bg-muted/60 rounded w-1/2" />
+                  </div>
+                </div>
+                <div className="h-2 bg-muted/60 rounded w-full" />
+                <div className="h-2 bg-muted/60 rounded w-5/6" />
+              </div>
+            ))}
           </div>
         ) : projects.length === 0 ? (
           /* ── Empty state ── */

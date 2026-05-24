@@ -130,8 +130,11 @@ export default function ProjectBrief() {
           </div>
 
           {intakeLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            <div className="p-5 space-y-3 animate-pulse">
+              <div className="h-3 bg-muted rounded w-2/3" />
+              <div className="h-3 bg-muted/60 rounded w-full" />
+              <div className="h-3 bg-muted/60 rounded w-4/5" />
+              <div className="h-3 bg-muted/60 rounded w-3/4" />
             </div>
           ) : !intake ? (
             <div className="p-5 text-center">

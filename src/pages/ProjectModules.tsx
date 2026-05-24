@@ -441,8 +441,18 @@ export default function ProjectModules() {
     return (
       <div className="min-h-screen bg-background">
         <ProjectStepNav projectId={id!} currentStep="modules" />
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="animate-spin text-muted-foreground" size={24} />
+        {/* Skeleton placeholders: header + two module sections */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-12 py-8 space-y-6 animate-pulse">
+          <div className="h-6 w-48 bg-muted rounded" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border border-border/40 bg-card/40 p-4 space-y-3">
+                <div className="h-4 bg-muted rounded w-2/3" />
+                <div className="h-2.5 bg-muted/60 rounded w-full" />
+                <div className="h-2.5 bg-muted/60 rounded w-5/6" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
