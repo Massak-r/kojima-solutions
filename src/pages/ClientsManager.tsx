@@ -188,6 +188,9 @@ export default function ClientsManager() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Rechercher un client..."
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
               className="pl-9 font-body"
             />
           </div>

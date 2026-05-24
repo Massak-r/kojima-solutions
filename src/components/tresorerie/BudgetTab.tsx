@@ -729,7 +729,7 @@ export function BudgetTab() {
                   <p className="text-xs font-body text-muted-foreground font-medium">Nouvelle dépense récurrente</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Input placeholder="Nom" value={name} onChange={e => setName(e.target.value)} className="font-body h-9 text-sm" />
-                    <Input placeholder="Montant CHF" type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="font-body h-9 text-sm" />
+                    <Input placeholder="Montant CHF" type="number" inputMode="decimal" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="font-body h-9 text-sm" />
                     <Select value={frequency} onValueChange={v => setFrequency(v as CostFrequency)}>
                       <SelectTrigger className="font-body h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -892,10 +892,10 @@ export function BudgetTab() {
                   <p className="text-xs font-body text-muted-foreground font-medium">Nouveau consommable</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Input placeholder="Nom" value={consName} onChange={e => setConsName(e.target.value)} className="font-body h-9 text-sm" />
-                    <Input placeholder="Coût estimé CHF" type="number" step="0.01" value={consEst} onChange={e => setConsEst(e.target.value)} className="font-body h-9 text-sm" />
+                    <Input placeholder="Coût estimé CHF" type="number" inputMode="decimal" step="0.01" value={consEst} onChange={e => setConsEst(e.target.value)} className="font-body h-9 text-sm" />
                     <div className="flex gap-2 items-center">
                       <span className="text-xs text-muted-foreground shrink-0 font-body">Tous les</span>
-                      <Input type="number" min="1" value={consEvery} onChange={e => setConsEvery(e.target.value)} className="w-16 font-body h-9 text-sm" />
+                      <Input type="number" inputMode="numeric" min="1" value={consEvery} onChange={e => setConsEvery(e.target.value)} className="w-16 font-body h-9 text-sm" />
                       <Select value={consUnit} onValueChange={v => setConsUnit(v as ConsumableUnit)}>
                         <SelectTrigger className="font-body flex-1 h-9 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>

@@ -483,6 +483,7 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                   <Label className="text-xs">{isFr ? "Quantité" : "Quantity"}</Label>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     value={line.quantity || ""}
                     onChange={(e) =>
@@ -495,6 +496,7 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                   <Label className="text-xs">{isFr ? "Prix unitaire (CHF)" : "Unit price (CHF)"}</Label>
                   <Input
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     step={1}
                     value={line.unitPrice === 0 ? "" : line.unitPrice}

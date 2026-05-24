@@ -259,6 +259,9 @@ export default function Dashboard() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Rechercher un projet..."
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
                   className="pl-9 font-body text-sm"
                 />
               </div>

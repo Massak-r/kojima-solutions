@@ -300,8 +300,8 @@ export function SubtaskCard({
           <div className="flex md:hidden md:group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
             {!dragHandleProps && (onMoveUp || onMoveDown) && !sub.completed && (
               <div className="flex flex-col">
-                {onMoveUp && <button onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronUp size={11} /></button>}
-                {onMoveDown && <button onClick={onMoveDown} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronDown size={11} /></button>}
+                {onMoveUp && <button aria-label="Monter" title="Monter" onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-1.5 md:p-0.5"><ChevronUp size={11} /></button>}
+                {onMoveDown && <button aria-label="Descendre" title="Descendre" onClick={onMoveDown} className="text-muted-foreground hover:text-foreground p-1.5 md:p-0.5"><ChevronDown size={11} /></button>}
               </div>
             )}
 

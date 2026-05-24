@@ -226,8 +226,8 @@ export function ObjectiveRow({
         {/* Reorder */}
         {(onMoveUp || onMoveDown) && !completed && (
           <div className="flex flex-col opacity-40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
-            {onMoveUp && <button onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronUp size={14} /></button>}
-            {onMoveDown && <button onClick={onMoveDown} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronDown size={14} /></button>}
+            {onMoveUp && <button aria-label="Monter" title="Monter" onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-1.5 md:p-0.5"><ChevronUp size={14} /></button>}
+            {onMoveDown && <button aria-label="Descendre" title="Descendre" onClick={onMoveDown} className="text-muted-foreground hover:text-foreground p-1.5 md:p-0.5"><ChevronDown size={14} /></button>}
           </div>
         )}
 

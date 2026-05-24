@@ -362,6 +362,9 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Rechercher un document..."
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
             className="pl-9 h-9 text-sm font-body"
           />
           {searchQuery && (

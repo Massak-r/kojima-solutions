@@ -606,6 +606,9 @@ export default function Accounting() {
                   value={expenseSearch}
                   onChange={(e) => setExpenseSearch(e.target.value)}
                   placeholder="Rechercher..."
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
                   className="pl-8 font-body text-sm h-9"
                 />
               </div>
