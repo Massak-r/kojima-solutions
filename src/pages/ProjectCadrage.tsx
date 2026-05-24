@@ -173,8 +173,22 @@ export default function ProjectCadrage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 size={24} className="animate-spin text-muted-foreground" />
+          <div className="space-y-4 animate-pulse">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <section key={i} className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-muted" />
+                    <div className="h-3.5 w-32 bg-muted rounded" />
+                  </div>
+                </div>
+                <div className="p-5 space-y-2">
+                  <div className="h-2.5 bg-muted/60 rounded w-full" />
+                  <div className="h-2.5 bg-muted/60 rounded w-5/6" />
+                  <div className="h-2.5 bg-muted/60 rounded w-3/4" />
+                </div>
+              </section>
+            ))}
           </div>
         ) : (
           <div className="space-y-4">

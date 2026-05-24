@@ -351,8 +351,20 @@ export default function ProjectSteps() {
           {/* Main timeline */}
           <div className="flex-1 min-w-0 space-y-2">
             {loadingPhases ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 size={24} className="animate-spin text-muted-foreground/40" />
+              <div className="space-y-3 animate-pulse">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-2xl border border-border/40 bg-card/40 p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-muted" />
+                      <div className="h-3.5 bg-muted rounded w-1/3" />
+                      <div className="ml-auto h-2.5 bg-muted/60 rounded w-12" />
+                    </div>
+                    <div className="space-y-2 pl-11">
+                      <div className="h-2.5 bg-muted/60 rounded w-3/4" />
+                      <div className="h-2.5 bg-muted/60 rounded w-2/3" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <>
