@@ -281,9 +281,13 @@
 /* ── Print / PDF export ──────────────────────────────────── */
 
 @media print {
-  /* Hide all non-content elements */
+  /* Hide all non-content elements — toaster portals + radix portals never
+   * make sense in print, so hide them by tag/data attribute too. */
   .no-print,
-  [data-print-hide] {
+  [data-print-hide],
+  [data-sonner-toaster],
+  ol[role="region"][aria-label*="Notification"],
+  [role="region"][aria-label="Notifications (F8)"] {
     display: none !important;
   }
 

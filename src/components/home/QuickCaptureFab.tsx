@@ -77,7 +77,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed right-4 z-40 bottom-40 md:bottom-24 md:right-6",
+          "fixed right-4 z-40 bottom-40 md:bottom-24 md:right-6 no-print",
           "h-12 w-12 rounded-full bg-violet-600 text-white shadow-lg",
           "hover:bg-violet-700 hover:scale-105 active:scale-95 transition-all",
           "flex items-center justify-center group",
