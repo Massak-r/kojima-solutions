@@ -43,10 +43,17 @@ export function ResponsiveDialog({ open, onOpenChange, children }: ResponsiveDia
   );
 }
 
+interface ResponsiveDialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Set `false` for full-bleed designs (gradient headers, etc.) — drops the
+   * horizontal padding the mobile drawer adds by default. Consumers then
+   * own padding for each section. */
+  padded?: boolean;
+}
+
 export const ResponsiveDialogContent = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, children, ...props }, ref) => {
+  ResponsiveDialogContentProps
+>(({ className, children, padded = true, ...props }, ref) => {
   const { isMobile } = React.useContext(Ctx);
   if (isMobile) {
     return (
@@ -57,7 +64,10 @@ export const ResponsiveDialogContent = React.forwardRef<
       >
         {/* Scrollable body — vaul ignores drag attempts that originate inside
             this region, so Radix selects/inputs don't fight the drawer. */}
-        <div className="overflow-y-auto px-4 pb-5" data-vaul-no-drag>
+        <div
+          className={cn("overflow-y-auto", padded && "px-4 pb-5")}
+          data-vaul-no-drag
+        >
           {children}
         </div>
       </DrawerContent>

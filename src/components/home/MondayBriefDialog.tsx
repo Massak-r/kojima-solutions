@@ -4,7 +4,10 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Sunrise, Sparkles, Flame, Inbox, Target, Clock, ArrowRight, Loader2, Wand2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog, ResponsiveDialogContent,
+} from "@/components/ui/responsive-dialog";
+import { DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useObjectives } from "@/hooks/useObjectives";
@@ -118,11 +121,15 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
   }, [allSubtasks, completionsMap]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent
+        padded={false}
         className="max-w-xl p-0 overflow-hidden gap-0 bg-card"
         aria-describedby={undefined}
       >
+        {/* sr-only title — required by Radix/vaul for a11y; the visual title
+            is rendered inside the gradient header below. */}
+        <DialogTitle className="sr-only">Bonjour — Lundi · Semaine {week}</DialogTitle>
         {/* Gradient header */}
         <div className="relative px-7 pt-7 pb-6 bg-gradient-to-br from-primary via-primary to-primary/85 text-primary-foreground overflow-hidden">
           <div className="absolute inset-0 opacity-20 pointer-events-none" aria-hidden="true">
@@ -294,8 +301,8 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
             </motion.div>
           </AnimatePresence>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 

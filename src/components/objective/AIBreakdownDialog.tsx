@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles, Copy, Download, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogDescription, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 import type { SubtaskItem, EffortSize } from "@/api/todoSubtasks";
@@ -174,19 +175,19 @@ export function AIBreakdownDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-2xl">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <Sparkles size={18} className="text-primary" />
             Décomposer avec l'IA
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Copiez le prompt dans Claude (ou votre IA préférée), puis collez la réponse pour importer les étapes proposées.
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto -mx-6 px-6">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
           {/* Step 1 — Prompt */}
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
@@ -262,7 +263,7 @@ export function AIBreakdownDialog({
           Astuce&nbsp;: avec Claude Code + le MCP <code className="font-mono">kojima</code> configuré, demandez directement dans une conversation — l'IA crée les étapes sans cette boîte de dialogue.
         </p>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <ResponsiveDialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
             Fermer
           </Button>
@@ -274,8 +275,8 @@ export function AIBreakdownDialog({
             {importing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
             Importer {parsed.length > 0 ? `${parsed.length} étape${parsed.length > 1 ? "s" : ""}` : "les étapes"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
