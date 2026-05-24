@@ -10,18 +10,32 @@ try {
 }
 
 // ── Public client action: confirm proposal ─────────────────
+// Auth model: either the caller is an admin (admin session cookie) OR they
+// pass the funnel's own share_token. The token is the same one the admin
+// generated when sending the proposal URL, so without it the funnel ID
+// alone can't trigger the status transition.
 $action = $_GET['action'] ?? null;
 if ($action === 'confirm' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = body();
     $funnelId = $_GET['id'] ?? null;
     if (!$funnelId) fail('id required');
 
-    // Only allow transition from proposal → active
-    $stmt = $pdo->prepare('SELECT status FROM project_funnels WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT status, share_token FROM project_funnels WHERE id = ?');
     $stmt->execute([$funnelId]);
     $row = $stmt->fetch();
     if (!$row) fail('Funnel not found', 404);
     if ($row['status'] !== 'proposal') fail('Funnel is not in proposal status');
+
+    $isAdmin = validateAdminSession() !== null;
+    if (!$isAdmin) {
+        $sentToken = $_GET['share_token'] ?? $data['shareToken'] ?? '';
+        if (!$sentToken
+            || !$row['share_token']
+            || !preg_match('/^[a-zA-Z0-9_-]{20,64}$/', $sentToken)
+            || !hash_equals((string)$row['share_token'], (string)$sentToken)) {
+            fail('Unauthorized', 401);
+        }
+    }
 
     $tier = $data['tier'] ?? null;
     $sets = ["status = 'active'"];

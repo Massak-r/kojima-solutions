@@ -138,7 +138,8 @@ if ($method === 'POST' && $action === 'apply') {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        fail('Failed to apply template: ' . $e->getMessage(), 500);
+        error_log("objective_templates apply failed: " . $e->getMessage());
+        fail('Failed to apply template', 500);
     }
 
     ok(['created' => $created]);

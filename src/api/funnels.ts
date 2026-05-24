@@ -201,11 +201,15 @@ export function deleteFunnel(id: string) {
   return apiFetch<void>(`funnels.php?id=${id}`, { method: "DELETE" });
 }
 
-/** Public — client confirms proposal, transitions status proposal → active */
-export function confirmProposal(funnelId: string, tier?: Tier) {
-  return apiFetch<{ confirmed: boolean }>(`funnels.php?id=${funnelId}&action=confirm`, {
+/** Public — client confirms proposal, transitions status proposal → active.
+ * `shareToken` is required when the caller is not an admin (i.e. an
+ * unauthenticated client on the public proposal page); the backend matches
+ * it against the funnel's stored share_token. */
+export function confirmProposal(funnelId: string, tier?: Tier, shareToken?: string | null) {
+  const qs = shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : "";
+  return apiFetch<{ confirmed: boolean }>(`funnels.php?id=${funnelId}&action=confirm${qs}`, {
     method: "POST",
-    body: JSON.stringify({ tier }),
+    body: JSON.stringify({ tier, shareToken: shareToken ?? undefined }),
   });
 }
 

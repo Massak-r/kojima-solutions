@@ -118,7 +118,7 @@ export default function ClientProposal() {
     if (!funnel) return;
     setConfirming(true);
     try {
-      await confirmProposal(funnel.id, selectedTier);
+      await confirmProposal(funnel.id, selectedTier, funnel.shareToken);
       setConfirmed(true);
       toast({ title: "Forfait confirmé !" });
       setTimeout(() => navigate(`/client/${id}`), 3000);

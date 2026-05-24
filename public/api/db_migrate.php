@@ -68,7 +68,10 @@ foreach ($files as $path) {
         $results[] = ['file' => $filename, 'status' => 'applied'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        $results[] = ['file' => $filename, 'status' => 'error', 'error' => $e->getMessage()];
+        // Log the full exception server-side; surface a generic message to
+        // the client so SQL column / table names don't leak in API responses.
+        error_log("db_migrate $filename failed: " . $e->getMessage());
+        $results[] = ['file' => $filename, 'status' => 'error', 'error' => 'Migration failed — check server logs'];
         break;
     }
 }

@@ -16,7 +16,7 @@ DirectoryIndex index.html index.php
 # ── Favicon fallback (browsers request /favicon.ico for non-HTML pages like PDFs)
 RewriteRule ^favicon\.ico$ /favicon.svg [L,T=image/svg+xml]
 
-# ── Cache Control ─────────────────────────────────────────────
+# ── Cache Control + Security Headers ──────────────────────────
 <IfModule mod_headers.c>
   # Service worker & manifest: always revalidate
   <FilesMatch "(sw\.js|manifest\.json)$">
@@ -32,6 +32,26 @@ RewriteRule ^favicon\.ico$ /favicon.svg [L,T=image/svg+xml]
   <FilesMatch "\.php$">
     Header set Cache-Control "no-store"
   </FilesMatch>
+
+  # ── Security headers (applied to every response) ─────────────
+  # Block MIME-type sniffing — protects against content sniffing XSS.
+  Header always set X-Content-Type-Options "nosniff"
+  # Disallow embedding in iframes from other origins (clickjacking).
+  Header always set X-Frame-Options "SAMEORIGIN"
+  # Don't leak referrers across origins (only send same-origin path).
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # Drop access to powerful APIs we don't use.
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+  # CSP: allow only same-origin + the inline scripts/styles the SPA needs.
+  # `unsafe-inline` is unavoidable for Vite-injected runtime + Tailwind preflight,
+  # but everything else (scripts, frames, connect targets) is locked down.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://kojima-solutions.ch; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+</IfModule>
+
+# ── Hide server version banners ──────────────────────────────
+ServerSignature Off
+<IfModule mod_security.c>
+  SecServerSignature " "
 </IfModule>
 
 # ── React Router SPA fallback ─────────────────────────────────
