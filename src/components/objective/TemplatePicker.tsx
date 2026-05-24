@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Trash2, FileCheck2, X, Variable } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -188,11 +190,11 @@ export function TemplatePicker({ open, onOpenChange, source, objectiveId, onAppl
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Appliquer un modèle</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Appliquer un modèle</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -352,8 +354,8 @@ export function TemplatePicker({ open, onOpenChange, source, objectiveId, onAppl
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
