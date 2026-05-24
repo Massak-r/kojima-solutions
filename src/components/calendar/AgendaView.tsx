@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Clock, MapPin } from "lucide-react";
 import type { CalendarEvent } from "@/api/calendar";
+import { formatTime as _formatTime, formatDateWithWeekday } from "@/lib/dateFormat";
 
 interface AgendaViewProps {
   events: CalendarEvent[];
@@ -9,15 +10,14 @@ interface AgendaViewProps {
 
 function formatTime(dt?: string): string {
   if (!dt) return "";
-  const d = new Date(dt);
-  return d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+  return _formatTime(dt, "");
 }
 
 function getDayLabel(dateStr: string, today: string, tomorrow: string): string {
   if (dateStr === today) return "Aujourd'hui";
   if (dateStr === tomorrow) return "Demain";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+  // Drop the year — agenda rows are scoped to the visible week.
+  return formatDateWithWeekday(dateStr + "T00:00:00").replace(/\s+\d{4}\s*$/, "");
 }
 
 function getEventDate(event: CalendarEvent): string {

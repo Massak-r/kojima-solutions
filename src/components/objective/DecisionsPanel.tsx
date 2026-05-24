@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listDecisions, createDecision, deleteDecision, type ObjectiveDecision } from "@/api/objectiveDecisions";
 import type { ObjectiveSource } from "@/api/objectiveSource";
+import { formatDateTime } from "@/lib/dateFormat";
 
 interface DecisionsPanelProps {
   source: ObjectiveSource;
@@ -122,7 +123,7 @@ export function DecisionsPanel({ source, objectiveId }: DecisionsPanelProps) {
                   <div className="text-xs font-body text-foreground/70 mt-1 leading-relaxed whitespace-pre-wrap">{d.rationale}</div>
                 )}
                 <div className="text-[10px] font-mono text-muted-foreground/60 tabular-nums mt-1.5">
-                  {new Date(d.decidedAt.replace(" ", "T")).toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" })}
+                  {formatDateTime(d.decidedAt)}
                 </div>
               </div>
               {confirmDelete === d.id ? (

@@ -46,6 +46,7 @@ import {
 
 
 import { formatCHF, todayISO, MONTHS_FR, TVA_RATE } from "@/components/accounting/utils";
+import { formatDateSwiss } from "@/lib/dateFormat";
 
 import { StatCard } from "@/components/accounting/StatCard";
 
@@ -461,7 +462,7 @@ export default function Accounting() {
                   className="gap-1.5 text-xs"
                   onClick={() => downloadCSV(
                     paidInvoices.map((inv) => ({
-                      Date: new Date(inv.date).toLocaleDateString("fr-CH"),
+                      Date: formatDateSwiss(inv.date),
                       Client: inv.clientName || "-",
                       Facture: inv.quoteNumber,
                       Projet: inv.projectTitle || "-",
@@ -502,7 +503,7 @@ export default function Accounting() {
                   <tbody>
                     {paidInvoices.map((inv, i) => (
                       <tr key={inv.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "" : "bg-secondary/10"}`}>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(inv.date).toLocaleDateString("fr-CH")}</td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDateSwiss(inv.date)}</td>
                         <td className="px-4 py-3 font-medium whitespace-nowrap">{inv.clientName || "-"}</td>
                         <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell whitespace-nowrap">{inv.quoteNumber}</td>
                         <td className="px-4 py-3 text-muted-foreground hidden md:table-cell break-words max-w-[200px]">{inv.projectTitle || "-"}</td>
@@ -622,7 +623,7 @@ export default function Accounting() {
                   className="gap-1.5 text-xs ml-auto"
                   onClick={() => downloadCSV(
                     filteredExpenses.map((e) => ({
-                      Date: new Date(e.date).toLocaleDateString("fr-CH"),
+                      Date: formatDateSwiss(e.date),
                       Categorie: EXPENSE_CATEGORY_LABELS[e.category] ?? e.category,
                       Description: e.description,
                       Montant: e.amount,
@@ -665,7 +666,7 @@ export default function Accounting() {
                   <tbody>
                     {filteredExpenses.map((exp, i) => (
                       <tr key={exp.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "" : "bg-secondary/10"}`}>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(exp.date).toLocaleDateString("fr-CH")}</td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDateSwiss(exp.date)}</td>
                         <td className="px-4 py-3 hidden sm:table-cell">
                           <span
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white whitespace-nowrap"
@@ -784,7 +785,7 @@ export default function Accounting() {
                               </div>
                             </td>
                             <td className={`px-4 py-3 hidden md:table-cell text-xs ${isOverdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                              {dueDate ? dueDate.toLocaleDateString("fr-CH") : "-"}
+                              {formatDateSwiss(dueDate)}
                             </td>
                             <td className="px-4 py-3 text-right font-semibold text-primary tabular-nums">
                               {formatCHF(inv.amount)}

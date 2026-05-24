@@ -8,6 +8,7 @@ import {
   ResponsiveDialog, ResponsiveDialogContent,
 } from "@/components/ui/responsive-dialog";
 import { DialogTitle } from "@/components/ui/dialog";
+import { formatDateShort } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useObjectives } from "@/hooks/useObjectives";
@@ -82,7 +83,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
 
-  const dateRange = `${weekStart.toLocaleDateString("fr-CH", { day: "numeric", month: "short" })} – ${weekEnd.toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}`;
+  const dateRange = `${formatDateShort(weekStart)} – ${formatDateShort(weekEnd)}`;
 
   const completionsMap = useMemo(
     () => ({ ...(adminCompl ?? {}), ...(personalCompl ?? {}) }),
@@ -172,7 +173,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
                     </h3>
                     {recap.generated_at && (
                       <span className="text-[10px] font-mono text-muted-foreground/50 ml-auto tabular-nums">
-                        {new Date(recap.generated_at).toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}
+                        {formatDateShort(recap.generated_at)}
                       </span>
                     )}
                   </div>

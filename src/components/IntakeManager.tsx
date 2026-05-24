@@ -12,6 +12,7 @@ import {
 } from "@/api/funnels";
 import { getModuleById } from "@/data/moduleCatalog";
 import { useConvertIntake } from "@/hooks/useConvertIntake";
+import { formatDateSwiss } from "@/lib/dateFormat";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   new:       { label: "Nouveau",  cls: "bg-red-100     dark:bg-red-500/15     text-red-600     dark:text-red-300" },
@@ -143,7 +144,7 @@ export function IntakeManager() {
                           {TIER_LABELS[intake.suggestedTier] ?? intake.suggestedTier}
                         </Badge>
                       )}
-                      <span>{new Date(intake.createdAt).toLocaleDateString("fr-CH")}</span>
+                      <span>{formatDateSwiss(intake.createdAt)}</span>
                     </div>
                   </div>
                   {isExpanded ? (

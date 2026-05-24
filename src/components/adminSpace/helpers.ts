@@ -17,9 +17,9 @@ export function formatBytes(bytes: number): string {
   return (bytes / 1024 / 1024).toFixed(1) + " Mo";
 }
 
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
-}
+// Re-export from the central date helpers so callers don't have to know two
+// utility paths. Same output ("05 nov 2026") as before.
+export { formatDateShortWithYear as formatDate } from "@/lib/dateFormat";
 
 /** Largest PDF the upload endpoint (admin_docs.php) will accept. */
 export const MAX_PDF_SIZE = 25 * 1024 * 1024;

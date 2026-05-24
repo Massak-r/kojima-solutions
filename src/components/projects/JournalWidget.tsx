@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { BookOpen, RefreshCw, Loader2, FileText } from "lucide-react";
 import { getProjectJournal, projectJournalSlug, type ProjectJournal } from "@/api/projectJournal";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/dateFormat";
 
 interface JournalWidgetProps {
   projectTitle: string;
@@ -71,7 +72,7 @@ export function JournalWidget({ projectTitle }: JournalWidgetProps) {
           </div>
           {journal.mtime && (
             <div className="text-[10px] font-mono text-muted-foreground/40 tabular-nums mt-3 pt-3 border-t border-border/30">
-              Dernière sync : {new Date(journal.mtime).toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" })}
+              Dernière sync : {formatDateTime(journal.mtime)}
             </div>
           )}
         </>

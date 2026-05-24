@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StepComments } from "./StepComments";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { SubtaskManager } from "@/components/SubtaskManager";
 import { useFlagProjectTask } from "@/hooks/useFlagProjectTask";
 import type { TimelineTask, SubTask, FeedbackRequest, StepComment } from "@/types/timeline";
@@ -165,7 +166,7 @@ export function UnifiedStepCard({
               {deadlineStr && (
                 <span className={cn("flex items-center gap-0.5", deadlineClass)}>
                   <CalendarDays size={10} />
-                  {new Date(deadlineStr).toLocaleDateString("fr-CH")}
+                  {formatDateSwiss(deadlineStr)}
                 </span>
               )}
             </div>

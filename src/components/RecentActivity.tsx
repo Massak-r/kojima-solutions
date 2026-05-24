@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, ExternalLink } from "lucide-react";
 import { listNotifications } from "@/api/notifications";
 import type { NotificationItem } from "@/api/notifications";
+import { formatDateShort } from "@/lib/dateFormat";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -13,7 +14,7 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `il y a ${hrs}h`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `il y a ${days}j`;
-  return new Date(dateStr).toLocaleDateString("fr-CH", { day: "numeric", month: "short" });
+  return formatDateShort(dateStr);
 }
 
 export function RecentActivity() {

@@ -14,6 +14,7 @@ import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
+import { formatDateWithWeekday } from "@/lib/dateFormat";
 
 type Tab = "streams" | "kanban" | "overview" | "objectives";
 
@@ -62,9 +63,7 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [searchParams, setSearchParams]);
 
-  const today = new Date().toLocaleDateString("fr-CH", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
+  const today = formatDateWithWeekday(new Date());
 
   // Monday morning brief: pops once per ISO week on Mondays. localStorage key
   // is per-week so dismissing only mutes this week; next Monday it re-opens.

@@ -4,15 +4,12 @@ import { FileText, Folder, FolderOpen, ChevronRight, Home, Loader2, ShieldAlert,
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { fetchSharedFolder, getDocViewUrl, getFolderZipUrl, type SharedFolderData } from "@/api/adminDocs";
+import { formatDateShortWithYear as formatDate } from "@/lib/dateFormat";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + " o";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " Ko";
   return (bytes / 1024 / 1024).toFixed(1) + " Mo";
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function SharedFolder() {

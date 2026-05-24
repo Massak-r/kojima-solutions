@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateShort } from "@/lib/dateFormat";
 import {
   listInboxCaptures, markCaptureTriaged, deleteInboxCapture, updateCaptureText,
   type InboxCapture, type InboxList,
@@ -214,7 +215,7 @@ function CaptureRow({
     if (diffHr < 24) return `il y a ${diffHr}h`;
     const diffDay = Math.floor(diffHr / 24);
     if (diffDay < 7) return `il y a ${diffDay}j`;
-    return d.toLocaleDateString("fr-CH", { day: "numeric", month: "short" });
+    return formatDateShort(d);
   }, [capture.created_at]);
 
   function saveEdit() {

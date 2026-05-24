@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateTime } from "@/lib/dateFormat";
 import {
   listQueuedEmails,
   sendQueuedEmail,
@@ -153,7 +154,7 @@ export function EmailQueue() {
                     </p>
                   </div>
                   <span className="text-[10px] font-body text-muted-foreground/40 shrink-0">
-                    {new Date(email.created_at).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {formatDateTime(email.created_at)}
                   </span>
                   <ChevronDown size={12} className={cn("text-muted-foreground/40 transition-transform shrink-0", isExpanded && "rotate-180")} />
                 </button>

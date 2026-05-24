@@ -22,6 +22,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateSwiss } from "@/lib/dateFormat";
 
 interface Props {
   projectId: string;
@@ -221,7 +222,7 @@ export function MeetingNoteDrawer({ projectId }: Props) {
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-body mt-0.5">
                             <CalendarDays size={10} />
                             {note.meetingDate
-                              ? new Date(note.meetingDate).toLocaleDateString("fr-CH")
+                              ? formatDateSwiss(note.meetingDate)
                               : "-"}
                           </div>
                         </button>

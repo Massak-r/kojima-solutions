@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listActivity, type ObjectiveActivity } from "@/api/objectiveActivity";
 import type { ObjectiveSource } from "@/api/objectiveSource";
+import { formatDateTime } from "@/lib/dateFormat";
 
 interface ActivityTimelineProps {
   source: ObjectiveSource;
@@ -58,10 +59,7 @@ function labelForKind(kind: string, payload: Record<string, any> | null | undefi
   }
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso.replace(" ", "T"));
-  return d.toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" });
-}
+const formatTime = (iso: string) => formatDateTime(iso);
 
 export function ActivityTimeline({ source, objectiveId, refreshKey = 0 }: ActivityTimelineProps) {
   const [items,   setItems]   = useState<ObjectiveActivity[]>([]);

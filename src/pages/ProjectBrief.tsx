@@ -8,6 +8,7 @@ import { JournalWidget } from "@/components/projects/JournalWidget";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { projectJournalSlug } from "@/api/projectJournal";
 import { getIntakeByProject, type IntakeResponse, type Tier } from "@/api/funnels";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { FileText, Inbox, User, Mail, Star, Loader2, PenLine, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -175,7 +176,7 @@ export default function ProjectBrief() {
                   </Badge>
                 )}
                 <span className="text-[10px] text-muted-foreground font-body">
-                  {new Date(intake.createdAt).toLocaleDateString("fr-CH")}
+                  {formatDateSwiss(intake.createdAt)}
                 </span>
               </div>
 

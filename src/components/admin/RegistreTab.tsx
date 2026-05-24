@@ -20,6 +20,7 @@ import {
   listRegistryItems, createRegistryItem, updateRegistryItem, deleteRegistryItem,
 } from "@/api/adminRegistry";
 import { listFolders } from "@/api/adminDocs";
+import { formatDateShortWithYear } from "@/lib/dateFormat";
 import { useCreateSubtask, useUpdateSubtask } from "@/hooks/useSubtasks";
 import type { DocFolder } from "@/api/adminDocs";
 import type {
@@ -596,7 +597,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                               {entry.nextActionDate && (
                                 <span className="text-xs text-muted-foreground font-body">
-                                  Prochaine action : {new Date(entry.nextActionDate).toLocaleDateString('fr-CH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  Prochaine action : {formatDateShortWithYear(entry.nextActionDate)}
                                 </span>
                               )}
                               {entry.folderId && folderMap.has(entry.folderId) && (
