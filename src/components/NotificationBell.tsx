@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, CheckCircle2, RotateCcw, MessageSquare } from "lucide-react";
+import { Bell, CheckCircle2, RotateCcw, MessageSquare, Mail, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listNotifications, markRead, markAllRead } from "@/api/notifications";
 import type { NotificationItem } from "@/api/notifications";
+import { listQueuedEmails } from "@/api/emailQueue";
 import { useNavigate } from "react-router-dom";
 
 function timeAgo(dateStr: string): string {
@@ -27,6 +28,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingEmails, setPendingEmails] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -49,12 +51,25 @@ export function NotificationBell() {
     }
   }, []);
 
+  const fetchPendingEmails = useCallback(async () => {
+    try {
+      const emails = await listQueuedEmails("pending");
+      setPendingEmails(emails.length);
+    } catch {
+      // queue endpoint optional — silently ignore
+    }
+  }, []);
+
   // Fetch on mount + poll every 60s
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
+    fetchPendingEmails();
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchPendingEmails();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, fetchPendingEmails]);
 
   // Close on outside click
   useEffect(() => {
@@ -83,24 +98,31 @@ export function NotificationBell() {
     if ("clearAppBadge" in navigator) (navigator as any).clearAppBadge();
   };
 
+  // Badge combines unread notifications + pending emails so the bell
+  // reflects everything that needs admin attention from any page.
+  const totalBadge = unreadCount + pendingEmails;
+  const ariaLabel = totalBadge > 0
+    ? `Notifications (${unreadCount} non lue${unreadCount > 1 ? "s" : ""}, ${pendingEmails} email${pendingEmails > 1 ? "s" : ""} en attente)`
+    : "Notifications";
+
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
         title="Notifications"
-        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} non lue${unreadCount > 1 ? "s" : ""})` : "Notifications"}
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
         <Bell size={18} />
-        {unreadCount > 0 && (
+        {totalBadge > 0 && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 min-w-[18px] flex items-center justify-center text-[9px] font-bold text-white bg-destructive rounded-full leading-none px-1"
           >
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {totalBadge > 99 ? "99+" : totalBadge}
           </motion.span>
         )}
       </button>
@@ -128,6 +150,27 @@ export function NotificationBell() {
                 </button>
               )}
             </div>
+
+            {/* Pending emails — only shown when there are queued sends.
+                Links straight to where EmailQueue lives so the admin can
+                review + send without hunting through tabs. */}
+            {pendingEmails > 0 && (
+              <button
+                onClick={() => { setOpen(false); navigate("/home?tab=overview"); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-secondary/30 transition-colors text-left border-b border-border/30 bg-amber-50/40 dark:bg-amber-500/5"
+              >
+                <Mail size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-body font-semibold text-foreground">
+                    {pendingEmails} email{pendingEmails > 1 ? "s" : ""} en attente
+                  </p>
+                  <p className="text-[10px] font-body text-muted-foreground/70">
+                    Revoir + envoyer manuellement
+                  </p>
+                </div>
+                <ChevronRight size={12} className="text-muted-foreground/40 shrink-0" />
+              </button>
+            )}
 
             {/* List */}
             <div className="max-h-80 overflow-y-auto divide-y divide-border/30">
