@@ -459,9 +459,27 @@ nav button {
   }
 }
 
-/* Smooth scroll behavior */
-html {
-  scroll-behavior: smooth;
+/* Smooth scroll behavior — opt out for users with reduced-motion preference. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Respect prefers-reduced-motion globally — disable animations and slow
+   transitions to a single near-instant frame. Vestibular-sensitive users +
+   battery-savers benefit. framer-motion respects this automatically when
+   `useReducedMotion()` is wired in, but this catches CSS-driven animations
+   (page-fade-in, nav-tap, progress-glow, tailwind utilities). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Bottom nav active indicator pulse */
