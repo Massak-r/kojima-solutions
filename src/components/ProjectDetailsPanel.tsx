@@ -267,7 +267,7 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                     <button
                       type="button"
                       onClick={(e) => startEdit(e, c)}
-                      className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-all"
+                      className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-secondary md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-all"
                       title="Modifier"
                     >
                       <Pencil size={11} />
@@ -293,7 +293,7 @@ function ClientSelector({ project, onChange }: { project: ProjectData; onChange:
                       <button
                         type="button"
                         onClick={(e) => handleDelete(e, c.id)}
-                        className="p-1 rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                        className="p-1 rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-all"
                         title="Supprimer"
                       >
                         <Trash2 size={11} />

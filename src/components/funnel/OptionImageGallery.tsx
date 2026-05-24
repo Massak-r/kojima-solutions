@@ -45,7 +45,7 @@ export function OptionImageGallery({ images, alt, variant, className }: OptionIm
         >
           <img src={images[0]} alt={alt} className="w-full h-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-            <ZoomIn size={variant === "compact" ? 16 : 20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ZoomIn size={variant === "compact" ? 16 : 20} className="text-white opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
         <ImageLightbox
@@ -79,7 +79,7 @@ export function OptionImageGallery({ images, alt, variant, className }: OptionIm
               >
                 <img src={url} alt={`${alt} ${i + 1}`} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-                  <ZoomIn size={variant === "compact" ? 14 : 18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ZoomIn size={variant === "compact" ? 14 : 18} className="text-white opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
             ))}
@@ -91,7 +91,7 @@ export function OptionImageGallery({ images, alt, variant, className }: OptionIm
           onClick={(e) => { e.stopPropagation(); emblaApi?.scrollPrev(); }}
           className={cn(
             "absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm",
-            "opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60",
+            "opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-black/60",
             variant === "compact" ? "w-6 h-6" : "w-8 h-8",
           )}
         >
@@ -101,7 +101,7 @@ export function OptionImageGallery({ images, alt, variant, className }: OptionIm
           onClick={(e) => { e.stopPropagation(); emblaApi?.scrollNext(); }}
           className={cn(
             "absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm",
-            "opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60",
+            "opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-black/60",
             variant === "compact" ? "w-6 h-6" : "w-8 h-8",
           )}
         >

@@ -163,7 +163,7 @@ export function DeliveryCard({ d, onLightbox, isFinal = false }: {
                 )}
                 {!isOverlay && (
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
-                    <ZoomIn size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ZoomIn size={18} className="text-white opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                   </div>
                 )}
               </button>

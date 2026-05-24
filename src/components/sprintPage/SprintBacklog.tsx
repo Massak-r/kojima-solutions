@@ -392,7 +392,7 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, com
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onPostpone(sub.id); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-sky-600 transition-all p-1 rounded-md hover:bg-sky-50 dark:hover:bg-sky-500/10"
+              className="absolute right-2 top-1/2 -translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 text-muted-foreground/60 hover:text-sky-600 transition-all p-1.5 rounded-md hover:bg-sky-50 dark:hover:bg-sky-500/10"
               title="Repousser à demain"
             >
               <CalendarPlus size={13} />

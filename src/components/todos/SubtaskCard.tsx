@@ -150,7 +150,7 @@ export function SubtaskCard({
             ref={dragHandleRef as any}
             {...dragHandleProps}
             onClick={e => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground shrink-0 -ml-0.5"
+            className="opacity-40 md:opacity-0 md:group-hover:opacity-40 md:hover:!opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none text-muted-foreground shrink-0 -ml-0.5 p-1 md:p-0"
             title="Glisser pour réordonner"
           >
             <GripVertical size={isChild ? 12 : 14} />
@@ -203,7 +203,7 @@ export function SubtaskCard({
                 {onUpdate && !sub.completed && (
                   <Pencil
                     size={10}
-                    className="inline ml-1 opacity-0 group-hover/stitle:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground align-middle"
+                    className="inline ml-1 opacity-40 md:opacity-0 md:group-hover/stitle:opacity-50 md:hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground align-middle"
                     onClick={e => { e.stopPropagation(); setTitleDraft(sub.text); setEditTitle(true); }}
                   />
                 )}
@@ -297,7 +297,7 @@ export function SubtaskCard({
             </button>
           )}
 
-          <div className="hidden group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          <div className="flex md:hidden md:group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
             {!dragHandleProps && (onMoveUp || onMoveDown) && !sub.completed && (
               <div className="flex flex-col">
                 {onMoveUp && <button onClick={onMoveUp} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronUp size={11} /></button>}
@@ -432,7 +432,7 @@ export function SubtaskCard({
                     className="flex items-start gap-1.5 text-xs text-muted-foreground/60 font-body hover:text-muted-foreground transition-colors w-full text-left group/desc"
                   >
                     <span className="leading-relaxed">{sub.description}</span>
-                    <Pencil size={10} className="opacity-0 group-hover/desc:opacity-50 transition-opacity mt-0.5 shrink-0" />
+                    <Pencil size={10} className="opacity-40 md:opacity-0 md:group-hover/desc:opacity-50 transition-opacity mt-0.5 shrink-0" />
                   </button>
                 ) : (
                   <button

@@ -70,7 +70,7 @@ export function SubtaskManager({ subtasks, onChange }: SubtaskManagerProps) {
           </span>
           <button
             onClick={() => remove(st.id)}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5"
+            className="md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1.5"
           >
             <Trash2 size={11} />
           </button>

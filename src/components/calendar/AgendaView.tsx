@@ -108,7 +108,7 @@ export function AgendaView({ events, onEventClick }: AgendaViewProps) {
                     </div>
                     {/* Duration */}
                     {!isAllDay(ev) && ev.end.dateTime && (
-                      <span className="text-[10px] text-muted-foreground/40 font-mono shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[10px] text-muted-foreground/40 font-mono shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         → {formatTime(ev.end.dateTime)}
                       </span>
                     )}

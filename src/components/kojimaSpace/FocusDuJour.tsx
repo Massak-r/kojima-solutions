@@ -63,7 +63,7 @@ export function FocusDuJour({ subtasksMap, todos, hiddenCats, onToggleSubtask, o
                     </span>
                     <button
                       onClick={() => onUnflagSubtask(sub.parentId, sub.id)}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-foreground transition-opacity shrink-0"
+                      className="md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 text-muted-foreground/40 hover:text-foreground transition-opacity shrink-0 p-1"
                       title="Retirer du focus"
                     >
                       <X size={12} />
