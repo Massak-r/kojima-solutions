@@ -10,6 +10,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Bottom-right on desktop, bottom-center on mobile — and lifted above
+      // the 64px bottom nav (+ home-indicator safe area) so toasts stay
+      // visible in the PWA standalone shell.
+      position="bottom-right"
+      mobileOffset={{ bottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}
       toastOptions={{
         classNames: {
           toast:
