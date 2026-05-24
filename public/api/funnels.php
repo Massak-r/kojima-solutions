@@ -20,7 +20,13 @@ if ($action === 'confirm' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $funnelId = $_GET['id'] ?? null;
     if (!$funnelId) fail('id required');
 
-    $stmt = $pdo->prepare('SELECT status, share_token FROM project_funnels WHERE id = ?');
+    $stmt = $pdo->prepare(
+        'SELECT f.status, f.share_token, f.project_id, f.decision_maker_name,
+                f.decision_maker_email, p.title AS project_title, p.client AS project_client
+         FROM project_funnels f
+         LEFT JOIN projects p ON p.id = f.project_id
+         WHERE f.id = ?'
+    );
     $stmt->execute([$funnelId]);
     $row = $stmt->fetch();
     if (!$row) fail('Funnel not found', 404);
@@ -46,6 +52,33 @@ if ($action === 'confirm' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $vals[] = $funnelId;
     $pdo->prepare('UPDATE project_funnels SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
+
+    // Surface the confirmation on the admin's notification bell — the entire
+    // value of proposal-confirm depends on the admin knowing it happened.
+    // Skip the insert when the admin themselves triggered it (self-test).
+    if (!$isAdmin) {
+        $tierLabels = ['essential' => 'Essentiel', 'professional' => 'Professionnel', 'custom' => 'Sur mesure'];
+        $tierLabel = $tier ? ($tierLabels[$tier] ?? $tier) : '—';
+        $clientLabel = $row['decision_maker_name'] ?: $row['project_client'] ?: 'Le client';
+        try {
+            $pdo->prepare(
+                'INSERT INTO notifications (id, project_id, project_title, task_title, client_name, question, response)
+                 VALUES (?,?,?,?,?,?,?)'
+            )->execute([
+                uuid(),
+                $row['project_id'],
+                $row['project_title'] ?? 'Projet',
+                'Proposition confirmée',
+                $clientLabel,
+                "Forfait choisi : $tierLabel",
+                $row['decision_maker_email'] ?? '',
+            ]);
+        } catch (Throwable $e) {
+            // Notification is best-effort — never block the confirm itself.
+            error_log('funnels confirm notification insert failed: ' . $e->getMessage());
+        }
+    }
+
     ok(['confirmed' => true]);
 }
 
