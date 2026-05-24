@@ -39,7 +39,6 @@ const QuoteNew              = lazy(() => import("./pages/QuoteNew"));
 const QuoteEdit             = lazy(() => import("./pages/QuoteEdit"));
 const QuotePrintPage        = lazy(() => import("./pages/QuotePrintPage"));
 const Home                  = lazy(() => import("./pages/Home"));
-const Dashboard             = lazy(() => import("./pages/Dashboard"));
 const KojimaSpace           = lazy(() => import("./pages/KojimaSpace"));
 const ProjectSteps          = lazy(() => import("./pages/ProjectSteps"));
 const ClientDashboard       = lazy(() => import("./pages/ClientDashboard"));
@@ -149,24 +148,13 @@ const App = () => (
                       <Route path="/quotes/new" element={<ProtectedRoute><QuoteNew /></ProtectedRoute>} />
                       <Route path="/quotes/:id" element={<ProtectedRoute><QuoteEdit /></ProtectedRoute>} />
                       <Route path="/projects" element={<Navigate to="/home?tab=kanban" replace />} />
-                      <Route path="/projects-board" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                      {/* New project workflow routes */}
+                      <Route path="/projects-board" element={<Navigate to="/home?tab=kanban" replace />} />
+                      {/* Project workflow routes */}
                       <Route path="/project/:id/brief" element={<ProtectedRoute><ProjectBrief /></ProtectedRoute>} />
                       <Route path="/project/:id/cadrage" element={<ProtectedRoute><ProjectCadrage /></ProtectedRoute>} />
                       <Route path="/project/:id/modules" element={<ProtectedRoute><ProjectModules /></ProtectedRoute>} />
                       <Route path="/project/:id/etapes" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
                       <Route path="/project/:id/documents" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
-                      {/* Legacy redirects */}
-                      <Route path="/project/:id/planning" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/suivi" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/details" element={<ProtectedRoute><ProjectBrief /></ProtectedRoute>} />
-                      <Route path="/project/:id/tasks" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/decisions" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/roadmap" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/funnel" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/feedback" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
-                      <Route path="/project/:id/quotes" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
-                      <Route path="/project/:id/invoice" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
                       <Route path="/clients" element={<ProtectedRoute><ClientsManager /></ProtectedRoute>} />
                       <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
                       <Route path="/personal"   element={<Navigate to="/tresorerie" replace />} />
