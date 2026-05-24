@@ -3,8 +3,9 @@ import { Sun, Star, CornerDownRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogDescription, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import type { SubtaskItem } from "@/api/todoSubtasks";
 import { EFFORT_CONFIG } from "@/components/todos/SubtaskCard";
 
@@ -68,19 +69,19 @@ export function DailyCommitDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <Sun size={18} className="text-amber-500" />
             Sprint du jour
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Choisissez les actions auxquelles vous vous engagez aujourd'hui. Les autres seront reportées (non supprimées).
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="max-h-[50vh] overflow-y-auto -mx-6 px-6 py-2 space-y-4">
+        <div className="max-h-[50vh] overflow-y-auto py-2 space-y-4">
           {grouped.length === 0 ? (
             <p className="text-sm font-body text-muted-foreground italic py-4 text-center">
               Aucune étape flaggée. Revenez ici quand vous en avez.
@@ -156,7 +157,7 @@ export function DailyCommitDialog({
           {keptCount} garder · {deferredCount} reporter
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <ResponsiveDialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => { onSkip(); onOpenChange(false); }} disabled={saving}>
             Ignorer
           </Button>
@@ -164,8 +165,8 @@ export function DailyCommitDialog({
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Sun size={13} />}
             Confirmer le sprint
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

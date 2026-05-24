@@ -3,8 +3,9 @@ import { CalendarCheck2, Clock, Flame, Target, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogDescription, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { getGlobalWeekSummary, type GlobalWeekSummary } from "@/api/objectiveSessions";
 
 interface WeeklyReviewDialogProps {
@@ -49,17 +50,17 @@ export function WeeklyReviewDialog({ open, onOpenChange, objectiveTextById, onDi
   const peakSec = byDay.length > 0 ? Math.max(...byDay.map(d => d.sec), 1) : 1;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onDismiss?.(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onDismiss?.(); onOpenChange(v); }}>
+      <ResponsiveDialogContent className="max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <CalendarCheck2 size={18} className="text-primary" />
             Bilan de la semaine
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Une lecture rapide pour clore la semaine — et préparer la prochaine.
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -152,13 +153,13 @@ export function WeeklyReviewDialog({ open, onOpenChange, objectiveTextById, onDi
           </div>
         )}
 
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button onClick={handleClose} className="gap-1.5">
             <CalendarCheck2 size={13} />
             Bonne fin de semaine
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

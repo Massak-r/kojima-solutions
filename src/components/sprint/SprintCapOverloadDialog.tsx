@@ -3,8 +3,9 @@ import { AlertTriangle, Star, Check, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogDescription, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   useSprintCapContext,
   sprintItemId, sprintItemText, sprintItemParentId,
@@ -74,21 +75,21 @@ export function SprintCapOverloadDialog() {
   if (!candidate) return null;
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) closeDialog(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={v => { if (!v) closeDialog(); }}>
+      <ResponsiveDialogContent className="max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <AlertTriangle size={18} className="text-amber-500" />
             Sprint complet — 5/5
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Tu veux ajouter{" "}
             <span className="font-semibold text-foreground">"{sprintItemText(candidate)}"</span>{" "}
             mais ton sprint est déjà à 5 items. Lequel tu retires ?
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="max-h-[40vh] overflow-y-auto -mx-6 px-6 py-2 space-y-3">
+        <div className="max-h-[40vh] overflow-y-auto py-2 space-y-3">
           {grouped.map(([parentId, items]) => {
             const isProject = items[0]?.kind === "task";
             return (
@@ -146,8 +147,8 @@ export function SprintCapOverloadDialog() {
           })}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="ghost" size="sm" onClick={closeDialog} className="sm:mr-auto">
+        <ResponsiveDialogFooter className="gap-2">
+          <Button variant="ghost" size="sm" onClick={closeDialog}>
             Annuler
           </Button>
           <Button
@@ -165,8 +166,8 @@ export function SprintCapOverloadDialog() {
           >
             Remplacer
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

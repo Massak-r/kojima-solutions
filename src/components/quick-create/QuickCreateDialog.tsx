@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,12 +34,12 @@ interface Props {
 
 export function QuickCreateDialog({ kind, onClose }: Props) {
   return (
-    <Dialog open={kind !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+    <ResponsiveDialog open={kind !== null} onOpenChange={(open) => !open && onClose()}>
+      <ResponsiveDialogContent className="sm:max-w-md">
         {kind === "project" && <ProjectForm onClose={onClose} />}
         {kind === "client" && <ClientForm onClose={onClose} />}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
@@ -69,15 +69,15 @@ function ProjectForm({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
+      <ResponsiveDialogHeader>
+        <ResponsiveDialogTitle className="flex items-center gap-2">
           <FolderKanban className="w-4 h-4 text-primary" />
           Nouveau projet
-        </DialogTitle>
-        <DialogDescription>
+        </ResponsiveDialogTitle>
+        <ResponsiveDialogDescription>
           Donnez-lui un nom et associez-le optionnellement à un client existant.
-        </DialogDescription>
-      </DialogHeader>
+        </ResponsiveDialogDescription>
+      </ResponsiveDialogHeader>
       <div className="space-y-4 py-2">
         <div className="space-y-2">
           <Label htmlFor="qc-project-title">Titre du projet *</Label>
@@ -166,14 +166,14 @@ function ProjectForm({ onClose }: { onClose: () => void }) {
           </Popover>
         </div>
       </div>
-      <DialogFooter className="gap-2 sm:gap-0">
+      <ResponsiveDialogFooter className="gap-2">
         <Button variant="outline" onClick={onClose}>
           Annuler
         </Button>
         <Button onClick={submit} disabled={!canSubmit}>
           Créer le projet
         </Button>
-      </DialogFooter>
+      </ResponsiveDialogFooter>
     </>
   );
 }
@@ -209,21 +209,22 @@ function ClientForm({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
+      <ResponsiveDialogHeader>
+        <ResponsiveDialogTitle className="flex items-center gap-2">
           <Building2 className="w-4 h-4 text-primary" />
           Nouveau client
-        </DialogTitle>
-        <DialogDescription>
+        </ResponsiveDialogTitle>
+        <ResponsiveDialogDescription>
           Détails additionnels (téléphone, adresse, notes) ajoutables ensuite depuis la fiche.
-        </DialogDescription>
-      </DialogHeader>
+        </ResponsiveDialogDescription>
+      </ResponsiveDialogHeader>
       <div className="space-y-4 py-2">
         <div className="space-y-2">
           <Label htmlFor="qc-client-name">Nom *</Label>
           <Input
             id="qc-client-name"
             autoFocus
+            autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nom du contact"
@@ -235,6 +236,8 @@ function ClientForm({ onClose }: { onClose: () => void }) {
           <Input
             id="qc-client-email"
             type="email"
+            autoComplete="email"
+            inputMode="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="contact@exemple.ch"
@@ -245,6 +248,7 @@ function ClientForm({ onClose }: { onClose: () => void }) {
           <Label htmlFor="qc-client-org">Société</Label>
           <Input
             id="qc-client-org"
+            autoComplete="organization"
             value={organization}
             onChange={(e) => setOrganization(e.target.value)}
             placeholder="Optionnel"
@@ -252,14 +256,14 @@ function ClientForm({ onClose }: { onClose: () => void }) {
           />
         </div>
       </div>
-      <DialogFooter className="gap-2 sm:gap-0">
+      <ResponsiveDialogFooter className="gap-2">
         <Button variant="outline" onClick={onClose}>
           Annuler
         </Button>
         <Button onClick={submit} disabled={!canSubmit}>
           Ajouter le client
         </Button>
-      </DialogFooter>
+      </ResponsiveDialogFooter>
     </>
   );
 }
