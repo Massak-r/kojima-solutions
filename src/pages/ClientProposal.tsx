@@ -14,6 +14,7 @@ import { getClientAuth, setClientAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import {
   getFunnelByProject, confirmProposal, getTemplate,
   type ProjectFunnel, type Tier, type ProjectTemplate,
@@ -25,27 +26,38 @@ import { formatChf } from "@/lib/currency";
 
 // ── Constants ──────────────────────────────────────────────
 
-const TIERS: { key: Tier; label: string; color: string; borderColor: string; bgColor: string }[] = [
-  { key: "essential",     label: "Essentiel",      color: "text-gray-700",   borderColor: "border-gray-300",    bgColor: "bg-gray-50" },
-  { key: "professional",  label: "Professionnel",   color: "text-blue-700",   borderColor: "border-blue-400",    bgColor: "bg-blue-50" },
-  { key: "custom",        label: "Sur mesure",      color: "text-violet-700", borderColor: "border-violet-400",  bgColor: "bg-violet-50" },
+interface TierMeta {
+  key: Tier;
+  labelFr: string;
+  labelEn: string;
+  color: string;
+  borderColor: string;
+  bgColor: string;
+}
+
+const TIERS: TierMeta[] = [
+  { key: "essential",    labelFr: "Essentiel",    labelEn: "Essential",    color: "text-gray-700",   borderColor: "border-gray-300",   bgColor: "bg-gray-50" },
+  { key: "professional", labelFr: "Professionnel", labelEn: "Professional", color: "text-blue-700",   borderColor: "border-blue-400",   bgColor: "bg-blue-50" },
+  { key: "custom",       labelFr: "Sur mesure",   labelEn: "Custom",       color: "text-violet-700", borderColor: "border-violet-400", bgColor: "bg-violet-50" },
 ];
 
 interface TierFeature {
   icon: typeof Globe;
-  label: string;
-  essential: string;
-  professional: string;
-  custom: string;
+  /** [fr, en] label pair. */
+  label: [string, string];
+  /** [fr, en] value per tier. */
+  essential: [string, string];
+  professional: [string, string];
+  custom: [string, string];
 }
 
 const TIER_FEATURES: TierFeature[] = [
-  { icon: Globe,       label: "Pages",    essential: "1–5 pages",        professional: "5–15 pages",          custom: "Illimité" },
-  { icon: Palette,     label: "Design",   essential: "Template adapté",  professional: "Design sur mesure",   custom: "Direction artistique" },
-  { icon: Smartphone,  label: "Mobile",   essential: "Responsive",       professional: "Responsive + PWA",    custom: "App native possible" },
-  { icon: Globe,       label: "SEO",      essential: "Base",             professional: "Avancé",              custom: "Stratégie complète" },
-  { icon: Headphones,  label: "Support",  essential: "Email",            professional: "Email + téléphone",   custom: "Dédié" },
-  { icon: Shield,      label: "Sécurité", essential: "SSL + base",       professional: "Avancée",             custom: "Audit complet" },
+  { icon: Globe,      label: ["Pages",    "Pages"],   essential: ["1–5 pages",       "1–5 pages"],        professional: ["5–15 pages",          "5–15 pages"],         custom: ["Illimité",            "Unlimited"] },
+  { icon: Palette,    label: ["Design",   "Design"],  essential: ["Template adapté", "Adapted template"], professional: ["Design sur mesure",   "Custom design"],      custom: ["Direction artistique", "Art direction"] },
+  { icon: Smartphone, label: ["Mobile",   "Mobile"],  essential: ["Responsive",      "Responsive"],       professional: ["Responsive + PWA",    "Responsive + PWA"],   custom: ["App native possible",  "Native app possible"] },
+  { icon: Globe,      label: ["SEO",      "SEO"],     essential: ["Base",            "Basic"],            professional: ["Avancé",              "Advanced"],           custom: ["Stratégie complète",   "Full strategy"] },
+  { icon: Headphones, label: ["Support",  "Support"], essential: ["Email",           "Email"],            professional: ["Email + téléphone",   "Email + phone"],      custom: ["Dédié",                "Dedicated"] },
+  { icon: Shield,     label: ["Sécurité", "Security"], essential: ["SSL + base",     "SSL + basic"],      professional: ["Avancée",             "Advanced"],           custom: ["Audit complet",        "Full audit"] },
 ];
 
 const TIER_BADGE_COLORS: Record<Tier, string> = {
@@ -62,6 +74,7 @@ export default function ClientProposal() {
   const { getProject, loading: projectsLoading } = useProjects();
   const { clients, loading: clientsLoading } = useClients();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const project = getProject(id!);
 
   // Email gate (same pattern as ClientDashboard)
@@ -94,7 +107,7 @@ export default function ClientProposal() {
       setClientAuth(id!, emailInput.trim());
       setEmailAuthed(true);
     } else {
-      setEmailError("Email non reconnu pour ce projet.");
+      setEmailError(t("Email non reconnu pour ce projet.", "Email not recognized for this project."));
     }
   }
 
@@ -121,10 +134,10 @@ export default function ClientProposal() {
     try {
       await confirmProposal(funnel.id, selectedTier, funnel.shareToken);
       setConfirmed(true);
-      toast({ title: "Forfait confirmé !" });
+      toast({ title: t("Forfait confirmé !", "Plan confirmed!") });
       setTimeout(() => navigate(`/client/${id}`), 3000);
     } catch (err: any) {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), description: err.message, variant: "destructive" });
     } finally {
       setConfirming(false);
     }
@@ -152,8 +165,8 @@ export default function ClientProposal() {
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
             <Layers size={24} className="text-muted-foreground" />
           </div>
-          <p className="font-display text-xl text-foreground font-bold mb-2">Projet introuvable</p>
-          <p className="font-body text-sm text-muted-foreground">Ce lien est peut-être invalide.</p>
+          <p className="font-display text-xl text-foreground font-bold mb-2">{t("Projet introuvable", "Project not found")}</p>
+          <p className="font-body text-sm text-muted-foreground">{t("Ce lien est peut-être invalide.", "This link may be invalid.")}</p>
         </div>
       </div>
     );
@@ -169,7 +182,7 @@ export default function ClientProposal() {
               <User size={22} className="text-primary" />
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground">{project.title}</h1>
-            <p className="font-body text-sm text-muted-foreground mt-1">Entrez votre email pour voir la proposition</p>
+            <p className="font-body text-sm text-muted-foreground mt-1">{t("Entrez votre email pour voir la proposition", "Enter your email to view the proposal")}</p>
           </div>
           <form onSubmit={handleEmailSubmit} className="bg-card border border-border rounded-2xl p-6 shadow-card space-y-4">
             <Input
@@ -182,7 +195,7 @@ export default function ClientProposal() {
               placeholder="votre@email.ch"
             />
             {emailError && <p className="text-xs text-destructive">{emailError}</p>}
-            <Button type="submit" className="w-full">Accéder</Button>
+            <Button type="submit" className="w-full">{t("Accéder", "Access")}</Button>
           </form>
         </div>
       </div>
@@ -202,8 +215,8 @@ export default function ClientProposal() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center px-4">
           <Layers size={32} className="text-muted-foreground/30 mx-auto mb-4" />
-          <p className="font-display text-lg font-semibold">Aucune proposition</p>
-          <p className="text-sm text-muted-foreground font-body mt-1">La proposition n'est pas encore prête.</p>
+          <p className="font-display text-lg font-semibold">{t("Aucune proposition", "No proposal yet")}</p>
+          <p className="text-sm text-muted-foreground font-body mt-1">{t("La proposition n'est pas encore prête.", "The proposal isn't ready yet.")}</p>
         </div>
       </div>
     );
@@ -218,14 +231,20 @@ export default function ClientProposal() {
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
             <CheckCircle2 size={32} className="text-green-600" />
           </div>
-          <h1 className="font-display text-2xl font-semibold">Forfait confirmé !</h1>
+          <h1 className="font-display text-2xl font-semibold">{t("Forfait confirmé !", "Plan confirmed!")}</h1>
           <p className="text-muted-foreground font-body text-sm">
-            Merci pour votre confiance. Nous allons préparer les prochaines étapes de votre projet.
+            {t(
+              "Merci pour votre confiance. Nous allons préparer les prochaines étapes de votre projet.",
+              "Thank you for your trust. We'll prepare the next steps of your project.",
+            )}
           </p>
           <Badge className={cn("text-xs", TIER_BADGE_COLORS[selectedTier])}>
-            {TIERS.find((t) => t.key === selectedTier)?.label}
+            {(() => {
+              const tier = TIERS.find((x) => x.key === selectedTier);
+              return tier ? t(tier.labelFr, tier.labelEn) : "";
+            })()}
           </Badge>
-          <p className="text-xs text-muted-foreground/40 font-body">Redirection vers votre portail...</p>
+          <p className="text-xs text-muted-foreground/40 font-body">{t("Redirection vers votre portail...", "Redirecting to your portal...")}</p>
         </div>
       </div>
     );
@@ -239,13 +258,16 @@ export default function ClientProposal() {
         {/* Header */}
         <div className="mb-10">
           <Link to={`/client/${id}`} className="text-xs text-muted-foreground/50 hover:text-foreground font-body transition-colors">
-            ← Retour au portail
+            ← {t("Retour au portail", "Back to portal")}
           </Link>
           <h1 className="font-display text-2xl sm:text-3xl font-bold mt-4">
             {project.title}
           </h1>
           <p className="text-muted-foreground font-body text-sm mt-1">
-            Proposition de projet. Choisissez le forfait qui vous convient.
+            {t(
+              "Proposition de projet. Choisissez le forfait qui vous convient.",
+              "Project proposal. Pick the plan that fits.",
+            )}
           </p>
         </div>
 
@@ -275,12 +297,12 @@ export default function ClientProposal() {
               >
                 {isRecommended && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-body font-semibold bg-primary text-white px-3 py-0.5 rounded-full">
-                    Recommandé
+                    {t("Recommandé", "Recommended")}
                   </span>
                 )}
 
                 <h3 className={cn("font-display text-lg font-bold", tier.color)}>
-                  {tier.label}
+                  {t(tier.labelFr, tier.labelEn)}
                 </h3>
 
                 {tierBudget > 0 && (
@@ -291,12 +313,13 @@ export default function ClientProposal() {
 
                 <div className="mt-4 space-y-2 flex-1">
                   {TIER_FEATURES.map((feat) => {
-                    const val = feat[tier.key];
+                    const [valFr, valEn] = feat[tier.key];
+                    const [labelFr, labelEn] = feat.label;
                     return (
-                      <div key={feat.label} className="flex items-center gap-2 text-xs font-body">
+                      <div key={labelFr} className="flex items-center gap-2 text-xs font-body">
                         <Check size={12} className={cn("shrink-0", isSelected ? "text-primary" : "text-muted-foreground/30")} />
                         <span className={isSelected ? "text-foreground/80" : "text-muted-foreground/60"}>
-                          {val}
+                          {t(valFr, valEn)}
                         </span>
                       </div>
                     );
@@ -306,7 +329,7 @@ export default function ClientProposal() {
                 {isSelected && (
                   <div className="mt-4 pt-3 border-t border-border/20">
                     <span className="text-xs font-body font-medium text-primary flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Sélectionné
+                      <CheckCircle2 size={12} /> {t("Sélectionné", "Selected")}
                     </span>
                   </div>
                 )}
@@ -319,7 +342,7 @@ export default function ClientProposal() {
         {funnel.phases.length > 0 && (
           <div className="mb-12">
             <h2 className="font-display text-lg font-semibold mb-6">
-              Phases du projet
+              {t("Phases du projet", "Project phases")}
             </h2>
             <div className="relative pl-8">
               {/* Vertical line */}
@@ -350,9 +373,9 @@ export default function ClientProposal() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground/40 font-body">Phase {idx + 1}</span>
-                              {isActive && <Badge variant="secondary" className="text-[9px] bg-primary/10 text-primary">En cours</Badge>}
-                              {isCompleted && <Badge variant="secondary" className="text-[9px] bg-green-100 text-green-700">Terminée</Badge>}
+                              <span className="text-[10px] text-muted-foreground/40 font-body">{t("Phase", "Phase")} {idx + 1}</span>
+                              {isActive && <Badge variant="secondary" className="text-[9px] bg-primary/10 text-primary">{t("En cours", "In progress")}</Badge>}
+                              {isCompleted && <Badge variant="secondary" className="text-[9px] bg-green-100 text-green-700">{t("Terminée", "Completed")}</Badge>}
                             </div>
                             <h3 className="font-display font-semibold text-foreground/90 mt-1">{phase.title}</h3>
                             {phase.description && (
@@ -369,7 +392,10 @@ export default function ClientProposal() {
                         {gateCount > 0 && (
                           <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-body">
                             <Clock size={10} />
-                            {gateCount} décision{gateCount !== 1 ? "s" : ""} à prendre
+                            {gateCount} {t(
+                              `décision${gateCount !== 1 ? "s" : ""} à prendre`,
+                              `decision${gateCount !== 1 ? "s" : ""} pending`,
+                            )}
                           </div>
                         )}
                       </div>
@@ -384,9 +410,12 @@ export default function ClientProposal() {
         {/* Budget summary */}
         <div className="bg-card border border-border/40 rounded-2xl p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg font-semibold">Résumé</h2>
+            <h2 className="font-display text-lg font-semibold">{t("Résumé", "Summary")}</h2>
             <Badge className={cn("text-xs", TIER_BADGE_COLORS[selectedTier])}>
-              {TIERS.find((t) => t.key === selectedTier)?.label}
+              {(() => {
+                const tier = TIERS.find((x) => x.key === selectedTier);
+                return tier ? t(tier.labelFr, tier.labelEn) : "";
+              })()}
             </Badge>
           </div>
 
@@ -403,13 +432,16 @@ export default function ClientProposal() {
             {totalBudget > 0 && (
               <>
                 <div className="border-t border-border/30 pt-3 flex items-center justify-between">
-                  <span className="font-display font-semibold">Total</span>
+                  <span className="font-display font-semibold">{t("Total", "Total")}</span>
                   <span className="font-display text-xl font-bold">
                     {formatChf(totalBudget)} <span className="text-sm font-normal text-muted-foreground">CHF</span>
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground/30 font-body">
-                  TVA 8.1% non incluse. Montants indicatifs, devis détaillé sur demande.
+                  {t(
+                    "TVA 8.1% non incluse. Montants indicatifs, devis détaillé sur demande.",
+                    "VAT 8.1% not included. Indicative amounts, detailed quote on request.",
+                  )}
                 </p>
               </>
             )}
@@ -417,8 +449,8 @@ export default function ClientProposal() {
             {phasesTotal > 0 && (
               <div className="pt-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground/40 font-body mb-1">
-                  <span>Progression</span>
-                  <span>{phasesCompleted}/{phasesTotal} phases</span>
+                  <span>{t("Progression", "Progress")}</span>
+                  <span>{phasesCompleted}/{phasesTotal} {t("phases", "phases")}</span>
                 </div>
                 <Progress value={(phasesCompleted / phasesTotal) * 100} className="h-1.5" />
               </div>
@@ -428,20 +460,20 @@ export default function ClientProposal() {
           {/* Linked quotes */}
           {quotes.length > 0 && (
             <div className="mt-6 pt-4 border-t border-border/30">
-              <p className="text-xs text-muted-foreground/40 font-body mb-2">Documents liés</p>
+              <p className="text-xs text-muted-foreground/40 font-body mb-2">{t("Documents liés", "Linked documents")}</p>
               <div className="space-y-2">
                 {quotes.map((q) => (
                   <div key={q.id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <Download size={12} className="text-muted-foreground/30" />
-                      <span className="font-body text-foreground/70">{q.quoteNumber || "Devis"}</span>
+                      <span className="font-body text-foreground/70">{q.quoteNumber || t("Devis", "Quote")}</span>
                       <span className="text-xs text-muted-foreground/40">{formatChf(totalQuote(q))} CHF</span>
                     </div>
                     <button
                       onClick={() => printViaIframe(`/quotes/${q.id}/print`)}
                       className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
                     >
-                      <ExternalLink size={10} /> Voir
+                      <ExternalLink size={10} /> {t("Voir", "View")}
                     </button>
                   </div>
                 ))}
@@ -459,10 +491,13 @@ export default function ClientProposal() {
               ) : (
                 <ArrowRight size={16} className="mr-2" />
               )}
-              Choisir ce forfait
+              {t("Choisir ce forfait", "Choose this plan")}
             </Button>
             <p className="text-[10px] text-muted-foreground/30 font-body">
-              En confirmant, vous acceptez le forfait sélectionné. Les détails seront finalisés ensemble.
+              {t(
+                "En confirmant, vous acceptez le forfait sélectionné. Les détails seront finalisés ensemble.",
+                "By confirming, you accept the selected plan. Details will be finalised together.",
+              )}
             </p>
           </div>
         )}
@@ -470,11 +505,11 @@ export default function ClientProposal() {
         {funnel.status === "active" && (
           <div className="text-center space-y-3">
             <Badge variant="secondary" className="bg-green-100 text-green-700 text-sm px-4 py-1">
-              <CheckCircle2 size={14} className="mr-1" /> Forfait confirmé
+              <CheckCircle2 size={14} className="mr-1" /> {t("Forfait confirmé", "Plan confirmed")}
             </Badge>
             <p className="text-xs text-muted-foreground/50 font-body">
               <Link to={`/client/${id}`} className="text-primary hover:text-primary/80">
-                Accéder à votre portail projet →
+                {t("Accéder à votre portail projet →", "Go to your project portal →")}
               </Link>
             </p>
           </div>
