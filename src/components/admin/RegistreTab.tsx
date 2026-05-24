@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -40,7 +41,7 @@ function BankMetaFields({ meta, onChange }: { meta: BankMeta; onChange: (m: Bank
   const f = (key: keyof BankMeta) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...meta, [key]: e.target.value });
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="Banque"><Input value={meta.bank ?? ''} onChange={f('bank')} placeholder="PostFinance" className="h-8 text-sm font-body" /></Field>
       <Field label="Type de compte"><Input value={meta.accountType ?? ''} onChange={f('accountType')} placeholder="Courant / Épargne" className="h-8 text-sm font-body" /></Field>
       <Field label="IBAN" className="col-span-2"><Input value={meta.iban ?? ''} onChange={f('iban')} placeholder="CH00 0000 0000 0000 0000 0" className="h-8 text-sm font-body" /></Field>
@@ -55,7 +56,7 @@ function InsuranceMetaFields({ meta, onChange }: { meta: InsuranceMeta; onChange
   const f = (key: keyof InsuranceMeta) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...meta, [key]: e.target.value });
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="Assureur"><Input value={meta.insurer ?? ''} onChange={f('insurer')} placeholder="Generali" className="h-8 text-sm font-body" /></Field>
       <Field label="Type d'assurance"><Input value={meta.insuranceType ?? ''} onChange={f('insuranceType')} placeholder="RC / Vie / Santé" className="h-8 text-sm font-body" /></Field>
       <Field label="Prime (CHF)"><Input value={meta.premium ?? ''} onChange={f('premium')} placeholder="500" className="h-8 text-sm font-body" /></Field>
@@ -76,7 +77,7 @@ function SubscriptionMetaFields({ meta, onChange }: { meta: SubscriptionMeta; on
   const f = (key: keyof SubscriptionMeta) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...meta, [key]: e.target.value });
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="Fournisseur"><Input value={meta.provider ?? ''} onChange={f('provider')} placeholder="Adobe, GitHub..." className="h-8 text-sm font-body" /></Field>
       <Field label="Montant (CHF)"><Input value={meta.amount ?? ''} onChange={f('amount')} placeholder="29.90" className="h-8 text-sm font-body" /></Field>
       <Field label="Fréquence">
@@ -666,11 +667,11 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
       )}
 
       {/* Add / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={v => { if (!v) setDialogOpen(false); }}>
-        <DialogContent className="max-w-lg font-body max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingEntry ? 'Modifier' : 'Ajouter'} une entrée</DialogTitle>
-          </DialogHeader>
+      <ResponsiveDialog open={dialogOpen} onOpenChange={v => { if (!v) setDialogOpen(false); }}>
+        <ResponsiveDialogContent className="max-w-lg font-body max-h-[90vh] overflow-y-auto">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>{editingEntry ? 'Modifier' : 'Ajouter'} une entrée</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
 
           <div className="space-y-4 py-2">
             {/* Type */}
@@ -689,7 +690,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
             </Field>
 
             {/* Scope + Status */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Périmètre">
                 <Select value={formScope} onValueChange={v => setFormScope(v as RegistryScope)}>
                   <SelectTrigger className="h-9 text-sm font-body"><SelectValue /></SelectTrigger>
@@ -719,7 +720,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
             {/* Identifiers — generic, shown as copyable chips on the card */}
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground font-body">Identifiants (copiables sur la fiche)</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input value={formExtras.id1Label ?? ''} onChange={e => setFormExtras(p => ({ ...p, id1Label: e.target.value }))} placeholder="Libellé — ex. N° de police" className="h-8 text-sm font-body" />
                 <Input value={formExtras.id1Value ?? ''} onChange={e => setFormExtras(p => ({ ...p, id1Value: e.target.value }))} placeholder="Valeur" className="h-8 text-sm font-body" />
                 <Input value={formExtras.id2Label ?? ''} onChange={e => setFormExtras(p => ({ ...p, id2Label: e.target.value }))} placeholder="Libellé — ex. N° client" className="h-8 text-sm font-body" />
@@ -737,7 +738,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
             </div>
 
             {/* Next action + remind */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Prochaine action">
                 <Input type="date" value={formNextActionDate} onChange={e => setFormNextActionDate(e.target.value)} className="h-9 text-sm font-body" />
               </Field>
@@ -774,15 +775,15 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
             </Field>
           </div>
 
-          <DialogFooter>
+          <ResponsiveDialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSave} disabled={saving || !formName.trim()}>
               {saving && <Loader2 size={13} className="animate-spin mr-1" />}
               Enregistrer
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 }
