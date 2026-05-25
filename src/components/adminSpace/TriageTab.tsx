@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ScanLine, Upload, Zap, Layers } from "lucide-react";
+import { Loader2, ScanLine, Upload, Zap, Layers, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -8,12 +8,13 @@ import {
   uploadDoc, updateDoc, deleteDoc, getDocViewUrl, listFolders,
 } from "@/api/adminDocs";
 import { useAdminDocs, useInvalidateAdminDocs } from "@/hooks/useAdminDocs";
-import { bufferFile, MAX_PDF_SIZE } from "./helpers";
+import { bufferFile, MAX_PDF_SIZE, isImage, imagesToPdf } from "./helpers";
 import { ScanSortDialog } from "./ScanSortDialog";
 import { BatchAssembleDialog } from "./BatchAssembleDialog";
 import { TriageDocCard } from "./TriageDocCard";
 
 const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+const isAcceptedScan = (f: File) => isPdf(f) || isImage(f);
 
 /**
  * The "À trier" scan inbox. Drop a scanned PDF, choose where it goes (a folder
@@ -28,6 +29,7 @@ export function TriageTab() {
   const { data: folders = [] } = useQuery({ queryKey: ["admin-doc-folders"], queryFn: listFolders });
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const dragCounter = useRef(0);
 
@@ -49,19 +51,47 @@ export function TriageTab() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  /** Routes picked/dropped files: one PDF → sort dialog, several → assembler. */
-  function handleFiles(raw: File[]) {
-    const pdfs = raw.filter(isPdf);
-    if (pdfs.length === 0) {
-      toast({ title: "Format non supporté", description: "Seuls les fichiers PDF sont acceptés.", variant: "destructive" });
+  /** Routes picked/dropped/captured files. PDFs flow straight through. Image
+   *  captures (single photo or burst) are wrapped client-side into a PDF
+   *  before joining the same pipeline — keeps the backend PDF-only without
+   *  forcing the user to convert manually on their phone. */
+  async function handleFiles(raw: File[]) {
+    const accepted = raw.filter(isAcceptedScan);
+    if (accepted.length === 0) {
+      toast({
+        title: "Format non supporté",
+        description: "PDF, JPG, PNG ou HEIC uniquement.",
+        variant: "destructive",
+      });
       return;
     }
-    if (pdfs.some((f) => f.size > MAX_PDF_SIZE)) {
-      toast({ title: "Fichier trop lourd", description: "Maximum 25 Mo par PDF.", variant: "destructive" });
+    if (accepted.some((f) => f.size > MAX_PDF_SIZE)) {
+      toast({ title: "Fichier trop lourd", description: "Maximum 25 Mo par fichier.", variant: "destructive" });
       return;
     }
+
+    // Group: pure-PDF list goes directly; mixed/image lists get folded into
+    // a single PDF first (one image = 1 page, several = a multi-page scan).
+    const pdfs = accepted.filter(isPdf);
+    const images = accepted.filter(isImage);
+
+    if (images.length > 0) {
+      try {
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+        const merged = await imagesToPdf(images, `scan-${stamp}.pdf`);
+        if (pdfs.length === 0 && images.length === 1) void acceptSingle(merged);
+        else if (pdfs.length === 0)                    void acceptSingle(merged);
+        else                                           void acceptBatch([merged, ...pdfs]);
+        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        toast({ title: "Conversion image échouée", description: msg, variant: "destructive" });
+        return;
+      }
+    }
+
     if (pdfs.length === 1) void acceptSingle(pdfs[0]);
-    else void acceptBatch(pdfs);
+    else                   void acceptBatch(pdfs);
   }
 
   async function acceptSingle(raw: File) {
@@ -260,27 +290,50 @@ export function TriageTab() {
           <p className="font-display font-semibold text-base">Zone de scan</p>
           <p className="text-sm text-muted-foreground font-body mt-1 max-w-sm">
             {isMobile
-              ? "Touche pour choisir un ou plusieurs PDF. Sélectionne-en plusieurs d'un coup pour les assembler en un document."
-              : "Glisse-dépose tes PDF scannés ici, ou clique pour parcourir. Dépose-en plusieurs d'un coup pour les assembler en un document."}
+              ? "Touche pour scanner avec l'appareil photo ou choisir un PDF. Plusieurs fichiers d'un coup s'assemblent en un document."
+              : "Glisse-dépose tes PDF ou photos scannés ici, ou clique pour parcourir. Plusieurs fichiers d'un coup s'assemblent en un document."}
           </p>
           <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary">
-            <Upload size={13} /> Choisir un ou plusieurs PDF
+            <Upload size={13} /> PDF, JPG ou PNG · scan caméra mobile pris en charge
           </span>
         </button>
-        <button
-          type="button"
-          onClick={openAssembler}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-xs font-body text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
-        >
-          <Layers size={14} className="text-primary" />
-          Plusieurs PDF pour un seul document ? Assemble-les dans l'ordre
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/5 py-2.5 text-xs font-body text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Camera size={14} />
+              Scanner avec l'appareil photo
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={openAssembler}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-xs font-body text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors",
+              !isMobile && "sm:col-span-2",
+            )}
+          >
+            <Layers size={14} className="text-primary" />
+            Plusieurs fichiers pour un seul document ? Assemble-les dans l'ordre
+          </button>
+        </div>
       </div>
       <input
         ref={fileRef}
         type="file"
-        accept=".pdf,application/pdf"
+        accept=".pdf,application/pdf,image/jpeg,image/png,image/heic,image/webp"
         multiple
+        className="hidden"
+        onChange={onFileInput}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={onFileInput}
       />

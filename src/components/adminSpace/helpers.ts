@@ -52,6 +52,72 @@ export async function mergePdfs(files: File[], outputName = "document.pdf"): Pro
   return new File([bytes], outputName, { type: "application/pdf" });
 }
 
+const IMAGE_PAGE_MAX = 1200; // px on the longest side — keeps PDFs lean
+
+/** True when the file is a JPEG/PNG/WebP/HEIC the browser can handle. */
+export function isImage(f: File): boolean {
+  return /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+}
+
+/** Decode an image File into an ImageBitmap (or HTMLImageElement fallback)
+ *  so we can read its natural pixel dimensions. */
+async function loadImage(file: File): Promise<{ width: number; height: number; bitmap: ImageBitmap | HTMLImageElement }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return { width: bitmap.width, height: bitmap.height, bitmap };
+    } catch {
+      /* fall through to <img> */
+    }
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight, bitmap: img });
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+/** Re-encode an image to JPEG at a sane size via canvas — keeps the PDF
+ *  page light enough for the 25 Mo upload limit even on phone-camera shots. */
+async function downscaleImage(file: File): Promise<{ bytes: ArrayBuffer; width: number; height: number; mime: string }> {
+  const { width: srcW, height: srcH, bitmap } = await loadImage(file);
+  const longest = Math.max(srcW, srcH);
+  const scale = longest > IMAGE_PAGE_MAX ? IMAGE_PAGE_MAX / longest : 1;
+  const w = Math.round(srcW * scale);
+  const h = Math.round(srcH * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
+  ctx.drawImage(bitmap as CanvasImageSource, 0, 0, w, h);
+  const blob: Blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.85);
+  });
+  return { bytes: await blob.arrayBuffer(), width: w, height: h, mime: "image/jpeg" };
+}
+
+/** Wrap one or several images (jpg/png/heic) into a single PDF, one image per
+ *  page, preserving the order. Used by the triage scan zone so a mobile photo
+ *  flows through the same PDF-only pipeline. */
+export async function imagesToPdf(files: File[], outputName = "scan.pdf"): Promise<File> {
+  const { PDFDocument } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  for (const file of files) {
+    const { bytes, width, height } = await downscaleImage(file);
+    const img = await pdf.embedJpg(new Uint8Array(bytes));
+    const page = pdf.addPage([width, height]);
+    page.drawImage(img, { x: 0, y: 0, width, height });
+  }
+  const out = await pdf.save();
+  return new File([out], outputName, { type: "application/pdf" });
+}
+
 /**
  * Flattens the folder tree into `{ id, label }` entries with indented full
  * paths (e.g. "Assurances / 2026"), sorted alphabetically — ready for a

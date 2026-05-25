@@ -93,6 +93,28 @@ export function getGlobalWeekSummary() {
   return apiFetch<GlobalWeekSummary>('objective_sessions.php?summary=week&all=1');
 }
 
+export interface UnbilledProjectRow {
+  projectId:     string;
+  projectTitle:  string;
+  sessions:      number;
+  durationSec:   number;
+  hours:         number;
+  lastSessionAt: string | null;
+}
+
+export interface UnbilledSummary {
+  projects:     UnbilledProjectRow[];
+  totalSec:     number;
+  totalHours:   number;
+  projectCount: number;
+}
+
+/** Aggregate unbilled focus time per linked project. Used by the
+ *  "Heures non facturées" insight card on Home. */
+export function getUnbilledSummary() {
+  return apiFetch<UnbilledSummary>('objective_sessions.php?summary=unbilled');
+}
+
 /** Lock a batch of sessions against a quote so they stop surfacing in
  *  suggest_quote_lines. Called by the "Importer le temps tracé" flow. */
 export function markSessionsBilled(sessionIds: string[], quoteId: string) {

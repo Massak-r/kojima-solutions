@@ -146,6 +146,51 @@ $summary = $_GET['summary']      ?? null;
 $all     = isset($_GET['all']) && $_GET['all'] !== '0';
 
 if ($method === 'GET') {
+    // Aggregate unbilled focus time per linked project. Powers the
+    // "Heures non facturées" insight card on Home. Returns one row per
+    // project that has at least one closed-but-not-billed session whose
+    // parent objective is linked to that project.
+    if ($summary === 'unbilled') {
+        $stmt = $pdo->query(
+            "SELECT
+                pr.id    AS project_id,
+                pr.title AS project_title,
+                COUNT(DISTINCT s.id) AS session_count,
+                COALESCE(SUM(s.duration_sec), 0) AS total_sec,
+                MAX(s.ended_at) AS last_session_at
+             FROM objective_sessions s
+             JOIN admin_todos parent ON parent.id = s.objective_id
+             JOIN projects pr        ON pr.id = parent.linked_project_id
+             WHERE s.source = 'admin'
+               AND s.ended_at IS NOT NULL
+               AND s.duration_sec IS NOT NULL
+               AND s.billed_at IS NULL
+             GROUP BY pr.id, pr.title
+             HAVING total_sec > 0
+             ORDER BY total_sec DESC"
+        );
+        $rows = $stmt->fetchAll();
+        $totalSec = 0;
+        $projects = array_map(function ($r) use (&$totalSec) {
+            $sec = (int)$r['total_sec'];
+            $totalSec += $sec;
+            return [
+                'projectId'     => $r['project_id'],
+                'projectTitle'  => $r['project_title'],
+                'sessions'      => (int)$r['session_count'],
+                'durationSec'   => $sec,
+                'hours'         => round($sec / 3600, 2),
+                'lastSessionAt' => $r['last_session_at'],
+            ];
+        }, $rows);
+        ok([
+            'projects'    => $projects,
+            'totalSec'    => $totalSec,
+            'totalHours'  => round($totalSec / 3600, 2),
+            'projectCount'=> count($projects),
+        ]);
+    }
+
     // Global week summary (across ALL objectives) — doesn't require source+objective_id
     if ($summary === 'week' && $all) {
         $tz = new DateTimeZone(date_default_timezone_get());
