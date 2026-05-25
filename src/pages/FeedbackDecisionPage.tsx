@@ -8,11 +8,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useProjects } from "@/contexts/ProjectsContext";
 import type { FeedbackRequest, VoteOption } from "@/types/timeline";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
 import { RevisionCounter } from "@/components/feedback/RevisionCounter";
 import { FeedbackAuditLog } from "@/components/feedback/FeedbackAuditLog";
+import { SlideToConfirm } from "@/components/feedback/SlideToConfirm";
 import { formatDateSwiss, formatDateSwissLong } from "@/lib/dateFormat";
 import { StakeholderVoteSummary } from "@/components/feedback/StakeholderVoteSummary";
 
@@ -20,6 +22,7 @@ export default function FeedbackDecisionPage() {
   const { id: projectId, taskId, requestId } = useParams<{ id: string; taskId: string; requestId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const { getProject, respondToFeedbackRequest, loading } = useProjects();
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -54,10 +57,10 @@ export default function FeedbackDecisionPage() {
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="text-center space-y-3">
           <AlertCircle size={32} className="text-muted-foreground/20 mx-auto" />
-          <p className="font-display text-lg font-bold text-foreground/80">Choix introuvable</p>
-          <p className="text-sm text-muted-foreground font-body">Cette demande n'existe pas ou n'est plus disponible.</p>
+          <p className="font-display text-lg font-bold text-foreground/80">{t("Choix introuvable", "Decision not found")}</p>
+          <p className="text-sm text-muted-foreground font-body">{t("Cette demande n'existe pas ou n'est plus disponible.", "This request doesn't exist or is no longer available.")}</p>
           <button onClick={() => navigate(backPath)} className="text-sm text-primary font-body hover:underline">
-            ← Retour au projet
+            ← {t("Retour au projet", "Back to project")}
           </button>
         </div>
       </div>
@@ -80,14 +83,25 @@ export default function FeedbackDecisionPage() {
     return [];
   };
 
+  // Stakeholder vote counts per option for inline social-proof badges —
+  // saves the user from scrolling to the bottom breakdown to compare.
+  const stakeholderVoteCounts: Record<string, number> = {};
+  if (request.stakeholderVotes) {
+    for (const v of request.stakeholderVotes) {
+      stakeholderVoteCounts[v.optionId] = (stakeholderVoteCounts[v.optionId] ?? 0) + 1;
+    }
+  }
+
   function handleSelect(optionId: string) {
     if (isResolved) return;
     setSelected(optionId);
+    // Light haptic so the selection feels tangible on touch.
+    try { navigator.vibrate?.(6); } catch { /* ignore */ }
   }
 
   async function handleConfirm() {
     if (!selected) {
-      toast({ title: "Sélectionnez une option d'abord" });
+      toast({ title: t("Sélectionnez une option d'abord", "Select an option first") });
       return;
     }
     const opt = options.find((o) => o.id === selected);
@@ -95,10 +109,17 @@ export default function FeedbackDecisionPage() {
     setBusy(true);
     try {
       respondToFeedbackRequest(projectId!, taskId!, requestId!, opt.label);
-      toast({ title: "Choix confirme !", description: `Direction choisie : "${opt.label}". L'equipe va affiner dans cette direction.` });
+      try { navigator.vibrate?.(20); } catch { /* ignore */ }
+      toast({
+        title: t("Choix confirmé !", "Choice confirmed!"),
+        description: t(
+          `Direction choisie : « ${opt.label} ». L'équipe va affiner dans cette direction.`,
+          `Direction chosen: "${opt.label}". The team will refine in this direction.`,
+        ),
+      });
       navigate(backPath);
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -113,7 +134,7 @@ export default function FeedbackDecisionPage() {
           onClick={() => navigate(backPath)}
           className="flex items-center gap-1 text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ChevronLeft size={14} /> Retour au projet
+          <ChevronLeft size={14} /> {t("Retour au projet", "Back to project")}
         </button>
 
         {/* Header */}
@@ -122,36 +143,39 @@ export default function FeedbackDecisionPage() {
             {task.title}
           </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
-            Quelle direction préférez-vous ?
+            {t("Quelle direction préférez-vous ?", "Which direction do you prefer?")}
           </h1>
           <p className="font-display text-base sm:text-lg text-muted-foreground/60">
             {request.message}
           </p>
           <p className="text-sm font-body text-muted-foreground/40 mt-1">
-            Ce choix definit la direction — nous affinerons les details ensemble par la suite.
+            {t(
+              "Ce choix définit la direction — nous affinerons les détails ensemble par la suite.",
+              "This choice sets the direction — we'll refine the details together afterwards.",
+            )}
           </p>
         </div>
 
         {/* Status badges */}
         <div className="flex flex-wrap items-center gap-2">
           {isResolved && (
-            <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 gap-1">
-              <CheckCircle2 size={12} /> Choix confirmé
-              {request.respondedAt && ` le ${formatDateSwiss(request.respondedAt)}`}
+            <Badge variant="secondary" className="text-xs bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 gap-1">
+              <CheckCircle2 size={12} /> {t("Choix confirmé", "Choice confirmed")}
+              {request.respondedAt && ` ${t("le", "on")} ${formatDateSwiss(request.respondedAt)}`}
             </Badge>
           )}
           {request.deadline && (
             <Badge variant="secondary" className={cn(
               "text-xs gap-1",
-              isOverdue ? "bg-red-100 text-red-700" :
-              isUrgent ? "bg-amber-100 text-amber-700" :
+              isOverdue ? "bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300" :
+              isUrgent ? "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" :
               "bg-secondary text-muted-foreground",
             )}>
-              Echéance : {formatDateSwiss(request.deadline)}
+              {t("Échéance", "Deadline")} : {formatDateSwiss(request.deadline)}
               {deadlineDays !== null && (
-                isOverdue ? " (dépassée)" :
-                deadlineDays === 0 ? " (aujourd'hui)" :
-                ` (${deadlineDays}j)`
+                isOverdue ? ` (${t("dépassée", "overdue")})` :
+                deadlineDays === 0 ? ` (${t("aujourd'hui", "today")})` :
+                ` (${deadlineDays}${t("j", "d")})`
               )}
             </Badge>
           )}
@@ -170,6 +194,7 @@ export default function FeedbackDecisionPage() {
           {options.map((opt) => {
             const isSelected = selected === opt.id;
             const optImages = getOptionImages(opt);
+            const stakeholderCount = stakeholderVoteCounts[opt.id] ?? 0;
 
             return (
               <div
@@ -179,7 +204,7 @@ export default function FeedbackDecisionPage() {
                   "relative flex flex-col rounded-2xl border-2 overflow-hidden transition-all",
                   !isResolved && "cursor-pointer",
                   isSelected
-                    ? "border-palette-violet bg-palette-violet/[0.02] shadow-lg ring-1 ring-palette-violet/20"
+                    ? "border-palette-violet bg-palette-violet/[0.02] shadow-lg ring-2 ring-palette-violet/30 scale-[1.01]"
                     : isResolved && opt.label === request.response
                       ? "border-emerald-300 bg-emerald-50/30"
                       : opt.isRecommended
@@ -187,18 +212,28 @@ export default function FeedbackDecisionPage() {
                         : "border-border/40 hover:border-border hover:shadow-sm",
                 )}
               >
-                {/* Recommended badge */}
-                {opt.isRecommended && (
-                  <div className="absolute top-3 right-3 z-10 flex items-center gap-1 text-[10px] font-body font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-full shadow-sm">
-                    <Star size={10} className="fill-amber-500" /> Recommandé
-                  </div>
-                )}
+                {/* Top-right cluster: recommended + stakeholder vote count */}
+                <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
+                  {opt.isRecommended && (
+                    <div className="flex items-center gap-1 text-[10px] font-body font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200/60 dark:border-amber-500/30 px-2 py-0.5 rounded-full shadow-sm">
+                      <Star size={10} className="fill-amber-500" /> {t("Recommandé", "Recommended")}
+                    </div>
+                  )}
+                  {stakeholderCount > 0 && (
+                    <div
+                      className="flex items-center gap-1 text-[10px] font-body font-semibold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/15 border border-violet-200/60 dark:border-violet-500/30 px-2 py-0.5 rounded-full"
+                      title={t(`${stakeholderCount} stakeholder${stakeholderCount > 1 ? "s" : ""} ont voté pour cette option`, `${stakeholderCount} stakeholder${stakeholderCount > 1 ? "s" : ""} voted for this option`)}
+                    >
+                      ★ {stakeholderCount}
+                    </div>
+                  )}
+                </div>
 
                 {/* Selected indicator */}
                 {isSelected && (
                   <div className="absolute top-3 left-3 z-10">
-                    <div className="w-6 h-6 rounded-full bg-palette-violet flex items-center justify-center shadow-sm">
-                      <CheckCircle2 size={14} className="text-white" />
+                    <div className="w-7 h-7 rounded-full bg-palette-violet flex items-center justify-center shadow-md">
+                      <CheckCircle2 size={16} className="text-white" />
                     </div>
                   </div>
                 )}
@@ -233,43 +268,48 @@ export default function FeedbackDecisionPage() {
                       onClick={(e) => e.stopPropagation()}
                       className="inline-flex items-center gap-1.5 text-sm font-body text-primary hover:text-primary/80 transition-colors mt-auto"
                     >
-                      Voir l'aperçu <ExternalLink size={12} />
+                      {t("Voir l'aperçu", "Preview")} <ExternalLink size={12} />
                     </a>
                   )}
                 </div>
 
-                {/* Selection radio at bottom */}
+                {/* Footer: in-card slide-to-confirm when selected (the
+                    primary mobile confirm gesture — a deliberate horizontal
+                    drag instead of a tap, fitting the "no undo" weight of
+                    locking in a project direction). Plain row otherwise. */}
                 <div className={cn(
                   "px-4 sm:px-5 py-3 border-t",
                   isSelected ? "border-palette-violet/20 bg-palette-violet/5" : "border-border/30",
-                )}>
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      isSelected ? "border-palette-violet bg-palette-violet" : "border-border",
-                    )}>
-                      {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                )} onClick={(e) => e.stopPropagation()}>
+                  {isSelected && !isResolved ? (
+                    <SlideToConfirm
+                      label={t("Glisser pour confirmer", "Slide to confirm")}
+                      confirmingLabel={t("Confirmation…", "Confirming…")}
+                      confirmedLabel={t("Confirmé", "Confirmed")}
+                      loading={busy}
+                      onConfirm={handleConfirm}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full border-2 border-border" />
+                      <span className="text-sm font-body text-muted-foreground">
+                        {t("Choisir cette option", "Choose this option")}
+                      </span>
                     </div>
-                    <span className={cn(
-                      "text-sm font-body",
-                      isSelected ? "font-semibold text-palette-violet" : "text-muted-foreground",
-                    )}>
-                      {isSelected ? "Sélectionné" : "Choisir cette option"}
-                    </span>
-                  </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Stakeholder votes */}
+        {/* Stakeholder votes — full breakdown below options */}
         {request.stakeholderVotes && request.stakeholderVotes.length > 0 && (
           <StakeholderVoteSummary votes={request.stakeholderVotes} options={request.options} type="vote" />
         )}
 
-        {/* Confirm button — sticky CTA with safe-area-aware bottom padding so
-            it clears the iOS home indicator in standalone mode. */}
+        {/* Sticky Confirm — keyboard / a11y fallback alongside the in-card
+            slide gesture. Stays for users who want a one-tap path. */}
         {!isResolved && (
           <div
             className="sticky bottom-6 z-20"
@@ -287,8 +327,8 @@ export default function FeedbackDecisionPage() {
                 <Send size={16} />
               )}
               {selected
-                ? `Confirmer : ${options.find((o) => o.id === selected)?.label}`
-                : "Sélectionnez une option ci-dessus"
+                ? `${t("Confirmer", "Confirm")} : ${options.find((o) => o.id === selected)?.label}`
+                : t("Sélectionnez une option ci-dessus", "Select an option above")
               }
             </Button>
           </div>
@@ -296,16 +336,16 @@ export default function FeedbackDecisionPage() {
 
         {/* Resolved summary */}
         {isResolved && request.response && (
-          <div className="bg-emerald-50 border border-emerald-200/50 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <CheckCircle2 size={18} className="text-emerald-600" />
+          <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-300" />
             </div>
             <div>
-              <p className="font-display text-sm font-bold text-emerald-800">
-                Choix confirmé : {request.response}
+              <p className="font-display text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                {t("Choix confirmé", "Choice confirmed")} : {request.response}
               </p>
               {request.respondedAt && (
-                <p className="font-body text-xs text-emerald-600/70">
+                <p className="font-body text-xs text-emerald-600/70 dark:text-emerald-300/70">
                   {formatDateSwissLong(request.respondedAt)}
                 </p>
               )}
@@ -324,7 +364,7 @@ export default function FeedbackDecisionPage() {
             onClick={() => navigate(backPath)}
             className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
           >
-            ← Retour au tableau de bord
+            ← {t("Retour au tableau de bord", "Back to dashboard")}
           </button>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, CheckCircle2, AlertCircle, AlertTriangle, Send,
-  Star, Clock, Loader2, ExternalLink, MessageSquare, List,
+  Star, Clock, Loader2, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,24 @@ import {
   type ProjectFunnel, type FunnelGate, type GateOption, type GateComment,
 } from "@/api/funnels";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
+import { SlideToConfirm } from "@/components/feedback/SlideToConfirm";
+import { useLanguage } from "@/hooks/useLanguage";
 import { formatDateSwiss, formatDateTime } from "@/lib/dateFormat";
 
-const TYPE_LABELS: Record<string, string> = {
-  choice: "Quelle direction preferez-vous ?",
-  approval: "Validation requise",
-  feedback: "Votre retour est attendu",
-};
+function typeLabel(gateType: string, t: (fr: string, en: string) => string): string {
+  switch (gateType) {
+    case "choice":   return t("Quelle direction préférez-vous ?", "Which direction do you prefer?");
+    case "approval": return t("Validation requise", "Approval required");
+    case "feedback": return t("Votre retour est attendu", "Your feedback is awaited");
+    default:         return t("Votre avis est attendu", "Your input is awaited");
+  }
+}
 
 export default function GateDecisionPage() {
   const { id: projectId, gateId, token } = useParams<{ id?: string; gateId: string; token?: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [funnel, setFunnel] = useState<ProjectFunnel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,26 +82,28 @@ export default function GateDecisionPage() {
   async function handleSelectOption(optionId: string) {
     if (!isOpen || !gate) return;
     setSelectedOptionId(optionId);
+    try { navigator.vibrate?.(6); } catch { /* ignore */ }
     try {
       await selectOption(gate.id, optionId);
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), variant: "destructive" });
     }
   }
 
   async function handleApprove() {
     if (!isOpen || !gate) return;
     if (gate.gateType === "choice" && !selectedOptionId) {
-      toast({ title: "Selectionnez une option d'abord" });
+      toast({ title: t("Sélectionnez une option d'abord", "Select an option first") });
       return;
     }
     setBusy(true);
     try {
       await approveGate(gate.id, "client");
-      toast({ title: "Etape validee !" });
+      try { navigator.vibrate?.(20); } catch { /* ignore */ }
+      toast({ title: t("Étape validée !", "Step approved!") });
       fetchFunnel();
     } catch (err: any) {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), description: err.message, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -107,15 +115,19 @@ export default function GateDecisionPage() {
     try {
       const res = await requestRevision(gate.id, { message: revisionMessage.trim() });
       if (res.overLimit) {
-        toast({ title: "Limite de revisions atteinte", description: "Un ajustement budgetaire sera propose.", variant: "destructive" });
+        toast({
+          title: t("Limite de révisions atteinte", "Revision limit reached"),
+          description: t("Un ajustement budgétaire sera proposé.", "A budget adjustment will be proposed."),
+          variant: "destructive",
+        });
       } else {
-        toast({ title: "Revision demandee" });
+        toast({ title: t("Révision demandée", "Revision requested") });
       }
       setRevisionMessage("");
       setShowRevisionInput(false);
       fetchFunnel();
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -129,7 +141,7 @@ export default function GateDecisionPage() {
       setCommentText("");
       fetchFunnel();
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: t("Erreur", "Error"), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -150,10 +162,14 @@ export default function GateDecisionPage() {
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="text-center space-y-3">
           <AlertCircle size={32} className="text-muted-foreground/20 mx-auto" />
-          <p className="font-display text-lg font-bold text-foreground/80">Decision introuvable</p>
-          <p className="text-sm text-muted-foreground font-body">Cette etape n'existe pas ou n'est plus disponible.</p>
+          <p className="font-display text-lg font-bold text-foreground/80">
+            {t("Décision introuvable", "Decision not found")}
+          </p>
+          <p className="text-sm text-muted-foreground font-body">
+            {t("Cette étape n'existe pas ou n'est plus disponible.", "This step doesn't exist or is no longer available.")}
+          </p>
           <button onClick={() => navigate(backPath)} className="text-sm text-primary font-body hover:underline">
-            ← Retour au projet
+            ← {t("Retour au projet", "Back to project")}
           </button>
         </div>
       </div>
@@ -176,7 +192,7 @@ export default function GateDecisionPage() {
           onClick={() => navigate(backPath)}
           className="flex items-center gap-1 text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ChevronLeft size={14} /> Retour au projet
+          <ChevronLeft size={14} /> {t("Retour au projet", "Back to project")}
         </button>
 
         {/* Header */}
@@ -188,7 +204,7 @@ export default function GateDecisionPage() {
             {gate.title}
           </h1>
           <p className="font-display text-base sm:text-lg text-muted-foreground/60">
-            {TYPE_LABELS[gate.gateType] || "Votre avis est attendu"}
+            {typeLabel(gate.gateType, t)}
           </p>
           {gate.description && (
             <p className="text-sm font-body text-foreground/60 max-w-2xl leading-relaxed mt-1">
@@ -200,30 +216,30 @@ export default function GateDecisionPage() {
         {/* Status badges */}
         <div className="flex flex-wrap items-center gap-2">
           {isApproved && (
-            <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 gap-1">
-              <CheckCircle2 size={12} /> Valide
-              {gate.approvedAt && ` le ${formatDateSwiss(gate.approvedAt)}`}
-              {gate.approvedBy && ` par ${gate.approvedBy}`}
+            <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 gap-1">
+              <CheckCircle2 size={12} /> {t("Validé", "Approved")}
+              {gate.approvedAt && ` ${t("le", "on")} ${formatDateSwiss(gate.approvedAt)}`}
+              {gate.approvedBy && ` ${t("par", "by")} ${gate.approvedBy}`}
             </Badge>
           )}
           {isRevision && (
-            <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 gap-1">
-              <AlertTriangle size={12} /> Revision en cours ({gate.revisionCount}/{gate.revisionLimit})
+            <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 gap-1">
+              <AlertTriangle size={12} /> {t("Révision en cours", "Revision in progress")} ({gate.revisionCount}/{gate.revisionLimit})
             </Badge>
           )}
           {gate.deadline && (
             <Badge variant="secondary" className={cn(
               "text-xs gap-1",
-              isOverdue ? "bg-red-100 text-red-700" :
-              isUrgent ? "bg-amber-100 text-amber-700" :
+              isOverdue ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300" :
+              isUrgent ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" :
               "bg-secondary text-muted-foreground",
             )}>
               <Clock size={10} />
-              Echeance : {formatDateSwiss(gate.deadline)}
+              {t("Échéance", "Deadline")} : {formatDateSwiss(gate.deadline)}
               {deadlineDays !== null && (
-                isOverdue ? " (depassee)" :
-                deadlineDays === 0 ? " (aujourd'hui)" :
-                ` (${deadlineDays}j)`
+                isOverdue ? ` (${t("dépassée", "overdue")})` :
+                deadlineDays === 0 ? ` (${t("aujourd'hui", "today")})` :
+                ` (${deadlineDays}${t("j", "d")})`
               )}
             </Badge>
           )}
@@ -259,8 +275,8 @@ export default function GateDecisionPage() {
                 >
                   {/* Recommended badge */}
                   {opt.isRecommended && (
-                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1 text-[10px] font-body font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-full shadow-sm">
-                      <Star size={10} className="fill-amber-500" /> Recommande
+                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1 text-[10px] font-body font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30 px-2 py-0.5 rounded-full shadow-sm">
+                      <Star size={10} className="fill-amber-500" /> {t("Recommandé", "Recommended")}
                     </div>
                   )}
 
@@ -303,7 +319,7 @@ export default function GateDecisionPage() {
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-body mb-3"
                       >
-                        <ExternalLink size={11} /> Voir l'apercu
+                        <ExternalLink size={11} /> {t("Voir l'aperçu", "View preview")}
                       </a>
                     )}
 
@@ -322,15 +338,15 @@ export default function GateDecisionPage() {
                           {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                         </div>
                         <span className="text-sm font-body font-medium">
-                          {isSelected ? "Selectionne" : "Selectionner"}
+                          {isSelected ? t("Sélectionné", "Selected") : t("Sélectionner", "Select")}
                         </span>
                       </div>
                     )}
 
                     {/* Approved selection indicator */}
                     {isApproved && opt.isSelected && (
-                      <div className="flex items-center gap-2 py-2 text-emerald-700 text-sm font-body mt-auto">
-                        <CheckCircle2 size={14} /> Choix valide
+                      <div className="flex items-center gap-2 py-2 text-emerald-700 dark:text-emerald-300 text-sm font-body mt-auto">
+                        <CheckCircle2 size={14} /> {t("Choix validé", "Choice approved")}
                       </div>
                     )}
                   </div>
@@ -343,27 +359,32 @@ export default function GateDecisionPage() {
         {/* Approval-only gate (no options) */}
         {gate.gateType === "approval" && isOpen && (
           <div className="bg-card border border-border rounded-xl p-6 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto">
-              <CheckCircle2 size={22} className="text-blue-600" />
+            <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center mx-auto">
+              <CheckCircle2 size={22} className="text-blue-600 dark:text-blue-300" />
             </div>
             <p className="font-display text-base font-semibold text-foreground">
-              Cette etape est prete pour votre validation
+              {t("Cette étape est prête pour votre validation", "This step is ready for your approval")}
             </p>
             <p className="text-sm font-body text-muted-foreground max-w-md mx-auto">
-              Validez pour confirmer et passer a la suite, ou demandez des modifications si necessaire.
+              {t(
+                "Validez pour confirmer et passer à la suite, ou demandez des modifications si nécessaire.",
+                "Approve to confirm and move on, or request changes if needed.",
+              )}
             </p>
           </div>
         )}
 
         {/* Revision info */}
         {isRevision && (
-          <div className="bg-amber-50 border border-amber-200/50 rounded-xl p-5">
+          <div className="bg-amber-50 border border-amber-200/50 dark:bg-amber-500/10 dark:border-amber-500/30 rounded-xl p-5">
             <div className="flex items-start gap-3">
-              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
               <div>
-                <p className="font-display text-sm font-bold text-amber-800">Revision en cours</p>
-                <p className="text-xs font-body text-amber-700/70 mt-1">
-                  L'equipe travaille sur vos retours. Revision {gate.revisionCount}/{gate.revisionLimit}.
+                <p className="font-display text-sm font-bold text-amber-800 dark:text-amber-200">
+                  {t("Révision en cours", "Revision in progress")}
+                </p>
+                <p className="text-xs font-body text-amber-700/70 dark:text-amber-300/70 mt-1">
+                  {t("L'équipe travaille sur vos retours.", "The team is working on your feedback.")} {t("Révision", "Revision")} {gate.revisionCount}/{gate.revisionLimit}.
                 </p>
               </div>
             </div>
@@ -375,86 +396,137 @@ export default function GateDecisionPage() {
           <div className={cn(
             "rounded-xl p-4 text-xs font-body flex items-start gap-2",
             gate.revisionCount >= gate.revisionLimit
-              ? "bg-red-50 border border-red-200/50 text-red-700"
-              : "bg-amber-50 border border-amber-200/50 text-amber-700",
+              ? "bg-red-50 border border-red-200/50 text-red-700 dark:bg-red-500/10 dark:border-red-500/30 dark:text-red-300"
+              : "bg-amber-50 border border-amber-200/50 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300",
           )}>
             {gate.revisionCount >= gate.revisionLimit ? (
-              <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+              <AlertCircle size={14} className="text-red-500 dark:text-red-300 shrink-0 mt-0.5" />
             ) : (
-              <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+              <AlertTriangle size={14} className="text-amber-500 dark:text-amber-300 shrink-0 mt-0.5" />
             )}
             <div>
-              <p className="font-medium">{gate.revisionCount}/{gate.revisionLimit} revision{gate.revisionLimit > 1 ? "s" : ""} utilisee{gate.revisionCount > 1 ? "s" : ""}</p>
+              <p className="font-medium">
+                {gate.revisionCount}/{gate.revisionLimit}{" "}
+                {t(
+                  `révision${gate.revisionLimit > 1 ? "s" : ""} utilisée${gate.revisionCount > 1 ? "s" : ""}`,
+                  `revision${gate.revisionLimit > 1 ? "s" : ""} used`,
+                )}
+              </p>
               {gate.revisionCount >= gate.revisionLimit ? (
-                <p className="mt-0.5 opacity-70">Limite atteinte. Les prochaines revisions feront l'objet d'un ajustement tarifaire.</p>
+                <p className="mt-0.5 opacity-70">
+                  {t(
+                    "Limite atteinte. Les prochaines révisions feront l'objet d'un ajustement tarifaire.",
+                    "Limit reached. Further revisions will trigger a pricing adjustment.",
+                  )}
+                </p>
               ) : (
-                <p className="mt-0.5 opacity-70">Derniere revision incluse. Les suivantes pourront faire l'objet d'un ajustement tarifaire.</p>
+                <p className="mt-0.5 opacity-70">
+                  {t(
+                    "Dernière révision incluse. Les suivantes pourront faire l'objet d'un ajustement tarifaire.",
+                    "Last included revision. Further ones may trigger a pricing adjustment.",
+                  )}
+                </p>
               )}
             </div>
           </div>
         )}
 
         {/* Action buttons */}
-        {isOpen && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                size="lg"
-                onClick={handleApprove}
-                disabled={busy || (gate.gateType === "choice" && !selectedOptionId)}
-                className="text-sm h-12 px-6 gap-2"
-              >
-                {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                {gate.gateType === "choice"
-                  ? (selectedOptionId ? "Valider mon choix" : "Selectionnez une option")
-                  : gate.gateType === "feedback" ? "Envoyer" : "Approuver"}
-              </Button>
-              {gate.gateType !== "feedback" && !showRevisionInput && (
+        {isOpen && (() => {
+          const approveDisabled = busy || (gate.gateType === "choice" && !selectedOptionId);
+          const approveLabel = gate.gateType === "choice"
+            ? (selectedOptionId
+                ? t("Valider mon choix", "Confirm my choice")
+                : t("Sélectionnez une option", "Select an option"))
+            : gate.gateType === "feedback"
+              ? t("Envoyer", "Send")
+              : t("Approuver", "Approve");
+          const slideLabel = gate.gateType === "choice" && !selectedOptionId
+            ? t("Sélectionnez une option ci-dessus", "Select an option above")
+            : t("Glisser pour confirmer", "Slide to confirm");
+          return (
+            <div className="space-y-3">
+              {/* Mobile: slide-to-confirm — a deliberate commitment gesture. */}
+              <div className="sm:hidden">
+                <SlideToConfirm
+                  label={slideLabel}
+                  confirmingLabel={t("Confirmation…", "Confirming…")}
+                  confirmedLabel={t("Confirmé", "Confirmed")}
+                  loading={busy}
+                  disabled={approveDisabled}
+                  onConfirm={handleApprove}
+                />
+              </div>
+
+              {/* Desktop: standard button. Also a11y/keyboard fallback on mobile. */}
+              <div className="hidden sm:flex flex-wrap items-center gap-3">
                 <Button
                   size="lg"
-                  variant="outline"
-                  onClick={() => setShowRevisionInput(true)}
-                  className="text-sm h-12 text-amber-600 border-amber-200 hover:bg-amber-50 gap-2"
+                  onClick={handleApprove}
+                  disabled={approveDisabled}
+                  className="text-sm h-12 px-6 gap-2"
                 >
-                  <AlertTriangle size={14} /> Demander des modifications
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  {approveLabel}
                 </Button>
+                {gate.gateType !== "feedback" && !showRevisionInput && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => setShowRevisionInput(true)}
+                    className="text-sm h-12 text-amber-600 border-amber-200 hover:bg-amber-50 dark:text-amber-300 dark:border-amber-500/30 dark:hover:bg-amber-500/10 gap-2"
+                  >
+                    <AlertTriangle size={14} /> {t("Demander des modifications", "Request changes")}
+                  </Button>
+                )}
+              </div>
+
+              {/* Mobile-only revision trigger sits below the slide. */}
+              {gate.gateType !== "feedback" && !showRevisionInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowRevisionInput(true)}
+                  className="sm:hidden w-full flex items-center justify-center gap-2 text-sm font-body text-amber-600 dark:text-amber-300 py-2.5"
+                >
+                  <AlertTriangle size={14} /> {t("Demander des modifications", "Request changes")}
+                </button>
+              )}
+
+              {showRevisionInput && (
+                <div className="flex flex-col sm:flex-row gap-2 bg-amber-50/50 border border-amber-200/30 dark:bg-amber-500/5 dark:border-amber-500/20 rounded-xl p-3">
+                  <input
+                    value={revisionMessage}
+                    onChange={(e) => setRevisionMessage(e.target.value)}
+                    placeholder={t("Décrivez les modifications souhaitées…", "Describe the changes you'd like…")}
+                    className="flex-1 text-sm font-body bg-background border border-border/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    onKeyDown={(e) => e.key === "Enter" && handleRevision()}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={handleRevision} disabled={busy || !revisionMessage.trim()} className="text-xs gap-1">
+                      <Send size={10} /> {t("Envoyer", "Send")}
+                    </Button>
+                    <button onClick={() => setShowRevisionInput(false)} className="text-xs text-muted-foreground/50 hover:text-muted-foreground">
+                      {t("Annuler", "Cancel")}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-
-            {showRevisionInput && (
-              <div className="flex flex-col sm:flex-row gap-2 bg-amber-50/50 border border-amber-200/30 rounded-xl p-3">
-                <input
-                  value={revisionMessage}
-                  onChange={(e) => setRevisionMessage(e.target.value)}
-                  placeholder="Decrivez les modifications souhaitees..."
-                  className="flex-1 text-sm font-body bg-background border border-border/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  onKeyDown={(e) => e.key === "Enter" && handleRevision()}
-                  autoFocus
-                />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={handleRevision} disabled={busy || !revisionMessage.trim()} className="text-xs gap-1">
-                    <Send size={10} /> Envoyer
-                  </Button>
-                  <button onClick={() => setShowRevisionInput(false)} className="text-xs text-muted-foreground/50 hover:text-muted-foreground">
-                    Annuler
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Comments section */}
         {(gate.comments.length > 0 || isOpen || isRevision) && (
           <div className="border-t border-border/30 pt-6 space-y-3">
             <h3 className="text-xs font-display font-bold text-muted-foreground/50 uppercase tracking-wider">
-              Commentaires ({gate.comments.length})
+              {t("Commentaires", "Comments")} ({gate.comments.length})
             </h3>
 
             {gate.comments.length > 0 && (
               <div className="space-y-2">
                 {gate.comments.map((comment) => (
-                  <CommentBubble key={comment.id} comment={comment} />
+                  <CommentBubble key={comment.id} comment={comment} t={t} />
                 ))}
               </div>
             )}
@@ -464,7 +536,7 @@ export default function GateDecisionPage() {
                 <input
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Ajouter un commentaire..."
+                  placeholder={t("Ajouter un commentaire…", "Add a comment…")}
                   className="flex-1 min-w-0 text-sm font-body bg-card border border-border/40 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   onKeyDown={(e) => e.key === "Enter" && handleComment()}
                 />
@@ -483,7 +555,7 @@ export default function GateDecisionPage() {
         {/* Footer */}
         <div className="text-center pt-6 pb-4">
           <p className="text-[10px] text-muted-foreground/25 font-body">
-            Kojima Solutions - kojima-solutions.ch
+            Kojima Solutions · kojima-solutions.ch
           </p>
         </div>
       </div>
@@ -493,7 +565,7 @@ export default function GateDecisionPage() {
 
 // ── Comment Bubble ─────────────────────────────────────────
 
-function CommentBubble({ comment }: { comment: GateComment }) {
+function CommentBubble({ comment, t }: { comment: GateComment; t: (fr: string, en: string) => string }) {
   const isAdmin = comment.authorRole === "admin";
   return (
     <div className={cn(
@@ -502,7 +574,7 @@ function CommentBubble({ comment }: { comment: GateComment }) {
     )}>
       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
         <span className="text-[10px] font-body font-medium text-foreground/60">
-          {comment.authorName || (isAdmin ? "Equipe" : "Client")}
+          {comment.authorName || (isAdmin ? t("Équipe", "Team") : t("Client", "Client"))}
         </span>
         <span className="text-[10px] text-muted-foreground/40 font-body">
           {formatDateTime(comment.createdAt)}
