@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   Inbox, ChevronDown, ChevronRight, Loader2, Eye, Mail,
-  Plus, Package,
+  Sparkles, Package,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import {
 import { getModuleById } from "@/data/moduleCatalog";
 import { useConvertIntake } from "@/hooks/useConvertIntake";
 import { formatDateSwiss } from "@/lib/dateFormat";
+import { SmartProposalDialog } from "@/components/intake/SmartProposalDialog";
+import type { ProposalDraft } from "@/lib/proposalGenerator";
 
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   new:       { label: "Nouveau",  cls: "bg-red-100     dark:bg-red-500/15     text-red-600     dark:text-red-300" },
@@ -40,6 +43,7 @@ export function IntakeManager() {
   const [intakes, setIntakes] = useState<IntakeResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [proposalIntake, setProposalIntake] = useState<IntakeResponse | null>(null);
 
   const convertToProject = useConvertIntake((updated) => {
     setIntakes((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
@@ -48,9 +52,19 @@ export function IntakeManager() {
   useEffect(() => {
     listIntakeResponses()
       .then(setIntakes)
-      .catch(() => {})
+      .catch((e: unknown) => {
+        const message = e instanceof Error ? e.message : String(e ?? "");
+        if (message.includes("→ 401")) return;
+        toast.error("Impossible de charger les intakes — vérifie ta connexion.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleProposalConfirm(proposal: ProposalDraft) {
+    if (!proposalIntake) return;
+    setProposalIntake(null);
+    await convertToProject(proposalIntake, proposal);
+  }
 
   async function markReviewed(id: string) {
     try {
@@ -215,8 +229,13 @@ export function IntakeManager() {
                         </Button>
                       )}
                       {intake.status !== "converted" && (
-                        <Button size="sm" variant="default" className="text-xs gap-1.5" onClick={() => convertToProject(intake)}>
-                          <Plus size={12} /> Créer projet + devis
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="text-xs gap-1.5"
+                          onClick={() => setProposalIntake(intake)}
+                        >
+                          <Sparkles size={12} /> Aperçu &amp; créer le devis
                         </Button>
                       )}
                       {intake.clientEmail && (
@@ -235,6 +254,13 @@ export function IntakeManager() {
           })}
         </div>
       )}
+
+      <SmartProposalDialog
+        open={proposalIntake !== null}
+        intake={proposalIntake}
+        onClose={() => setProposalIntake(null)}
+        onConfirm={handleProposalConfirm}
+      />
     </section>
   );
 }
