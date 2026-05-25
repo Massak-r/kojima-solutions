@@ -6,5 +6,7 @@ export interface Client {
   phone?: string;
   address?: string;
   notes?: string;
+  /** Per-client hourly rate (CHF). Falls back to company default when null/undefined. */
+  hourlyRate?: number | null;
   createdAt: string;
 }

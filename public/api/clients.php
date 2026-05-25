@@ -2,6 +2,16 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAuthForWrites();
 
+// Inline auto-migration for hourly_rate (2026-05-25). Migration runner also
+// covers this via 20260525120000_time_billing_loop.sql; this guard makes a
+// fresh deploy work even before the runner is triggered.
+try {
+    $cols = $pdo->query('SHOW COLUMNS FROM clients')->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('hourly_rate', $cols)) {
+        $pdo->exec("ALTER TABLE clients ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL");
+    }
+} catch (Throwable $e) {}
+
 // __ Helper ______________________________________________
 
 function mapClient(array $row): array {
@@ -13,8 +23,17 @@ function mapClient(array $row): array {
         'phone'        => $row['phone'] ?? null,
         'address'      => $row['address'] ?? null,
         'notes'        => $row['notes'] ?? null,
+        'hourlyRate'   => isset($row['hourly_rate']) && $row['hourly_rate'] !== null ? (float)$row['hourly_rate'] : null,
         'createdAt'    => $row['created_at'],
     ];
+}
+
+/** Coerce a posted hourly rate into a positive number or NULL. */
+function normalizeRate($raw) {
+    if ($raw === null || $raw === '' || $raw === false) return null;
+    if (!is_numeric($raw)) return null;
+    $f = (float)$raw;
+    return $f > 0 ? $f : null;
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -41,8 +60,8 @@ if ($method === 'POST') {
     $data  = body();
     $newId = !empty($data['id']) ? $data['id'] : uuid();
     $pdo->prepare('
-        INSERT INTO clients (id, name, organization, email, phone, address, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clients (id, name, organization, email, phone, address, notes, hourly_rate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['name']         ?? '',
@@ -51,6 +70,7 @@ if ($method === 'POST') {
         $data['phone']        ?? null,
         $data['address']      ?? null,
         $data['notes']        ?? null,
+        normalizeRate($data['hourlyRate'] ?? null),
     ]);
     $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
     $stmt->execute([$newId]);
@@ -64,7 +84,7 @@ if ($method === 'PUT') {
     $data = body();
     $pdo->prepare('
         UPDATE clients SET
-            name = ?, organization = ?, email = ?, phone = ?, address = ?, notes = ?
+            name = ?, organization = ?, email = ?, phone = ?, address = ?, notes = ?, hourly_rate = ?
         WHERE id = ?
     ')->execute([
         $data['name']         ?? '',
@@ -73,6 +93,7 @@ if ($method === 'PUT') {
         $data['phone']        ?? null,
         $data['address']      ?? null,
         $data['notes']        ?? null,
+        normalizeRate($data['hourlyRate'] ?? null),
         $id,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');

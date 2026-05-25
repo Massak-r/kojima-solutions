@@ -15,6 +15,11 @@ export interface ObjectiveSession {
   durationSec?: number | null;
   note?:       string | null;
   accuracy?:   SessionAccuracy | null;
+  /** Set when the session has been attached to a quote/invoice via the
+   *  "Importer le temps tracé" flow. Once billed, the session no longer
+   *  surfaces in suggest_quote_lines. */
+  billedAt?:      string | null;
+  billedQuoteId?: string | null;
 }
 
 export interface WeekSummary {
@@ -86,4 +91,23 @@ export function getWeekSummary(source: ObjectiveSource, objectiveId: string) {
 /** Global focus summary across all objectives for the current ISO week. */
 export function getGlobalWeekSummary() {
   return apiFetch<GlobalWeekSummary>('objective_sessions.php?summary=week&all=1');
+}
+
+/** Lock a batch of sessions against a quote so they stop surfacing in
+ *  suggest_quote_lines. Called by the "Importer le temps tracé" flow. */
+export function markSessionsBilled(sessionIds: string[], quoteId: string) {
+  return apiFetch<{ ok: true; count: number }>(
+    'objective_sessions.php?action=mark_billed',
+    { method: 'POST', body: JSON.stringify({ sessionIds, quoteId }) },
+  );
+}
+
+/** Reverse markSessionsBilled for all sessions previously attached to this
+ *  quote. Triggered when a quote/invoice gets deleted, so the underlying
+ *  focus time becomes billable again. */
+export function unmarkSessionsBilled(quoteId: string) {
+  return apiFetch<{ ok: true }>(
+    'objective_sessions.php?action=unmark_billed',
+    { method: 'POST', body: JSON.stringify({ quoteId }) },
+  );
 }

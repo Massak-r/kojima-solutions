@@ -29,6 +29,9 @@ if (empty($objectives)) {
 // we split duration_sec equally across the pivot rows. Sessions with no
 // pivot row (legacy) keep the old behaviour: full duration → their bound
 // objective. The UNION ALL keeps both branches in one pass.
+// Skip sessions already attached to an invoice — they shouldn't reappear in
+// the suggest pipeline. The frontend imports lines and POSTs mark_billed in
+// the same transaction, so unbilled = available, billed = locked.
 $sessStmt = $pdo->prepare(
     "SELECT
         parent.id   AS objective_id,
@@ -51,6 +54,7 @@ $sessStmt = $pdo->prepare(
        AND s.source = 'admin'
        AND s.ended_at IS NOT NULL
        AND s.duration_sec IS NOT NULL
+       AND s.billed_at IS NULL
 
      UNION ALL
 
@@ -67,6 +71,7 @@ $sessStmt = $pdo->prepare(
        AND s.source = 'admin'
        AND s.ended_at IS NOT NULL
        AND s.duration_sec IS NOT NULL
+       AND s.billed_at IS NULL
        AND s.id NOT IN (SELECT session_id FROM objective_session_subtasks)"
 );
 $sessStmt->execute(['pid' => $projectId, 'pid2' => $projectId]);
@@ -109,16 +114,20 @@ ok([
     'projectTitle' => $project['title'],
     'clientId'     => $project['client_id'] ?? null,
     'totalHours'   => $totalHours,
+    // sessionIds is exposed at every level so the frontend knows exactly
+    // which rows to mark_billed when the user accepts a subset of lines.
     'breakdown'    => array_values(array_map(function ($o) {
         return [
-            'objective' => $o['text'],
-            'hours'     => round($o['totalSec'] / 3600, 2),
-            'sessions'  => count($o['sessions']),
-            'subtasks'  => array_values(array_map(function ($st) {
+            'objective'  => $o['text'],
+            'hours'      => round($o['totalSec'] / 3600, 2),
+            'sessions'   => count($o['sessions']),
+            'sessionIds' => array_keys($o['sessions']),
+            'subtasks'   => array_values(array_map(function ($st) {
                 return [
-                    'subtask'  => $st['text'],
-                    'hours'    => round($st['totalSec'] / 3600, 2),
-                    'sessions' => count($st['sessions']),
+                    'subtask'    => $st['text'],
+                    'hours'      => round($st['totalSec'] / 3600, 2),
+                    'sessions'   => count($st['sessions']),
+                    'sessionIds' => array_keys($st['sessions']),
                 ];
             }, $o['subtasks'])),
         ];

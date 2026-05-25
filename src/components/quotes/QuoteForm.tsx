@@ -17,7 +17,8 @@ import type { Client } from "@/types/client";
 import type { QuotePreset } from "@/types/companySettings";
 import { QuotePreview } from "./QuotePreview";
 import { RichTextEditor } from "./RichTextEditor";
-import { Plus, Trash2, Download, Save, Wand2, UserSearch, Check } from "lucide-react";
+import { TimeImportDialog } from "./TimeImportDialog";
+import { Plus, Trash2, Download, Save, Wand2, UserSearch, Check, Clock } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useClients } from "@/contexts/ClientsContext";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
@@ -86,6 +87,10 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   // Client picker — autofill name/email/company/address from an existing
   // client record, plus carry over the conditions from their most recent quote.
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
+
+  // Time-tracking import — opens TimeImportDialog so the operator turns
+  // tracked focus sessions into invoice line items in one click.
+  const [timeImportOpen, setTimeImportOpen] = useState(false);
 
   function applyClient(client: Client) {
     const lastForClient = quotes
@@ -473,14 +478,31 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
 
         {/* Line items */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-2">
+          <div className="flex items-center justify-between gap-2 border-b border-border pb-2 flex-wrap">
             <h3 className="text-sm font-semibold text-foreground">
               {isFr ? "Prestations" : "Line items"}
             </h3>
-            <Button type="button" variant="outline" size="sm" onClick={addLine}>
-              <Plus className="w-4 h-4 mr-1" />
-              {isFr ? "Ajouter" : "Add"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {data.projectId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTimeImportOpen(true)}
+                  className="text-emerald-700 dark:text-emerald-300 border-emerald-300/60 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                  title={isFr
+                    ? "Convertir le temps de focus tracé en lignes de facturation"
+                    : "Convert tracked focus time into invoice lines"}
+                >
+                  <Clock className="w-4 h-4 mr-1" />
+                  {isFr ? "Importer le temps tracé" : "Import tracked time"}
+                </Button>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                <Plus className="w-4 h-4 mr-1" />
+                {isFr ? "Ajouter" : "Add"}
+              </Button>
+            </div>
           </div>
           <div className="space-y-3">
             {data.lineItems.map((line) => (
@@ -754,6 +776,27 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           </div>
         </div>
       </div>
+
+      {data.projectId && (
+        <TimeImportDialog
+          open={timeImportOpen}
+          onClose={() => setTimeImportOpen(false)}
+          projectId={data.projectId}
+          quoteId={quoteId}
+          onImport={(newLines) => {
+            setData((prev) => {
+              // Drop the empty placeholder line if it's the only one left.
+              const stripped = prev.lineItems.length === 1
+                && prev.lineItems[0].description === ""
+                && prev.lineItems[0].quantity === 1
+                && prev.lineItems[0].unitPrice === 0
+                ? []
+                : prev.lineItems;
+              return { ...prev, lineItems: [...stripped, ...newLines] };
+            });
+          }}
+        />
+      )}
 
     </div>
   );

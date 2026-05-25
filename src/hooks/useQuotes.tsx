@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { toast } from "@/hooks/use-toast";
 import type { Quote } from "@/types/quote";
 import * as api from "@/api/quotes";
+import { unmarkSessionsBilled } from "@/api/objectiveSessions";
 
 const QUOTES_KEY = ["quotes"] as const;
 
@@ -74,6 +75,9 @@ export function useQuotes(): QuotesContextType {
         qc.setQueryData(QUOTES_KEY, before);
         notifyError("Suppression devis échouée", err);
       });
+    // Free any focus sessions previously imported into this quote so they can
+    // be billed again. Best-effort: failure here doesn't block delete.
+    unmarkSessionsBilled(id).catch(() => {});
   }, [qc]);
 
   const getQuote = useCallback(

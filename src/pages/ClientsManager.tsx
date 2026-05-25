@@ -11,9 +11,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 import type { Client } from "@/types/client";
 
-type FormState = Omit<Client, "id" | "createdAt">;
+type FormState = Omit<Client, "id" | "createdAt" | "hourlyRate"> & {
+  /** Editable as string so the empty/decimal state stays predictable in the form. */
+  hourlyRateInput: string;
+};
 
-const EMPTY: FormState = { name: "", organization: "", email: "", phone: "", address: "", notes: "" };
+const EMPTY: FormState = { name: "", organization: "", email: "", phone: "", address: "", notes: "", hourlyRateInput: "" };
 
 export default function ClientsManager() {
   const navigate = useNavigate();
@@ -51,6 +54,7 @@ export default function ClientsManager() {
       phone: client.phone ?? "",
       address: client.address ?? "",
       notes: client.notes ?? "",
+      hourlyRateInput: client.hourlyRate != null ? String(client.hourlyRate) : "",
     });
     setEditingId(client.id);
     setShowNew(false);
@@ -58,13 +62,17 @@ export default function ClientsManager() {
 
   function handleSave() {
     if (!form.name.trim()) return;
-    const payload: FormState = {
+    const rateTrimmed = form.hourlyRateInput.trim().replace(",", ".");
+    const rateValue = rateTrimmed === "" ? null : Number.parseFloat(rateTrimmed);
+    const hourlyRate = rateValue != null && Number.isFinite(rateValue) && rateValue > 0 ? rateValue : null;
+    const payload = {
       name: form.name.trim(),
       organization: form.organization?.trim() || undefined,
       email: form.email?.trim() || undefined,
       phone: form.phone?.trim() || undefined,
       address: form.address?.trim() || undefined,
       notes: form.notes?.trim() || undefined,
+      hourlyRate,
     };
     if (editingId) {
       updateClient(editingId, payload);
@@ -119,25 +127,25 @@ export default function ClientsManager() {
         {isFormOpen && (
           <div className="bg-card border border-border rounded-xl p-6 mb-6 space-y-4">
             <h2 className="font-display text-base font-semibold text-foreground">
-              {editingId ? "Edit Client" : "New Client"}
+              {editingId ? "Modifier le client" : "Nouveau client"}
             </h2>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Name *</Label>
+                <Label className="text-xs">Nom *</Label>
                 <Input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Full name"
+                  placeholder="Nom complet"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Organization</Label>
+                <Label className="text-xs">Organisation</Label>
                 <Input
                   value={form.organization ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, organization: e.target.value }))}
-                  placeholder="Company name"
+                  placeholder="Nom de l'entreprise"
                   autoComplete="organization"
                 />
               </div>
@@ -149,11 +157,11 @@ export default function ClientsManager() {
                   autoComplete="email"
                   value={form.email ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="email@example.com"
+                  placeholder="email@exemple.com"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Phone</Label>
+                <Label className="text-xs">Téléphone</Label>
                 <Input
                   type="tel"
                   inputMode="tel"
@@ -164,28 +172,43 @@ export default function ClientsManager() {
                 />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-xs">Address</Label>
+                <Label className="text-xs">Adresse</Label>
                 <Input
                   value={form.address ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  placeholder="Street, City, Country"
+                  placeholder="Rue, ville, pays"
                 />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs">Taux horaire personnalisé (CHF/h)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={form.hourlyRateInput}
+                  onChange={(e) => setForm((f) => ({ ...f, hourlyRateInput: e.target.value }))}
+                  placeholder="Laisser vide pour utiliser le taux par défaut"
+                />
+                <p className="text-[11px] text-muted-foreground/70 leading-snug">
+                  Utilisé par « Importer le temps tracé » lors de la création d'une facture. Si vide, le taux par défaut (Réglages) s'applique.
+                </p>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-xs">Notes</Label>
                 <Textarea
                   value={form.notes ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Internal notes about this client..."
+                  placeholder="Notes internes sur ce client…"
                   rows={2}
                   className="resize-none text-sm"
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2 border-t border-border">
-              <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={handleCancel}>Annuler</Button>
               <Button size="sm" onClick={handleSave} disabled={!form.name.trim()}>
-                {editingId ? "Update Client" : "Add Client"}
+                {editingId ? "Mettre à jour" : "Ajouter"}
               </Button>
             </div>
           </div>
@@ -236,6 +259,11 @@ export default function ClientsManager() {
                       {client.organization && (
                         <Badge variant="outline" className="text-[10px] text-muted-foreground">
                           {client.organization}
+                        </Badge>
+                      )}
+                      {client.hourlyRate != null && (
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300/60 dark:border-emerald-500/40">
+                          {client.hourlyRate} CHF/h
                         </Badge>
                       )}
                     </div>

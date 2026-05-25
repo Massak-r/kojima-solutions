@@ -23,6 +23,17 @@ try {
     if (!in_array('accuracy', $cols)) {
         $pdo->exec("ALTER TABLE objective_sessions ADD COLUMN accuracy ENUM('faster','on_target','slower') DEFAULT NULL");
     }
+    // Billing loop (2026-05-25): mark sessions imported into a quote so they
+    // stop surfacing in suggest_quote_lines. Tracked also by migration
+    // 20260525120000_time_billing_loop.sql; inline guard so a fresh deploy
+    // works even before the migration runner is triggered.
+    if (!in_array('billed_at', $cols)) {
+        $pdo->exec("ALTER TABLE objective_sessions ADD COLUMN billed_at DATETIME DEFAULT NULL");
+    }
+    if (!in_array('billed_quote_id', $cols)) {
+        $pdo->exec("ALTER TABLE objective_sessions ADD COLUMN billed_quote_id VARCHAR(36) DEFAULT NULL");
+        try { $pdo->exec("CREATE INDEX idx_sessions_billed ON objective_sessions (billed_at)"); } catch (Throwable $e) {}
+    }
     // Ensure objective_activity exists (this endpoint emits into it)
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS objective_activity (
@@ -82,16 +93,18 @@ function mapSession(array $row, ?PDO $pdo = null): array {
         }
     }
     return [
-        'id'          => $row['id'],
-        'source'      => $row['source'],
-        'objectiveId' => $row['objective_id'],
-        'subtaskId'   => $row['subtask_id'] ?? null,
-        'subtaskIds'  => $subtaskIds,
-        'startedAt'   => $row['started_at'],
-        'endedAt'     => $row['ended_at'] ?? null,
-        'durationSec' => $row['duration_sec'] !== null ? (int)$row['duration_sec'] : null,
-        'note'        => $row['note'] ?? null,
-        'accuracy'    => $row['accuracy'] ?? null,
+        'id'             => $row['id'],
+        'source'         => $row['source'],
+        'objectiveId'    => $row['objective_id'],
+        'subtaskId'      => $row['subtask_id'] ?? null,
+        'subtaskIds'     => $subtaskIds,
+        'startedAt'      => $row['started_at'],
+        'endedAt'        => $row['ended_at'] ?? null,
+        'durationSec'    => $row['duration_sec'] !== null ? (int)$row['duration_sec'] : null,
+        'note'           => $row['note'] ?? null,
+        'accuracy'       => $row['accuracy'] ?? null,
+        'billedAt'       => $row['billed_at'] ?? null,
+        'billedQuoteId'  => $row['billed_quote_id'] ?? null,
     ];
 }
 
@@ -255,6 +268,38 @@ if ($method === 'POST') {
         }
         $closed = closeSession($pdo, $id, $note);
         ok($closed ? mapSession($closed, $pdo) : ['ok' => true]);
+    }
+
+    // Mark a batch of sessions as billed against a quote. Used by the
+    // "Importer le temps tracé" flow on QuoteForm — locks the included
+    // focus time so it doesn't surface in suggest_quote_lines again.
+    // Body: { sessionIds: string[], quoteId: string }
+    if ($action === 'mark_billed') {
+        $data = body();
+        $sessionIds = $data['sessionIds'] ?? [];
+        $quoteId    = $data['quoteId']    ?? null;
+        if (!is_array($sessionIds) || empty($sessionIds)) fail('sessionIds required');
+        if (!is_string($quoteId) || $quoteId === '')    fail('quoteId required');
+
+        $placeholders = implode(',', array_fill(0, count($sessionIds), '?'));
+        $params = array_merge([$quoteId], $sessionIds);
+        $pdo->prepare("UPDATE objective_sessions
+                       SET billed_at = NOW(), billed_quote_id = ?
+                       WHERE id IN ($placeholders) AND billed_at IS NULL")
+            ->execute($params);
+        ok(['ok' => true, 'count' => count($sessionIds)]);
+    }
+
+    // Unmark all sessions previously billed to this quote. Lets the user
+    // delete an invoice and have the underlying focus time become billable
+    // again. Body: { quoteId: string }
+    if ($action === 'unmark_billed') {
+        $data    = body();
+        $quoteId = $data['quoteId'] ?? null;
+        if (!is_string($quoteId) || $quoteId === '') fail('quoteId required');
+        $pdo->prepare('UPDATE objective_sessions SET billed_at = NULL, billed_quote_id = NULL WHERE billed_quote_id = ?')
+            ->execute([$quoteId]);
+        ok(['ok' => true]);
     }
 
     // Start
