@@ -317,6 +317,7 @@ export function TriageTab() {
               onFile={(fid) => fileDoc(doc.id, fid)}
               onToggleUrgent={() => toggleUrgent(doc.id, doc.urgent)}
               onRename={(t) => renameDoc(doc.id, t)}
+              onChanged={() => { void invalidate(); }}
               onDelete={() => removeDoc(doc.id)}
             />
           ))}

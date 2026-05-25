@@ -169,3 +169,21 @@ export function fetchSharedFolder(token: string) {
 export function getFolderZipUrl(token: string): string {
   return `${BASE}/api/admin_folder_zip.php?token=${encodeURIComponent(token)}`;
 }
+
+// ── Auto-classify ─────────────────────────────────────────────
+
+export interface ClassifyPdfPayload {
+  id:              string;
+  filename:        string;
+  currentTitle:    string;
+  currentCategory: string;
+  extractedText:   string;
+  fileSize:        number;
+}
+
+/** Pulls the extracted text + metadata for a PDF. The /classify-pdf slash
+ *  command consumes this via MCP. The triage UI also consumes it client-side
+ *  for heuristic auto-classification (no LLM round-trip). */
+export function classifyPdf(docId: string) {
+  return apiFetch<ClassifyPdfPayload>(`auto/classify_pdf.php?doc_id=${encodeURIComponent(docId)}`);
+}

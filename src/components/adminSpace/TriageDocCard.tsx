@@ -6,12 +6,17 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
-  FileText, Eye, Trash2, Zap, FolderInput, Check, X, Pencil,
+  FileText, Eye, Trash2, Zap, FolderInput, Check, X, Pencil, Sparkles, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AdminDocItem, DocFolder } from "@/api/adminDocs";
+import { toast } from "sonner";
+import { useClients } from "@/contexts/ClientsContext";
+import { classifyPdf, updateDoc, type AdminDocItem, type DocFolder } from "@/api/adminDocs";
+import { classifyDocument, type ClassifySuggestion, type DocCategory } from "@/lib/docClassifier";
 import { folderOptions, formatBytes, formatDate } from "./helpers";
 import { DocPreviewSheet } from "./DocPreviewSheet";
+
+const CATEGORIES: DocCategory[] = ["Comptabilité", "Contrats", "Administratif", "Technique", "RH", "Clients", "Autre"];
 
 interface TriageDocCardProps {
   doc: AdminDocItem;
@@ -23,16 +28,25 @@ interface TriageDocCardProps {
   onToggleUrgent: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
+  /** Refresh the parent list after the panel applies its own mutations. */
+  onChanged?: () => void;
 }
 
 /** A single pending (to-sort) document in the triage queue. */
 export function TriageDocCard({
-  doc, folders, viewUrl, busy, onFile, onToggleUrgent, onRename, onDelete,
+  doc, folders, viewUrl, busy, onFile, onToggleUrgent, onRename, onDelete, onChanged,
 }: TriageDocCardProps) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(doc.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [classifyState, setClassifyState] = useState<
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "ready"; suggestion: ClassifySuggestion; editing: ClassifySuggestion }
+    | { kind: "applying" }
+  >({ kind: "idle" });
+  const { clients } = useClients();
   const opts = folderOptions(folders);
 
   function saveTitle() {
@@ -43,6 +57,59 @@ export function TriageDocCard({
   function cancelEdit() {
     setTitle(doc.title);
     setEditing(false);
+  }
+
+  async function runAutoClassify() {
+    setClassifyState({ kind: "loading" });
+    try {
+      const payload = await classifyPdf(doc.id);
+      const suggestion = classifyDocument({
+        filename: payload.filename || doc.originalName || doc.title,
+        text: payload.extractedText,
+        currentTitle: doc.title,
+        folders,
+        clients,
+      });
+      setClassifyState({ kind: "ready", suggestion, editing: suggestion });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "";
+      if (!message.includes("→ 401")) {
+        toast.error("Auto-classement impossible — vérifie ta connexion.");
+      }
+      setClassifyState({ kind: "idle" });
+    }
+  }
+
+  async function applySuggestion() {
+    if (classifyState.kind !== "ready") return;
+    const { editing } = classifyState;
+    setClassifyState({ kind: "applying" });
+    try {
+      // Single PATCH so the UI sees one commit, not three. Filing into a folder
+      // also flips status from to_sort → filed; without a folder we just
+      // rename + retag and leave the doc in triage for manual filing later.
+      await updateDoc(doc.id, {
+        title:    editing.title,
+        category: editing.category,
+        ...(editing.folderId
+          ? { folderId: editing.folderId, status: "filed", urgent: false }
+          : {}),
+      });
+      if (editing.folderId) {
+        const folderName = folders.find((f) => f.id === editing.folderId)?.name ?? "le dossier";
+        toast.success(`Classé dans « ${folderName} »`);
+      } else {
+        toast.success("Métadonnées mises à jour");
+      }
+      onChanged?.();
+      setClassifyState({ kind: "idle" });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Échec de l'application";
+      if (!message.includes("→ 401")) {
+        toast.error("Échec de l'application");
+      }
+      setClassifyState({ kind: "ready", suggestion: classifyState.suggestion, editing: classifyState.editing });
+    }
   }
 
   return (
@@ -126,9 +193,151 @@ export function TriageDocCard({
         </Select>
       </div>
 
+      {/* Auto-classify suggestion panel */}
+      {classifyState.kind === "ready" || classifyState.kind === "applying" ? (
+        <div className="rounded-xl border border-violet-200 dark:border-violet-500/30 bg-violet-50/60 dark:bg-violet-500/10 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-body font-semibold text-violet-700 dark:text-violet-300">
+              <Sparkles size={12} />
+              Suggestion ·{" "}
+              <span className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px]",
+                classifyState.suggestion.confidence === "high"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                  : classifyState.suggestion.confidence === "medium"
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                  : "bg-muted text-muted-foreground",
+              )}>
+                {classifyState.suggestion.confidence === "high" ? "Confiance élevée"
+                 : classifyState.suggestion.confidence === "medium" ? "Confiance moyenne"
+                 : "Faible confiance"}
+              </span>
+            </div>
+            <button
+              onClick={() => setClassifyState({ kind: "idle" })}
+              className="text-muted-foreground hover:text-foreground p-1"
+              aria-label="Fermer la suggestion"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Titre</label>
+              <Input
+                value={classifyState.editing.title}
+                onChange={(e) => setClassifyState((s) =>
+                  s.kind === "ready"
+                    ? { ...s, editing: { ...s.editing, title: e.target.value } }
+                    : s,
+                )}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Catégorie</label>
+              <Select
+                value={classifyState.editing.category}
+                onValueChange={(v) => setClassifyState((s) =>
+                  s.kind === "ready"
+                    ? { ...s, editing: { ...s.editing, category: v as DocCategory } }
+                    : s,
+                )}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Dossier cible</label>
+              <Select
+                value={classifyState.editing.folderId ?? "__none__"}
+                onValueChange={(v) => setClassifyState((s) =>
+                  s.kind === "ready"
+                    ? { ...s, editing: { ...s.editing, folderId: v === "__none__" ? null : v } }
+                    : s,
+                )}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Laisser dans la boîte de tri" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Laisser à trier (rien faire)</SelectItem>
+                  {opts.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {classifyState.suggestion.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {classifyState.suggestion.tags.map((t) => (
+                <Badge key={t} variant="outline" className="text-[10px] bg-card/60">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {classifyState.suggestion.clientId && (
+            <p className="text-[11px] font-body text-muted-foreground">
+              Client détecté :{" "}
+              <span className="text-foreground font-medium">
+                {clients.find((c) => c.id === classifyState.suggestion.clientId)?.name ?? "—"}
+              </span>
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs font-body"
+              onClick={() => setClassifyState({ kind: "idle" })}
+              disabled={classifyState.kind === "applying"}
+            >
+              Annuler
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs font-body"
+              onClick={applySuggestion}
+              disabled={classifyState.kind === "applying"}
+            >
+              {classifyState.kind === "applying"
+                ? <Loader2 size={12} className="animate-spin mr-1.5" />
+                : <Check size={12} className="mr-1.5" />}
+              Appliquer
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Action row — bigger tap targets, always visible on every breakpoint. */}
       <div className="flex items-center justify-between gap-2 -mb-1">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={runAutoClassify}
+            disabled={busy || classifyState.kind === "loading" || classifyState.kind === "applying"}
+            className={cn(
+              "px-3 py-2 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 text-xs font-body font-medium",
+              classifyState.kind === "ready"
+                ? "text-primary bg-primary/10 hover:bg-primary/20"
+                : "text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-500/15",
+            )}
+            title="Suggérer titre + catégorie + dossier à partir du contenu"
+            aria-label="Auto-classer"
+          >
+            {classifyState.kind === "loading"
+              ? <Loader2 size={14} className="animate-spin" />
+              : <Sparkles size={14} />}
+            <span className="hidden sm:inline">
+              {classifyState.kind === "ready" ? "Revoir suggestion" : "Auto-classer"}
+            </span>
+          </button>
           <button
             onClick={onToggleUrgent}
             disabled={busy}
