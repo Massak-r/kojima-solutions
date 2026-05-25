@@ -36,6 +36,7 @@ import {
   getRemainingAmount, isPlanCompleted,
   currentYearMonth, formatYearMonth, getMonthOffset,
 } from "@/types/paymentPlan";
+import { ForecastPanel } from "./ForecastPanel";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -335,6 +336,9 @@ export function TresorerieTab() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+
+      {/* ── Forecast (6-month balance projection + runway) ── */}
+      <ForecastPanel plans={plans} costs={costs} />
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
