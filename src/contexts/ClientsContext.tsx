@@ -12,6 +12,8 @@ interface ClientsContextValue {
   addClient: (data: Omit<Client, "id" | "createdAt">) => Client;
   updateClient: (id: string, data: Partial<Omit<Client, "id" | "createdAt">>) => void;
   deleteClient: (id: string) => void;
+  /** Re-inserts a previously-deleted client preserving its original id (used by undo-toast). */
+  restoreClient: (client: Client) => void;
   getClient: (id: string) => Client | undefined;
 }
 
@@ -79,10 +81,21 @@ export function useClients(): ClientsContextValue {
       });
   }, [qc]);
 
+  const restoreClient = useCallback((client: Client) => {
+    setCache(qc, (list) => list.some((c) => c.id === client.id) ? list : [...list, client]);
+    // PHP backend respects client-supplied id when present (clients.php:42).
+    api.createClient(client)
+      .then(() => qc.invalidateQueries({ queryKey: CLIENTS_KEY }))
+      .catch((err) => {
+        setCache(qc, (list) => list.filter((c) => c.id !== client.id));
+        notifyError("Restauration client échouée", err);
+      });
+  }, [qc]);
+
   const getClient = useCallback(
     (id: string) => clients.find((c) => c.id === id),
     [clients],
   );
 
-  return { clients, loading: isLoading, addClient, updateClient, deleteClient, getClient };
+  return { clients, loading: isLoading, addClient, updateClient, deleteClient, restoreClient, getClient };
 }

@@ -21,6 +21,10 @@ import { createPhase as apiCreatePhase, updatePhase as apiUpdatePhase, deletePha
 import { getProjectModules } from "@/api/modules";
 import { ModuleResolver } from "@/lib/moduleResolver";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { TimelineTask, SubTask, FeedbackRequest } from "@/types/timeline";
 import type { ProjectPhase } from "@/types/phase";
 
@@ -51,6 +55,7 @@ export default function ProjectSteps() {
   const [showStakeholders, setShowStakeholders] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [moduleTaskPreview, setModuleTaskPreview] = useState<TimelineTask[]>([]);
+  const [phaseToDelete, setPhaseToDelete] = useState<ProjectPhase | null>(null);
 
   // Load phases
   useEffect(() => {
@@ -390,7 +395,7 @@ export default function ProjectSteps() {
                         }}
                         onTitleChange={(t) => handleUpdatePhaseTitle(phase.id, t)}
                         onBudgetChange={(b) => handleUpdatePhaseBudget(phase.id, b)}
-                        onDelete={() => handleDeletePhase(phase.id)}
+                        onDelete={() => setPhaseToDelete(phase)}
                       />
 
                       {!isCollapsed && (
@@ -496,6 +501,43 @@ export default function ProjectSteps() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={phaseToDelete !== null}
+        onOpenChange={(open) => { if (!open) setPhaseToDelete(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Supprimer la phase «{" "}{phaseToDelete?.title}{" "}» ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const phaseId = phaseToDelete?.id;
+                const taskCount = phaseId ? (tasksByPhase[phaseId]?.length ?? 0) : 0;
+                if (taskCount === 0) {
+                  return "Cette phase ne contient aucune étape. Elle sera supprimée définitivement.";
+                }
+                return `${taskCount} étape${taskCount > 1 ? "s" : ""} ${taskCount > 1 ? "seront déplacées" : "sera déplacée"} dans « Sans phase ». La phase elle-même sera supprimée définitivement.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (phaseToDelete) {
+                  handleDeletePhase(phaseToDelete.id);
+                  setPhaseToDelete(null);
+                }
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              Supprimer la phase
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

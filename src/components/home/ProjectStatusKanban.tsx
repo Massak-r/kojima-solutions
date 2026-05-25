@@ -22,6 +22,7 @@ import { useState, useMemo, memo } from "react";
 import { type ProjectData, type ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
+import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 
 const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
   { status: "draft",       label: "Brouillon",  accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
@@ -38,10 +39,16 @@ const COLUMNS: { status: StoredProject["status"]; label: string; accent: string;
 export function ProjectStatusKanban() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { projects, loading, deleteProject, updateProject } = useProjects();
+  const { projects, loading, deleteProject, restoreProject, updateProject } = useProjects();
   const { open: openQuickCreate } = useQuickCreate();
   const { getClient } = useClients();
   const { quotes } = useQuotes();
+
+  const { deleteWithUndo: deleteProjectWithUndo } = useUndoableDelete<StoredProject>({
+    hardDelete: (id) => deleteProject(id),
+    restore: (project) => restoreProject(project),
+    message: (p) => `Projet « ${p.title || "Sans titre"} » supprimé`,
+  });
 
   const toInvoice = useMemo(
     () => quotes
@@ -259,7 +266,7 @@ export function ProjectStatusKanban() {
                           project={project}
                           clientDisplayName={clientName(project)}
                           onClick={() => navigate(`/project/${project.id}/brief`)}
-                          onDelete={() => deleteProject(project.id)}
+                          onDelete={() => deleteProjectWithUndo(project)}
                           onCopyLink={() => handleCopyLink(project)}
                           isDragging={activeId === project.id}
                         />
@@ -363,8 +370,6 @@ interface ProjectCardProps {
 const ProjectCard = memo(function ProjectCard({
   project, clientDisplayName, onClick, onDelete, onCopyLink, dragHandleProps, isOverlay,
 }: ProjectCardProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const pendingResponses = (project.tasks || [])
     .flatMap((t) => t.feedbackRequests || [])
     .filter((r) => r.resolved && r.response).length;
@@ -391,20 +396,14 @@ const ProjectCard = memo(function ProjectCard({
         >
           <Link2 size={12} />
         </button>
-        {confirmDelete ? (
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="px-2 py-0.5 rounded text-[10px] bg-destructive text-white font-semibold">Supprimer</button>
-            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }} className="px-2 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground">Annuler</button>
-          </div>
-        ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
-            title="Supprimer le projet"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
+          title="Supprimer le projet"
+          aria-label={`Supprimer le projet ${project.title || "sans titre"}`}
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
 
       <h3 className="font-display text-sm font-semibold text-foreground mb-1 px-5 line-clamp-2">{project.title}</h3>

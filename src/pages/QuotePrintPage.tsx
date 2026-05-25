@@ -1,8 +1,10 @@
 import { useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuotes } from "@/hooks/useQuotes";
 import { QuotePreview } from "@/components/quotes/QuotePreview";
 import { buildQuoteFilename } from "@/types/quote";
+
+const SUPPORT_EMAIL = "massaki@kojima-solutions.ch";
 
 export default function QuotePrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,13 +40,30 @@ export default function QuotePrintPage() {
   }, [quote]);
 
   if (!id || !quote) {
+    const subject = encodeURIComponent(`Lien devis introuvable (ref: ${id ?? "n/a"})`);
+    const body = encodeURIComponent(
+      `Bonjour,\n\nLe lien que j'ai reçu pour le devis ${id ?? "(identifiant manquant)"} ne fonctionne pas.\n\nMerci de me transmettre une nouvelle version.\n\nCordialement,`,
+    );
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500 mb-4">Document not found.</p>
-          <Link to="/quotes" className="text-blue-600 hover:underline text-sm">
-            Back to quotes
-          </Link>
+      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+        <div className="max-w-md text-center space-y-5">
+          <h1 className="font-display text-2xl font-semibold text-gray-900">
+            Lien indisponible
+          </h1>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            Ce devis n'est plus accessible. Il a peut-être été supprimé ou le lien est incorrect.
+          </p>
+          <div className="space-y-2">
+            <a
+              href={`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`}
+              className="inline-block w-full sm:w-auto px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+            >
+              Contacter Kojima Solutions
+            </a>
+            <p className="text-xs text-gray-400">
+              ou écrivez à {SUPPORT_EMAIL}
+            </p>
+          </div>
         </div>
       </div>
     );

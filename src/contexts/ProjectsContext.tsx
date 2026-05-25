@@ -30,6 +30,8 @@ interface ProjectsContextValue {
   createProject: (title?: string) => StoredProject;
   updateProject: (id: string, updates: Partial<ProjectData>) => void;
   deleteProject: (id: string) => void;
+  /** Re-inserts a previously-deleted project preserving its original id (used by undo-toast). */
+  restoreProject: (project: StoredProject) => void;
   getProject: (id: string) => StoredProject | undefined;
   addFeedback: (projectId: string, taskId: string, feedback: Omit<TaskFeedback, "id" | "createdAt">) => void;
   updateFeedback: (projectId: string, feedbackId: string, updates: Partial<Pick<TaskFeedback, "comment" | "status" | "author">>) => void;
@@ -132,6 +134,16 @@ export function useProjects(): ProjectsContextValue {
       (prev) => prev.filter((p) => p.id !== id),
       () => api.deleteProject(id),
       "Suppression projet échouée",
+    );
+  }, [qc]);
+
+  const restoreProject = useCallback((project: StoredProject) => {
+    applyAndSync(
+      qc,
+      (prev) => prev.some((p) => p.id === project.id) ? prev : [...prev, project],
+      // PHP backend respects client-supplied id when present (projects.php:280).
+      () => api.createProject(project),
+      "Restauration projet échouée",
     );
   }, [qc]);
 
@@ -502,6 +514,7 @@ export function useProjects(): ProjectsContextValue {
     createProject,
     updateProject,
     deleteProject,
+    restoreProject,
     getProject,
     addFeedback,
     updateFeedback,

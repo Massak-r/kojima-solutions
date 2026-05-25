@@ -165,12 +165,31 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   }
 
   function removeLine(id: string) {
-    setData((prev) => ({
-      ...prev,
-      lineItems: prev.lineItems.filter((l) => l.id !== id).length
-        ? prev.lineItems.filter((l) => l.id !== id)
-        : [createEmptyLineItem()],
-    }));
+    const index = data.lineItems.findIndex((l) => l.id === id);
+    if (index === -1) return;
+    const removed = data.lineItems[index];
+    const nextItems = data.lineItems.filter((l) => l.id !== id);
+    const finalItems = nextItems.length === 0 ? [createEmptyLineItem()] : nextItems;
+
+    setData((prev) => ({ ...prev, lineItems: finalItems }));
+
+    toast.success(siteT("Ligne supprimée", "Line removed"), {
+      duration: 6000,
+      action: {
+        label: siteT("Annuler", "Undo"),
+        onClick: () => {
+          setData((curr) => {
+            // If the placeholder line is still empty and untouched, drop it before re-inserting.
+            const stripped = curr.lineItems.length === 1 && curr.lineItems[0].description === "" && curr.lineItems[0].quantity === 1 && curr.lineItems[0].unitPrice === 0
+              ? []
+              : curr.lineItems;
+            const restored = [...stripped];
+            restored.splice(Math.min(index, restored.length), 0, removed);
+            return { ...curr, lineItems: restored };
+          });
+        },
+      },
+    });
   }
 
   async function handleDownloadPdf() {

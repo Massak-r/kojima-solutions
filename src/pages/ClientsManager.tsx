@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Pencil, Trash2, Building2, Mail, Phone, MapPin, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { useInlineDelete } from "@/hooks/useInlineDelete";
+import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 import type { Client } from "@/types/client";
 
 type FormState = Omit<Client, "id" | "createdAt">;
@@ -17,12 +17,17 @@ const EMPTY: FormState = { name: "", organization: "", email: "", phone: "", add
 
 export default function ClientsManager() {
   const navigate = useNavigate();
-  const { clients, addClient, updateClient, deleteClient } = useClients();
+  const { clients, addClient, updateClient, deleteClient, restoreClient } = useClients();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [searchQuery, setSearchQuery] = useState("");
-  const { confirmingId, requestDelete, confirmDelete, cancelDelete } = useInlineDelete();
+
+  const { deleteWithUndo } = useUndoableDelete<Client>({
+    hardDelete: (id) => deleteClient(id),
+    restore: (client) => restoreClient(client),
+    message: (c) => `Client « ${c.name} » supprimé`,
+  });
 
   const filteredClients = useMemo(() => {
     if (!searchQuery.trim()) return clients;
@@ -254,29 +259,22 @@ export default function ClientsManager() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {confirmingId === client.id ? (
-                    <>
-                      <Button size="sm" variant="destructive" className="h-8 px-3 text-xs" onClick={() => confirmDelete(() => deleteClient(client.id))}>Supprimer</Button>
-                      <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={cancelDelete}>Annuler</Button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => startEdit(client)}
-                        className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => requestDelete(client.id)}
-                        className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={() => startEdit(client)}
+                    className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                    title="Modifier"
+                    aria-label={`Modifier ${client.name}`}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => deleteWithUndo(client)}
+                    className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Supprimer"
+                    aria-label={`Supprimer ${client.name}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}
