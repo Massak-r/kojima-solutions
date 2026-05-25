@@ -289,9 +289,18 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
   useEffect(() => {
     Promise.all([listRegistryItems(), listFolders()])
       .then(([e, f]) => { setEntries(e); setFolders(f); })
-      .catch(() => {})
+      .catch((e: unknown) => {
+        // 401s are handled globally by AuthContext (redirect to /login).
+        const message = e instanceof Error ? e.message : String(e ?? "");
+        if (message.includes("→ 401")) return;
+        toast({
+          title: "Registre indisponible",
+          description: "Impossible de charger le registre. Vérifie ta connexion.",
+          variant: "destructive",
+        });
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
 

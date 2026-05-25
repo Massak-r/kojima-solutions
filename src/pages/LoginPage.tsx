@@ -1,16 +1,28 @@
 import { useState } from "react";
-import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 
+function sanitizeFrom(raw: string | null | undefined): string | null {
+  // Only accept same-origin app paths so a crafted /login?from=https://evil
+  // can't bounce the user off-site after authentication.
+  if (!raw) return null;
+  if (!raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null;
+  return raw;
+}
+
 export default function LoginPage() {
   const { isAdmin, loginAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from ?? "/home";
+  const [searchParams] = useSearchParams();
+  const stateFrom = sanitizeFrom((location.state as { from?: string } | null)?.from ?? null);
+  const queryFrom = sanitizeFrom(searchParams.get("from"));
+  const from = stateFrom ?? queryFrom ?? "/home";
 
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);

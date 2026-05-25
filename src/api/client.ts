@@ -3,6 +3,7 @@
 // In production the SPA and API live on the same origin so no prefix is needed.
 
 import { getClientSession } from "@/lib/auth";
+import { notifyAdminUnauthorized } from "@/lib/adminAuthBridge";
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -56,6 +57,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (!res.ok) {
+    // 401 on an admin endpoint = the HttpOnly session cookie is missing or
+    // expired. The localStorage flag can drift from the cookie (cookie
+    // expires after 30 days, localStorage doesn't), and silent catches
+    // downstream were hiding this on mobile PWA. Notify the AuthContext so
+    // it clears the stale flag, toasts, and redirects to /login.
+    if (res.status === 401 && !path.startsWith('admin_login') && !path.startsWith('admin_probe')) {
+      notifyAdminUnauthorized();
+    }
     const text = await res.text().catch(() => '');
     throw new Error(`API ${path} → ${res.status}: ${text}`);
   }

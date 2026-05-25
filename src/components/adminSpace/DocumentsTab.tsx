@@ -62,9 +62,21 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     Promise.all([listDocs(), listFolders()])
       // 'to_sort' docs live in the À-trier scan inbox, not the folder tree.
       .then(([d, f]) => { setDocs(d.filter(doc => doc.status !== "to_sort")); setFolders(f); })
-      .catch(() => {})
+      .catch((e: unknown) => {
+        // 401s are handled globally by AuthContext (redirect to /login). For
+        // everything else, surface the failure so the user doesn't sit in
+        // front of an empty list wondering whether nothing exists or the
+        // request silently failed.
+        const message = e instanceof Error ? e.message : String(e ?? "");
+        if (message.includes("→ 401")) return;
+        toast({
+          title: "Documents indisponibles",
+          description: "Impossible de charger les documents. Vérifie ta connexion.",
+          variant: "destructive",
+        });
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   function getFolderPath(folderId: string | null): DocFolder[] {
     const path: DocFolder[] = [];
@@ -300,8 +312,12 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
       const updated = new Map(updates.map(u => [u.id, u.sortOrder]));
       return prev.map(f => updated.has(f.id) ? { ...f, sortOrder: updated.get(f.id)! } : f);
     });
-    updates.forEach(f => updateFolder(f.id, { sortOrder: f.sortOrder }).catch(() => {}));
-  }, [subFolders]);
+    updates.forEach(f => updateFolder(f.id, { sortOrder: f.sortOrder }).catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e ?? "");
+      if (message.includes("→ 401")) return;
+      toast({ title: "Réordonnement non sauvegardé", variant: "destructive" });
+    }));
+  }, [subFolders, toast]);
 
   const handleDocDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -316,8 +332,12 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
       const updated = new Map(updates.map(u => [u.id, u.sortOrder]));
       return prev.map(d => updated.has(d.id) ? { ...d, sortOrder: updated.get(d.id)! } : d);
     });
-    updates.forEach(u => updateDoc(u.id, { sortOrder: u.sortOrder }).catch(() => {}));
-  }, [visibleDocs]);
+    updates.forEach(u => updateDoc(u.id, { sortOrder: u.sortOrder }).catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e ?? "");
+      if (message.includes("→ 401")) return;
+      toast({ title: "Réordonnement non sauvegardé", variant: "destructive" });
+    }));
+  }, [visibleDocs, toast]);
 
   const sortedVisibleDocs = useMemo(
     () => [...visibleDocs].sort((a, b) => a.sortOrder - b.sortOrder),

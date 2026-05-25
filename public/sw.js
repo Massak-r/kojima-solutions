@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kojima-space-v12';
+const CACHE_NAME = 'kojima-space-v13';
 const ASSETS_CACHE = 'kojima-assets-v1';
 const API_CACHE = 'kojima-api-v2';
 const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour
