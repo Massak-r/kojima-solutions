@@ -16,9 +16,9 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS meeting_notes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )");
 
-// Inline auto-migration for the Claude-MCP intent flag (migration
-// 20260526180000_meeting_notes_claude_intent.sql formalises it). Lets a
-// fresh deploy work even before the migration runner is triggered.
+// Inline auto-migration for the Claude-MCP intent flag (migrations
+// 20260526180000 + 20260526200000 formalise the columns). Lets a fresh
+// deploy work even before the migration runner is triggered.
 try {
     $cols = $pdo->query('SHOW COLUMNS FROM meeting_notes')->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('claude_intent', $cols)) {
@@ -28,18 +28,22 @@ try {
         $pdo->exec("ALTER TABLE meeting_notes ADD COLUMN claude_requested_at DATETIME DEFAULT NULL");
         try { $pdo->exec("CREATE INDEX idx_meeting_notes_claude ON meeting_notes (claude_requested_at)"); } catch (Throwable $e) {}
     }
+    if (!in_array('claude_target_objective_id', $cols)) {
+        $pdo->exec("ALTER TABLE meeting_notes ADD COLUMN claude_target_objective_id VARCHAR(36) DEFAULT NULL");
+    }
 } catch (Throwable $e) {}
 
 function mapNote(array $r): array {
     return [
-        'id'                 => $r['id'],
-        'projectId'          => $r['project_id'],
-        'title'              => $r['title'] ?? '',
-        'content'            => $r['content'] ?? '',
-        'meetingDate'        => $r['meeting_date'],
-        'createdAt'          => $r['created_at'],
-        'claudeIntent'       => $r['claude_intent'] ?? null,
-        'claudeRequestedAt'  => $r['claude_requested_at'] ?? null,
+        'id'                       => $r['id'],
+        'projectId'                => $r['project_id'],
+        'title'                    => $r['title'] ?? '',
+        'content'                  => $r['content'] ?? '',
+        'meetingDate'              => $r['meeting_date'],
+        'createdAt'                => $r['created_at'],
+        'claudeIntent'             => $r['claude_intent'] ?? null,
+        'claudeRequestedAt'        => $r['claude_requested_at'] ?? null,
+        'claudeTargetObjectiveId'  => $r['claude_target_objective_id'] ?? null,
     ];
 }
 
@@ -90,16 +94,25 @@ if ($method === 'PUT' && $id) {
 
     // Targeted intent toggle: lets the operator (and the MCP "clear"
     // call from Claude Code) flip the flag without resending the whole
-    // note body. Detected by the presence of `claudeIntent` key alone.
-    if (array_key_exists('claudeIntent', $data) && !isset($data['title']) && !isset($data['content']) && !isset($data['meetingDate'])) {
-        $intent = $data['claudeIntent'];
-        if ($intent === null || $intent === '') {
-            $pdo->prepare('UPDATE meeting_notes SET claude_intent = NULL, claude_requested_at = NULL WHERE id = ?')
+    // note body. Detected by the presence of `claudeIntent` key alone
+    // (claudeTargetObjectiveId may travel with it). Accepts both keys.
+    $intentTouched = array_key_exists('claudeIntent', $data);
+    $targetTouched = array_key_exists('claudeTargetObjectiveId', $data);
+    if (($intentTouched || $targetTouched) && !isset($data['title']) && !isset($data['content']) && !isset($data['meetingDate'])) {
+        $intent = $intentTouched ? $data['claudeIntent'] : null;
+        $target = $targetTouched ? $data['claudeTargetObjectiveId'] : null;
+        $intentBlank = !$intentTouched || $intent === null || $intent === '';
+
+        if ($intentBlank) {
+            // Clearing the intent also clears the target — they only exist
+            // together (the pending state).
+            $pdo->prepare('UPDATE meeting_notes SET claude_intent = NULL, claude_requested_at = NULL, claude_target_objective_id = NULL WHERE id = ?')
                 ->execute([$id]);
         } else {
             $intent = substr((string)$intent, 0, 255);
-            $pdo->prepare('UPDATE meeting_notes SET claude_intent = ?, claude_requested_at = NOW() WHERE id = ?')
-                ->execute([$intent, $id]);
+            $targetClean = (is_string($target) && preg_match('/^[0-9a-f-]{36}$/i', $target)) ? $target : null;
+            $pdo->prepare('UPDATE meeting_notes SET claude_intent = ?, claude_requested_at = NOW(), claude_target_objective_id = ? WHERE id = ?')
+                ->execute([$intent, $targetClean, $id]);
         }
         $stmt = $pdo->prepare('SELECT * FROM meeting_notes WHERE id = ?');
         $stmt->execute([$id]);

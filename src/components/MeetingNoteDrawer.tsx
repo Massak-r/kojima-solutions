@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useObjectives } from "@/hooks/useObjectives";
+import type { UnifiedObjective } from "@/api/objectiveSource";
 import {
   listMeetingNotes,
   createMeetingNote,
@@ -45,7 +50,19 @@ interface Props {
 export function MeetingNoteDrawer({ projectId }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: objectives = [] } = useObjectives();
   const [open, setOpen] = useState(false);
+
+  // Surface objectives linked to this project first — that's almost always
+  // the target. Fall back to "all active objectives" for cases where no
+  // objective is linked yet (the user can still pick one and the skill
+  // will link the project ↔ objective on first run).
+  const targetObjectives = useMemo(() => {
+    const active = objectives.filter((o) => o.isObjective && !o.completed);
+    const linked = active.filter((o) => o.linkedProjectId === projectId);
+    const rest   = active.filter((o) => o.linkedProjectId !== projectId);
+    return { linked, rest };
+  }, [objectives, projectId]);
   const [notes, setNotes] = useState<MeetingNote[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -72,6 +89,7 @@ export function MeetingNoteDrawer({ projectId }: Props) {
    *  in which case the user must save first). */
   const [intentPromptId, setIntentPromptId] = useState<string | null>(null);
   const [intentValue, setIntentValue] = useState("");
+  const [intentTargetId, setIntentTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -139,14 +157,15 @@ export function MeetingNoteDrawer({ projectId }: Props) {
 
   /** Flag a note for Claude Code MCP processing. The slash command
    *  `/process-meeting-notes` picks them up via the pending_claude endpoint. */
-  async function flagForClaude(id: string, intent: string) {
+  async function flagForClaude(id: string, intent: string, targetObjectiveId: string | null) {
     const trimmed = intent.trim();
     if (!trimmed) return;
     try {
-      const updated = await setMeetingNoteClaudeIntent(id, trimmed);
+      const updated = await setMeetingNoteClaudeIntent(id, trimmed, targetObjectiveId);
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
       setIntentPromptId(null);
       setIntentValue("");
+      setIntentTargetId(null);
       // Refresh the home badge so the count updates without a page reload.
       qc.invalidateQueries({ queryKey: ["meeting-notes-pending-claude"] });
       toast({
@@ -329,6 +348,11 @@ export function MeetingNoteDrawer({ projectId }: Props) {
                               onClick={() => {
                                 setIntentPromptId(note.id);
                                 setIntentValue("");
+                                // Default the picker to the first
+                                // objective linked to this project, so
+                                // the operator usually doesn't have to
+                                // change anything.
+                                setIntentTargetId(targetObjectives.linked[0]?.id ?? null);
                               }}
                               className="p-1.5 rounded-md text-muted-foreground/40 hover:text-violet-600 hover:bg-violet-50 dark:hover:text-violet-300 dark:hover:bg-violet-500/10 transition-all"
                               title="Envoyer à Claude (MCP)"
@@ -371,8 +395,12 @@ export function MeetingNoteDrawer({ projectId }: Props) {
                         <ClaudeIntentPrompt
                           value={intentValue}
                           onValueChange={setIntentValue}
-                          onSubmit={() => flagForClaude(note.id, intentValue)}
-                          onCancel={() => { setIntentPromptId(null); setIntentValue(""); }}
+                          targetId={intentTargetId}
+                          onTargetChange={setIntentTargetId}
+                          linkedObjectives={targetObjectives.linked}
+                          otherObjectives={targetObjectives.rest}
+                          onSubmit={() => flagForClaude(note.id, intentValue, intentTargetId)}
+                          onCancel={() => { setIntentPromptId(null); setIntentValue(""); setIntentTargetId(null); }}
                         />
                       )}
                     </div>
@@ -393,23 +421,41 @@ interface IntentPreset {
   icon: typeof ListChecks;
   label: string;
   intent: string;
+  /** When true, the preset attaches subtasks/decisions to an objective —
+   *  the picker becomes required to skip the back-and-forth at /process time. */
+  needsTarget: boolean;
 }
 
 const INTENT_PRESETS: IntentPreset[] = [
-  { icon: ListChecks, label: "Extraire les actions",  intent: "Extraire les actions à faire (todos) et les pousser comme subtasks de l'objectif lié au projet" },
-  { icon: ScrollText, label: "Résumer pour le client", intent: "Résumer pour le client : décisions, prochaines étapes, blockers" },
-  { icon: GitBranch,  label: "Extraire les décisions", intent: "Extraire les décisions prises et les archiver comme decisions sur l'objectif lié" },
-  { icon: HelpCircle, label: "Libre",                  intent: "" },
+  { icon: ListChecks, label: "Extraire les actions",   intent: "Extraire les actions à faire (todos) et les pousser comme subtasks de l'objectif cible", needsTarget: true  },
+  { icon: GitBranch,  label: "Extraire les décisions", intent: "Extraire les décisions prises et les archiver comme decisions sur l'objectif cible",     needsTarget: true  },
+  { icon: ScrollText, label: "Résumer pour le client", intent: "Résumer pour le client : décisions, prochaines étapes, blockers",                          needsTarget: false },
+  { icon: HelpCircle, label: "Libre",                  intent: "",                                                                                          needsTarget: false },
 ];
 
 function ClaudeIntentPrompt({
-  value, onValueChange, onSubmit, onCancel,
+  value, onValueChange, targetId, onTargetChange,
+  linkedObjectives, otherObjectives,
+  onSubmit, onCancel,
 }: {
   value: string;
   onValueChange: (v: string) => void;
+  targetId: string | null;
+  onTargetChange: (id: string | null) => void;
+  linkedObjectives: UnifiedObjective[];
+  otherObjectives: UnifiedObjective[];
   onSubmit: () => void;
   onCancel: () => void;
 }) {
+  // Detect whether the current intent looks like it needs a target. We match
+  // on the preset string, but also fall back to keyword detection so a
+  // free-form "extraire les actions" still triggers the picker.
+  const activePreset = INTENT_PRESETS.find((p) => p.intent && p.intent === value);
+  const looksActionable = /\b(action|todo|subtask|décision|decision)\b/i.test(value);
+  const showTargetPicker = (activePreset?.needsTarget ?? false) || looksActionable;
+
+  const submitDisabled = !value.trim() || (showTargetPicker && !targetId);
+
   return (
     <div className="mt-3 rounded-lg border border-violet-200 dark:border-violet-500/30 bg-violet-50/60 dark:bg-violet-500/8 p-3 space-y-2.5">
       <div className="flex items-center gap-2">
@@ -446,6 +492,56 @@ function ClaudeIntentPrompt({
         className="text-xs font-body resize-none"
       />
 
+      {showTargetPicker && (
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body font-semibold">
+            Objectif cible (subtasks / décisions)
+          </label>
+          <Select
+            value={targetId ?? ""}
+            onValueChange={(v) => onTargetChange(v || null)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Choisir un objectif…" />
+            </SelectTrigger>
+            <SelectContent>
+              {linkedObjectives.length === 0 && otherObjectives.length === 0 ? (
+                <SelectItem value="__none__" disabled>
+                  Aucun objectif actif
+                </SelectItem>
+              ) : null}
+              {linkedObjectives.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground/60">
+                    Liés à ce projet
+                  </div>
+                  {linkedObjectives.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.text}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+              {otherObjectives.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground/60">
+                    Autres objectifs actifs
+                  </div>
+                  {otherObjectives.slice(0, 20).map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.text}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] font-body text-muted-foreground/70">
+            Claude créera les subtasks / décisions directement sous cet objectif. Si l'objectif n'est pas encore lié au projet, il le liera au passage.
+          </p>
+        </div>
+      )}
+
       <p className="text-[10px] font-body text-muted-foreground/80 leading-snug">
         La note sera marquée en attente. Ouvre Claude Code et lance{" "}
         <code className="px-1 py-0.5 rounded bg-card border border-border font-mono text-[10px]">/process-meeting-notes</code>{" "}
@@ -460,7 +556,7 @@ function ClaudeIntentPrompt({
           size="sm"
           className="h-7 text-xs gap-1"
           onClick={onSubmit}
-          disabled={!value.trim()}
+          disabled={submitDisabled}
         >
           <Check size={11} />
           Envoyer
