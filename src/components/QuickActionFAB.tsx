@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Plus, FolderKanban, FileText, Building2, Target, X } from "lucide-react";
+import { Plus, FolderKanban, FileText, Building2, Target, X, NotebookPen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useIsAdminPage } from "@/components/BottomNav";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
+import { OPEN_MEETING_NOTES_EVENT } from "@/components/MeetingNoteDrawer";
 
 interface Action {
   label: string;
@@ -25,8 +26,22 @@ export function QuickActionFAB() {
   // to the inline input instead of round-tripping through navigation.
   const isOnObjectivesView =
     location.pathname === "/home" && location.search.includes("tab=objectives");
+  // Project sub-pages get an extra action so the meeting-notes drawer
+  // (which used to have its own overlapping FAB at bottom-24 right-4)
+  // is reachable from the unified "+" menu.
+  const isOnProjectPage = location.pathname.startsWith("/project/");
 
   const ACTIONS: Action[] = [
+    // Meeting note — only on project pages, surfaced first because the
+    // operator is mid-context and likely wants it more than create-anything.
+    ...(isOnProjectPage ? [{
+      label: "Note de réunion",
+      icon: NotebookPen,
+      color: "bg-primary",
+      action: () => {
+        window.dispatchEvent(new CustomEvent(OPEN_MEETING_NOTES_EVENT));
+      },
+    } satisfies Action] : []),
     {
       label: "Nouvel objectif",
       icon: Target,

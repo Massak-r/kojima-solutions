@@ -18,11 +18,15 @@ import {
   Trash2,
   Save,
   Loader2,
-  ChevronDown,
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateSwiss } from "@/lib/dateFormat";
+
+/** Window event consumed by this drawer. Dispatch with
+ *  `window.dispatchEvent(new CustomEvent("open-meeting-notes"))` from
+ *  anywhere — QuickActionFAB uses it so it doesn't need a prop drill. */
+export const OPEN_MEETING_NOTES_EVENT = "open-meeting-notes";
 
 interface Props {
   projectId: string;
@@ -33,6 +37,15 @@ export function MeetingNoteDrawer({ projectId }: Props) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<MeetingNote[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // The dedicated FAB used to live here and overlap the QuickActionFAB on
+  // mobile. The drawer now opens via a window event triggered from the
+  // unified "+" FAB menu (Note de réunion item, project pages only).
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_MEETING_NOTES_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_MEETING_NOTES_EVENT, onOpen);
+  }, []);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -108,16 +121,7 @@ export function MeetingNoteDrawer({ projectId }: Props) {
 
   return (
     <>
-      {/* FAB trigger */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center no-print"
-        title="Notes de réunion"
-      >
-        <NotebookPen size={20} />
-      </button>
-
-      {/* Drawer overlay */}
+      {/* Drawer overlay — open via window event ("open-meeting-notes") */}
       <AnimatePresence>
         {open && (
           <>
