@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
-  Sparkles, ChevronDown, FolderOpen,
+  Sparkles, ChevronDown, FolderOpen, StickyNote, FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -14,18 +14,27 @@ import {
 } from "@/api/inboxCaptures";
 import { createSubtask } from "@/api/todoSubtasks";
 import { createDecision } from "@/api/objectiveDecisions";
+import { createNote as createObjectiveNote } from "@/api/objectiveNotes";
+import { createMeetingNote } from "@/api/meetingNotes";
 import { useObjectives } from "@/hooks/useObjectives";
+import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { subtasksQueryKey } from "@/hooks/useSubtasks";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 
 const PENDING_KEY = ["inbox-captures", "admin", "pending"] as const;
 
-type PickerMode = "subtask" | "decision" | null;
+type PickerMode = "subtask" | "decision" | "note" | null;
+
+/** Polymorphic destination — note can land on a project or an objective. */
+type NoteTarget =
+  | { kind: "project"; project: StoredProject }
+  | { kind: "objective"; objective: UnifiedObjective };
 
 export function InboxPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: objectives = [] } = useObjectives();
+  const { projects } = useProjects();
 
   const { data, isLoading } = useQuery<InboxList>({
     queryKey: PENDING_KEY,
@@ -126,6 +135,44 @@ export function InboxPanel() {
     }
   }
 
+  /** Note conversion — polymorphic. Project target → meeting_note.
+   *  Objective target → objective_note. The capture body becomes the note
+   *  content; the title is a short prefix of the capture (so the note list
+   *  on either side stays readable). */
+  async function convertToNote(capture: InboxCapture, target: NoteTarget) {
+    try {
+      const titleLine = capture.text.split("\n")[0]?.trim() ?? "";
+      const title = titleLine.length > 60 ? titleLine.slice(0, 57) + "…"
+        : titleLine || "Note";
+      if (target.kind === "project") {
+        await createMeetingNote({
+          projectId: target.project.id,
+          title,
+          content: capture.text,
+          meetingDate: new Date().toISOString().slice(0, 10),
+        });
+        await markCaptureTriaged(capture.id, `note:project:${target.project.title.slice(0, 80)}`);
+        toast({ title: "Note ajoutée au projet", description: `« ${target.project.title} »` });
+      } else {
+        await createObjectiveNote({
+          source: target.objective.source,
+          objectiveId: target.objective.id,
+          title,
+          content: capture.text,
+        });
+        await markCaptureTriaged(capture.id, `note:objective:${target.objective.text.slice(0, 80)}`);
+        toast({ title: "Note ajoutée à l'objectif", description: `« ${target.objective.text} »` });
+      }
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+    } catch (e) {
+      toast({
+        title: "Conversion échouée",
+        description: e instanceof Error ? e.message : "Réessaye ?",
+        variant: "destructive",
+      });
+    }
+  }
+
   // Hide entirely when there's nothing pending (and not loading)
   if (!isLoading && items.length === 0) return null;
 
@@ -142,7 +189,7 @@ export function InboxPanel() {
           </span>
         </div>
         <span className="text-[10px] font-body text-muted-foreground/60 italic">
-          Garde · convertit · supprime
+          Convertit en étape · décision · note projet/objectif
         </span>
       </header>
 
@@ -165,12 +212,13 @@ export function InboxPanel() {
                 <CaptureRow
                   capture={item}
                   objectives={objectives}
+                  projects={projects}
                   busy={triage.isPending || remove.isPending || editText.isPending}
-                  onKeep={() => triage.mutate({ id: item.id, destination: "kept-as-note" })}
                   onDelete={() => remove.mutate(item.id)}
                   onEdit={(text) => editText.mutate({ id: item.id, text })}
                   onConvertSubtask={(obj) => convertToSubtask(item, obj)}
                   onConvertDecision={(obj) => convertToDecision(item, obj)}
+                  onConvertNote={(target) => convertToNote(item, target)}
                 />
               </motion.li>
             ))}
@@ -184,17 +232,18 @@ export function InboxPanel() {
 // ───────────────────────────────────────────────────────────────────────────
 
 function CaptureRow({
-  capture, objectives, busy,
-  onKeep, onDelete, onEdit, onConvertSubtask, onConvertDecision,
+  capture, objectives, projects, busy,
+  onDelete, onEdit, onConvertSubtask, onConvertDecision, onConvertNote,
 }: {
   capture: InboxCapture;
   objectives: UnifiedObjective[];
+  projects: StoredProject[];
   busy: boolean;
-  onKeep: () => void;
   onDelete: () => void;
   onEdit: (text: string) => void;
   onConvertSubtask: (obj: UnifiedObjective) => void;
   onConvertDecision: (obj: UnifiedObjective) => void;
+  onConvertNote: (target: NoteTarget) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(capture.text);
@@ -204,6 +253,27 @@ function CaptureRow({
     () => objectives.filter(o => o.isObjective && !o.completed),
     [objectives],
   );
+
+  /** Live projects worth offering as a note destination — everything except
+   *  completed. Sorted by status (active first) then title. */
+  const projectsForNote = useMemo(
+    () => projects
+      .filter(p => p.status !== "completed")
+      .sort((a, b) => {
+        const rank = (s: string) =>
+          s === "in-progress" ? 0
+          : s === "draft" ? 1
+          : s === "on-hold" ? 2
+          : 3;
+        const ra = rank(a.status);
+        const rb = rank(b.status);
+        if (ra !== rb) return ra - rb;
+        return a.title.localeCompare(b.title);
+      }),
+    [projects],
+  );
+
+  const noteTargetTotal = projectsForNote.length + objectivesOnly.length;
 
   const created = useMemo(() => {
     const d = new Date(capture.created_at);
@@ -303,12 +373,14 @@ function CaptureRow({
       {!editing && (
         <div className="flex items-center gap-1 mt-2 pl-[18px] flex-wrap">
           <ActionPill
-            onClick={onKeep}
-            disabled={busy}
+            onClick={() => setPicker(p => p === "note" ? null : "note")}
+            disabled={busy || noteTargetTotal === 0}
             tone="emerald"
-            icon={<Check size={11} />}
-            label="Garder"
-            tooltip="Marquer comme note conservée"
+            active={picker === "note"}
+            icon={<StickyNote size={11} />}
+            label="Note"
+            chevron
+            tooltip={noteTargetTotal === 0 ? "Aucun projet ou objectif actif" : "Attacher comme note à un projet ou un objectif"}
           />
           <ActionPill
             onClick={() => setPicker(p => p === "subtask" ? null : "subtask")}
@@ -350,9 +422,9 @@ function CaptureRow({
         </div>
       )}
 
-      {/* Row 3 — objective picker (when subtask or decision is selected) */}
+      {/* Row 3 — picker (target depends on the mode) */}
       <AnimatePresence>
-        {picker && (
+        {picker === "subtask" || picker === "decision" ? (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -372,7 +444,26 @@ function CaptureRow({
               modeLabel={picker === "subtask" ? "Subtask" : "Décision"}
             />
           </motion.div>
-        )}
+        ) : picker === "note" ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            <NoteTargetPicker
+              projects={projectsForNote}
+              objectives={objectivesOnly}
+              hint={capture.project_hint}
+              onPick={(target) => {
+                onConvertNote(target);
+                setPicker(null);
+              }}
+              onCancel={() => setPicker(null)}
+            />
+          </motion.div>
+        ) : null}
       </AnimatePresence>
     </div>
   );
@@ -500,6 +591,143 @@ function ObjectivePicker({
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Picker that lets the user route a capture to either a project (creates
+ *  a meeting_note) or an objective (creates an objective_note). Two
+ *  visually-distinct sections so the destination type is obvious. */
+function NoteTargetPicker({
+  projects, objectives, hint, onPick, onCancel,
+}: {
+  projects: StoredProject[];
+  objectives: UnifiedObjective[];
+  hint: string | null;
+  onPick: (target: NoteTarget) => void;
+  onCancel: () => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const hintLower = (hint ?? "").toLowerCase();
+  const filterLower = filter.toLowerCase().trim();
+
+  const filteredProjects = useMemo(() => {
+    return projects
+      .filter((p) => !filterLower
+        || p.title.toLowerCase().includes(filterLower)
+        || (p.client ?? "").toLowerCase().includes(filterLower))
+      .sort((a, b) => {
+        if (hintLower) {
+          const am = a.title.toLowerCase().includes(hintLower) ? 0 : 1;
+          const bm = b.title.toLowerCase().includes(hintLower) ? 0 : 1;
+          if (am !== bm) return am - bm;
+        }
+        return 0;
+      });
+  }, [projects, hintLower, filterLower]);
+
+  const filteredObjectives = useMemo(() => {
+    return objectives
+      .filter((o) => !filterLower
+        || o.text.toLowerCase().includes(filterLower)
+        || (o.category ?? "").toLowerCase().includes(filterLower))
+      .sort((a, b) => {
+        if (hintLower) {
+          const am = a.text.toLowerCase().includes(hintLower) ? 0 : 1;
+          const bm = b.text.toLowerCase().includes(hintLower) ? 0 : 1;
+          if (am !== bm) return am - bm;
+        }
+        return a.text.localeCompare(b.text);
+      });
+  }, [objectives, hintLower, filterLower]);
+
+  const total = filteredProjects.length + filteredObjectives.length;
+
+  return (
+    <div className="mt-2.5 ml-[18px] rounded-lg border border-border/60 bg-background/60 p-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground">
+          → Note sur…
+        </span>
+        <input
+          autoFocus
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filtrer projets + objectifs…"
+          className="flex-1 text-xs font-body bg-transparent border-b border-border/40 focus:outline-none focus:border-primary/60 px-1 py-0.5"
+        />
+        <button
+          onClick={onCancel}
+          className="text-muted-foreground/50 hover:text-foreground transition-colors p-0.5"
+          aria-label="Annuler"
+        >
+          <X size={12} />
+        </button>
+      </div>
+
+      {total === 0 ? (
+        <div className="text-[11px] font-body text-muted-foreground/60 italic px-2 py-2">
+          Aucun résultat.
+        </div>
+      ) : (
+        <div className="max-h-[200px] overflow-y-auto -mx-1 space-y-2">
+          {filteredProjects.length > 0 && (
+            <div>
+              <p className="text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground/60 px-2 mb-0.5">
+                Projets · {filteredProjects.length}
+              </p>
+              <ul className="space-y-0.5">
+                {filteredProjects.slice(0, 20).map((p) => (
+                  <li key={`project:${p.id}`}>
+                    <button
+                      onClick={() => onPick({ kind: "project", project: p })}
+                      className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/70 transition-colors group"
+                    >
+                      <FolderKanban size={11} className="text-indigo-500 shrink-0" />
+                      <span className="text-xs font-body text-foreground truncate flex-1">
+                        {p.title || "Sans titre"}
+                      </span>
+                      {p.client && (
+                        <span className="text-[10px] font-mono text-muted-foreground/50 truncate max-w-[100px]">
+                          {p.client}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {filteredObjectives.length > 0 && (
+            <div>
+              <p className="text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground/60 px-2 mb-0.5">
+                Objectifs · {filteredObjectives.length}
+              </p>
+              <ul className="space-y-0.5">
+                {filteredObjectives.slice(0, 20).map((o) => (
+                  <li key={`objective:${o.source}:${o.id}`}>
+                    <button
+                      onClick={() => onPick({ kind: "objective", objective: o })}
+                      className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/70 transition-colors group"
+                    >
+                      <Target size={11} className={o.source === "admin" ? "text-indigo-500" : "text-rose-500"} />
+                      <span className="text-xs font-body text-foreground truncate flex-1">{o.text}</span>
+                      {o.category && (
+                        <span className="text-[10px] font-mono text-muted-foreground/50 truncate max-w-[100px]">
+                          {o.category}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
