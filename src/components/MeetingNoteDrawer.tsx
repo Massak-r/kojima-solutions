@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +44,7 @@ interface Props {
 
 export function MeetingNoteDrawer({ projectId }: Props) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<MeetingNote[]>([]);
   const [loading, setLoading] = useState(false);
@@ -145,6 +147,8 @@ export function MeetingNoteDrawer({ projectId }: Props) {
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
       setIntentPromptId(null);
       setIntentValue("");
+      // Refresh the home badge so the count updates without a page reload.
+      qc.invalidateQueries({ queryKey: ["meeting-notes-pending-claude"] });
       toast({
         title: "Envoyé à Claude",
         description: "Ouvre Claude Code et lance /process-meeting-notes.",
@@ -158,6 +162,7 @@ export function MeetingNoteDrawer({ projectId }: Props) {
     try {
       const updated = await setMeetingNoteClaudeIntent(id, null);
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+      qc.invalidateQueries({ queryKey: ["meeting-notes-pending-claude"] });
       toast({ title: "Demande annulée" });
     } catch {
       toast({ title: "Erreur", variant: "destructive" });

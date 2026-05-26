@@ -2,12 +2,14 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Clock, FileWarning, TrendingDown, ArrowRight } from "lucide-react";
+import { Clock, FileWarning, TrendingDown, ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useProjects } from "@/contexts/ProjectsContext";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { totalQuote } from "@/types/quote";
 import { getUnbilledSummary } from "@/api/objectiveSessions";
+import { listMeetingNotesPendingClaude } from "@/api/meetingNotes";
 
 const BALANCE_STORAGE_KEY = "kojima-current-balance";
 const DORMANT_DAYS = 30;
@@ -25,7 +27,7 @@ function daysSince(iso: string): number {
 
 interface InsightCardProps {
   icon: typeof Clock;
-  tone: "warn" | "info" | "danger";
+  tone: "warn" | "info" | "danger" | "claude";
   title: string;
   metric: string;
   hint: string;
@@ -37,11 +39,13 @@ function InsightCard({ icon: Icon, tone, title, metric, hint, onClick }: Insight
     warn:   "border-amber-300/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/8",
     info:   "border-primary/30 bg-primary/5",
     danger: "border-red-300/60 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/8",
+    claude: "border-violet-300/60 dark:border-violet-500/30 bg-violet-50/60 dark:bg-violet-500/8",
   };
   const iconClasses = {
     warn:   "text-amber-700 dark:text-amber-300",
     info:   "text-primary",
     danger: "text-red-700 dark:text-red-300",
+    claude: "text-violet-700 dark:text-violet-300",
   };
 
   return (
@@ -76,10 +80,19 @@ function InsightCard({ icon: Icon, tone, title, metric, hint, onClick }: Insight
 export function OperatorInsights() {
   const navigate = useNavigate();
   const { quotes } = useQuotes();
+  const { projects } = useProjects();
   const { settings } = useCompanySettings();
   const { data: unbilled } = useQuery({
     queryKey: ["unbilled-summary"],
     queryFn: getUnbilledSummary,
+    staleTime: 60_000,
+  });
+  // Meeting notes flagged for Claude Code MCP processing. Surfaced here so
+  // the operator doesn't forget to run /process-meeting-notes after
+  // tagging a few from the drawer.
+  const { data: pendingClaudeNotes } = useQuery({
+    queryKey: ["meeting-notes-pending-claude"],
+    queryFn: listMeetingNotesPendingClaude,
     staleTime: 60_000,
   });
 
@@ -124,7 +137,20 @@ export function OperatorInsights() {
 
   const showRunwayWarning = Number.isFinite(runwayMonths) && runwayMonths < RUNWAY_WARN_MONTHS;
 
-  const hasAny = dormant.length > 0 || hasUnbilled || showRunwayWarning;
+  // 4. Meeting notes waiting for Claude. Click → most recent project that
+  //    has a flagged note (or first project that does), so the operator
+  //    lands in context to inspect / run the skill.
+  const pendingClaudeCount = pendingClaudeNotes?.length ?? 0;
+  const hasPendingClaude = pendingClaudeCount > 0;
+  const firstPendingProjectId = useMemo(() => {
+    if (!pendingClaudeNotes || pendingClaudeNotes.length === 0) return null;
+    // Pick the first one — they're already ordered oldest-first server-side
+    // so the operator addresses the longest-waiting note first.
+    return pendingClaudeNotes[0].projectId;
+  }, [pendingClaudeNotes]);
+  const firstPendingProject = projects.find((p) => p.id === firstPendingProjectId);
+
+  const hasAny = dormant.length > 0 || hasUnbilled || showRunwayWarning || hasPendingClaude;
   if (!hasAny) return null;
 
   return (
@@ -161,6 +187,18 @@ export function OperatorInsights() {
             metric={`~${runwayMonths} mois`}
             hint="Runway estimé bas. Ouvre la trésorerie pour la projection détaillée."
             onClick={() => navigate("/tresorerie")}
+          />
+        )}
+        {hasPendingClaude && (
+          <InsightCard
+            icon={Sparkles}
+            tone="claude"
+            title="Notes à traiter par Claude"
+            metric={`${pendingClaudeCount} en attente`}
+            hint={`Ouvre Claude Code et lance /process-meeting-notes.${firstPendingProject ? ` Plus ancienne : « ${firstPendingProject.title} ».` : ""}`}
+            onClick={() => {
+              if (firstPendingProjectId) navigate(`/project/${firstPendingProjectId}/brief`);
+            }}
           />
         )}
       </div>
