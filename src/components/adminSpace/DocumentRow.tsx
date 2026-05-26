@@ -102,6 +102,11 @@ export function DocumentRow({
               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground font-body flex-wrap">
                 <Badge variant="secondary" className="text-xs">{doc.category}</Badge>
                 {doc.year && <Badge variant="outline" className="text-xs">{doc.year}</Badge>}
+                {doc.tags?.map((t) => (
+                  <Badge key={t} variant="outline" className="text-[10px] text-violet-700 dark:text-violet-300 border-violet-300/50 dark:border-violet-500/30 bg-violet-50/40 dark:bg-violet-500/8">
+                    {t}
+                  </Badge>
+                ))}
                 {isSearching && doc.folderId && folderName && (
                   <button onClick={onJumpToFolder} className="flex items-center gap-1 text-primary/70 hover:text-primary">
                     <Folder size={10} /> {folderName}

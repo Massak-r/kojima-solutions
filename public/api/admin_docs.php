@@ -6,7 +6,19 @@ $method     = $_SERVER['REQUEST_METHOD'];
 $id         = $_GET['id'] ?? null;
 $uploadsDir = realpath(__DIR__ . '/../private_docs') ?: (__DIR__ . '/../private_docs');
 
+// Self-heals the tags column before any read/write touches it.
+adminDocsEnsureTags($pdo);
+
 function mapDoc(array $row): array {
+    $tags = [];
+    if (!empty($row['tags'])) {
+        $decoded = json_decode($row['tags'], true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $t) {
+                if (is_string($t) && trim($t) !== '') $tags[] = trim($t);
+            }
+        }
+    }
     return [
         'id'           => $row['id'],
         'title'        => $row['title'],
@@ -15,6 +27,7 @@ function mapDoc(array $row): array {
         'urgent'       => (bool)($row['urgent'] ?? false),
         'folderId'     => $row['folder_id'],
         'year'         => $row['year'] ? (int)$row['year'] : null,
+        'tags'         => $tags,
         'shareToken'   => $row['share_token'],
         'sortOrder'    => (int)$row['sort_order'],
         'filename'     => $row['filename'],
@@ -22,6 +35,51 @@ function mapDoc(array $row): array {
         'fileSize'     => (int)$row['file_size'],
         'createdAt'    => $row['created_at'],
     ];
+}
+
+/** Inline auto-migration for the tags column. Migration 20260526120000
+ * formalises it; this guard makes fresh deploys work before the runner
+ * has been hit. */
+function adminDocsEnsureTags(PDO $pdo): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo->query('SELECT tags FROM admin_docs LIMIT 0');
+    } catch (Throwable $e) {
+        try { $pdo->exec("ALTER TABLE admin_docs ADD COLUMN tags JSON DEFAULT NULL"); } catch (Throwable $e2) {}
+    }
+}
+
+/** Normalize an incoming tags payload (JSON-encoded string in form data, or
+ * a true array in JSON requests) into a deduplicated string[] suitable for
+ * storage. Returns null when no tags are supplied. */
+function normalizeTagsInput($raw): ?string {
+    if ($raw === null) return null;
+    $list = null;
+    if (is_array($raw)) {
+        $list = $raw;
+    } else if (is_string($raw)) {
+        if (trim($raw) === '') return null;
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded))           $list = $decoded;
+        else                               $list = preg_split('/\s*,\s*/', $raw);
+    }
+    if (!is_array($list)) return null;
+    $clean = [];
+    $seen  = [];
+    foreach ($list as $t) {
+        if (!is_string($t)) continue;
+        $t = trim($t);
+        if ($t === '' || $t === null) continue;
+        if (mb_strlen($t) > 40) $t = mb_substr($t, 0, 40);
+        $k = mb_strtolower($t);
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true;
+        $clean[] = $t;
+        if (count($clean) >= 8) break;
+    }
+    return empty($clean) ? null : json_encode($clean, JSON_UNESCAPED_UNICODE);
 }
 
 function generateShareToken(): string {
@@ -83,6 +141,7 @@ if ($method === 'POST') {
     $category = trim($_POST['category'] ?? '') ?: 'Général';
     $folderId = trim($_POST['folderId'] ?? '') ?: null;
     $year     = isset($_POST['year']) && $_POST['year'] !== '' ? (int)$_POST['year'] : null;
+    $tagsJson = normalizeTagsInput($_POST['tags'] ?? null);
     $status   = (($_POST['status'] ?? '') === 'to_sort') ? 'to_sort' : 'filed';
     $urgent   = (!empty($_POST['urgent']) && $_POST['urgent'] !== '0') ? 1 : 0;
     $docId    = uuid();
@@ -95,14 +154,14 @@ if ($method === 'POST') {
 
     if (adminDocsHasTriage($pdo)) {
         $stmt = $pdo->prepare(
-            'INSERT INTO admin_docs (id, title, category, status, urgent, folder_id, year, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())'
+            'INSERT INTO admin_docs (id, title, category, status, urgent, folder_id, year, tags, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())'
         );
-        $stmt->execute([$docId, $title, $category, $status, $urgent, $folderId, $year, $filename, $file['name'], $file['size']]);
+        $stmt->execute([$docId, $title, $category, $status, $urgent, $folderId, $year, $tagsJson, $filename, $file['name'], $file['size']]);
     } else {
         $stmt = $pdo->prepare(
-            'INSERT INTO admin_docs (id, title, category, folder_id, year, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,NOW())'
+            'INSERT INTO admin_docs (id, title, category, folder_id, year, tags, filename, original_name, file_size, created_at) VALUES (?,?,?,?,?,?,?,?,?,NOW())'
         );
-        $stmt->execute([$docId, $title, $category, $folderId, $year, $filename, $file['name'], $file['size']]);
+        $stmt->execute([$docId, $title, $category, $folderId, $year, $tagsJson, $filename, $file['name'], $file['size']]);
     }
 
     $row = $pdo->prepare('SELECT * FROM admin_docs WHERE id=?');
@@ -136,6 +195,7 @@ if ($method === 'PUT' && $id) {
     if (isset($data['category'])) { $fields[] = 'category = ?';  $params[] = $data['category']; }
     if (array_key_exists('folderId', $data)) { $fields[] = 'folder_id = ?'; $params[] = $data['folderId']; }
     if (array_key_exists('year', $data))       { $fields[] = 'year = ?';       $params[] = $data['year']; }
+    if (array_key_exists('tags', $data))       { $fields[] = 'tags = ?';       $params[] = normalizeTagsInput($data['tags']); }
     if (array_key_exists('sortOrder', $data)) { $fields[] = 'sort_order = ?'; $params[] = (int)$data['sortOrder']; }
     if (adminDocsHasTriage($pdo)) {
         if (isset($data['status']) && in_array($data['status'], ['to_sort', 'filed'], true)) {

@@ -28,6 +28,8 @@ export interface ClassifySuggestion {
   category: DocCategory;
   /** Folder id chosen via name match against the category; null if no folder matches. */
   folderId: string | null;
+  /** Detected fiscal/issue year (20xx). Null when no year shows up in the text. */
+  year: number | null;
   /** Client id whose name was detected in the text (or null). */
   clientId: string | null;
   /** Short labels worth showing on the card (max 5). */
@@ -156,6 +158,27 @@ function pickTitle(text: string, filename: string, currentTitle?: string): strin
   return base.slice(0, 60);
 }
 
+/** Pick the most plausible year (20xx) from the text. Preference: explicit
+ *  "année 2026" / "exercice 2026" / "fiscal year" mentions > standalone
+ *  4-digit years > nothing. */
+function detectYear(haystack: string): number | null {
+  const labelled = haystack.match(/(?:ann[ée]e|exercice|fiscal year|year)\s*(?:[:=-]?\s*)(20\d{2})/i);
+  if (labelled) {
+    const y = parseInt(labelled[1], 10);
+    if (y >= 2000 && y <= 2100) return y;
+  }
+  const matches = haystack.match(/\b(20\d{2})\b/g);
+  if (matches && matches.length > 0) {
+    // Most recent year present in the text — typically the issue year.
+    const years = matches
+      .map((m) => parseInt(m, 10))
+      .filter((y) => y >= 2000 && y <= 2100)
+      .sort((a, b) => b - a);
+    if (years.length > 0) return years[0];
+  }
+  return null;
+}
+
 export function classifyDocument(input: ClassifyInput): ClassifySuggestion {
   const { text, filename, currentTitle, folders, clients } = input;
   const haystack = `${filename} ${text}`;
@@ -213,12 +236,19 @@ export function classifyDocument(input: ClassifyInput): ClassifySuggestion {
     : haveCategory || haveFolder ? "medium"
     : "low";
 
+  const year = detectYear(haystack);
+  if (year) {
+    tags.add(String(year));
+    reasons.push(`year=${year}`);
+  }
+
   return {
     title: pickTitle(text, filename, currentTitle),
     category,
     folderId,
+    year,
     clientId: client?.id ?? null,
-    tags: Array.from(tags).slice(0, 5),
+    tags: Array.from(tags).slice(0, 8),
     confidence,
     reasons,
   };

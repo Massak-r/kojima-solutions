@@ -91,6 +91,8 @@ export function TriageDocCard({
       await updateDoc(doc.id, {
         title:    editing.title,
         category: editing.category,
+        year:     editing.year,
+        tags:     editing.tags,
         ...(editing.folderId
           ? { folderId: editing.folderId, status: "filed", urgent: false }
           : {}),
@@ -251,7 +253,28 @@ export function TriageDocCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Année</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={2000}
+                max={2100}
+                placeholder="ex : 2026"
+                value={classifyState.editing.year ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  const n = v === "" ? null : Number.parseInt(v, 10);
+                  setClassifyState((s) =>
+                    s.kind === "ready"
+                      ? { ...s, editing: { ...s.editing, year: Number.isFinite(n as number) ? (n as number) : null } }
+                      : s,
+                  );
+                }}
+                className="h-8 text-sm tabular-nums"
+              />
+            </div>
+            <div className="space-y-1">
               <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Dossier cible</label>
               <Select
                 value={classifyState.editing.folderId ?? "__none__"}
@@ -270,17 +293,18 @@ export function TriageDocCard({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {classifyState.suggestion.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {classifyState.suggestion.tags.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px] bg-card/60">
-                  {t}
-                </Badge>
-              ))}
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-body">Tags</label>
+              <TagsEditor
+                value={classifyState.editing.tags}
+                onChange={(next) => setClassifyState((s) =>
+                  s.kind === "ready"
+                    ? { ...s, editing: { ...s.editing, tags: next } }
+                    : s,
+                )}
+              />
             </div>
-          )}
+          </div>
 
           {classifyState.suggestion.clientId && (
             <p className="text-[11px] font-body text-muted-foreground">
@@ -401,6 +425,74 @@ export function TriageDocCard({
         onOpenChange={setPreviewOpen}
         title={doc.title}
         viewUrl={viewUrl}
+      />
+    </div>
+  );
+}
+
+/** Small editable chip list. Enter / comma commits the typed tag; backspace
+ *  on an empty input removes the last chip. Max 8 tags, 40 chars each — the
+ *  backend trims/dedupes again so this is just for UX. */
+function TagsEditor({
+  value, onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [input, setInput] = useState("");
+
+  function commit(raw: string) {
+    const v = raw.trim().replace(/^,+|,+$/g, "").trim();
+    if (!v) return;
+    if (value.length >= 8) return;
+    const lower = v.toLowerCase();
+    if (value.some((t) => t.toLowerCase() === lower)) return;
+    onChange([...value, v.slice(0, 40)]);
+    setInput("");
+  }
+
+  function removeAt(i: number) {
+    onChange(value.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 min-h-[34px]">
+      {value.map((t, i) => (
+        <span
+          key={`${t}-${i}`}
+          className="inline-flex items-center gap-1 text-[11px] font-body rounded-full bg-secondary text-secondary-foreground px-2 py-0.5"
+        >
+          {t}
+          <button
+            type="button"
+            onClick={() => removeAt(i)}
+            className="text-muted-foreground hover:text-destructive transition-colors"
+            aria-label={`Retirer ${t}`}
+          >
+            <X size={10} />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v.endsWith(",")) commit(v);
+          else setInput(v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(input);
+          } else if (e.key === "Backspace" && input === "" && value.length > 0) {
+            e.preventDefault();
+            removeAt(value.length - 1);
+          }
+        }}
+        onBlur={() => { if (input.trim()) commit(input); }}
+        placeholder={value.length === 0 ? "Ajouter un tag, Entrée pour valider" : ""}
+        className="flex-1 min-w-[120px] bg-transparent outline-none text-xs font-body"
       />
     </div>
   );

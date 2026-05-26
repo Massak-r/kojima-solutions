@@ -11,6 +11,8 @@ export interface AdminDocItem {
   urgent:       boolean;
   folderId:     string | null;
   year:         number | null;
+  /** Free-form labels for cross-cutting search (max ~8, ≤40 chars each). */
+  tags:         string[];
   shareToken:   string | null;
   sortOrder:    number;
   filename:     string;
@@ -51,6 +53,7 @@ export async function uploadDoc(
   year?: number | null,
   status: AdminDocStatus = 'filed',
   urgent = false,
+  tags?: string[],
 ): Promise<AdminDocItem> {
   const form = new FormData();
   form.append('file', file);
@@ -58,6 +61,7 @@ export async function uploadDoc(
   form.append('category', category);
   if (folderId) form.append('folderId', folderId);
   if (year != null) form.append('year', String(year));
+  if (tags && tags.length > 0) form.append('tags', JSON.stringify(tags));
   form.append('status', status);
   form.append('urgent', urgent ? '1' : '0');
   const csrf = (typeof document !== 'undefined' && document.cookie.match(/(?:^|; )kojima_csrf=([^;]*)/)?.[1]) || '';
@@ -74,7 +78,7 @@ export async function uploadDoc(
   return res.json();
 }
 
-export function updateDoc(id: string, data: Partial<Pick<AdminDocItem, 'title' | 'category' | 'folderId' | 'year' | 'sortOrder' | 'status' | 'urgent'>>) {
+export function updateDoc(id: string, data: Partial<Pick<AdminDocItem, 'title' | 'category' | 'folderId' | 'year' | 'tags' | 'sortOrder' | 'status' | 'urgent'>>) {
   return apiFetch<AdminDocItem>(`admin_docs.php?id=${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
