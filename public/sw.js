@@ -1,7 +1,8 @@
-const CACHE_NAME = 'kojima-space-v13';
+const CACHE_NAME = 'kojima-space-v14';
 const ASSETS_CACHE = 'kojima-assets-v1';
-const API_CACHE = 'kojima-api-v2';
-const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const API_CACHE = 'kojima-api-v3';
+const API_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours — wider so train-ride
+// offline mode keeps showing the last-seen lists instead of "cache_expired".
 const SHELL_URLS = ['/', '/index.html', '/offline.html'];
 
 // ── Install: cache shell (but don't skipWaiting — wait for update signal) ────

@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CloudOff, Lock, LogOut, Menu, MoreVertical, Settings, Shield, Users, X, User } from "lucide-react";
+import { ArrowLeft, Lock, LogOut, Menu, MoreVertical, Settings, Shield, Users, X, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
-import { getQueueSize } from "@/lib/offlineQueue";
+import { getQueueSize, getDeadLetterSize } from "@/lib/offlineQueue";
+import { OfflineQueuePopover } from "@/components/OfflineQueuePopover";
 
 const HOME_NAV = [
   { id: "methodology", fr: "Méthodologie", en: "Methodology" },
@@ -26,13 +27,27 @@ const Header = () => {
   const [activeSection, setActiveSection] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
   const [offlineQueueSize, setOfflineQueueSize] = useState(getQueueSize());
+  const [deadLetterSize, setDeadLetterSize] = useState(getDeadLetterSize());
 
-  // Listen for offline queue changes
+  // Listen for offline queue + dead-letter changes
   useEffect(() => {
-    const handler = (e: Event) => setOfflineQueueSize((e as CustomEvent).detail ?? getQueueSize());
-    window.addEventListener("offline-queue-change", handler);
-    return () => window.removeEventListener("offline-queue-change", handler);
+    const onQueue = (e: Event) => setOfflineQueueSize((e as CustomEvent).detail ?? getQueueSize());
+    const onDead  = (e: Event) => setDeadLetterSize((e as CustomEvent).detail ?? getDeadLetterSize());
+    window.addEventListener("offline-queue-change", onQueue);
+    window.addEventListener("offline-deadletter-change", onDead);
+    return () => {
+      window.removeEventListener("offline-queue-change", onQueue);
+      window.removeEventListener("offline-deadletter-change", onDead);
+    };
   }, []);
+
+  // Read once at mount in case a previous session left items behind.
+  useEffect(() => {
+    setDeadLetterSize(getDeadLetterSize());
+  }, []);
+
+  // Used by the popover to decide whether to render the trigger at all.
+  const showQueueChip = offlineQueueSize > 0 || deadLetterSize > 0;
 
   const isHome       = location.pathname === "/";
   const isClientPage = location.pathname.startsWith("/client/");
@@ -185,15 +200,7 @@ const Header = () => {
             ) : isAdminPage ? (
               <div className="flex items-center gap-0.5">
                 <NotificationBell />
-                {offlineQueueSize > 0 && (
-                  <span
-                    className="ml-1 flex items-center gap-1 text-[10px] font-body text-amber-700 bg-amber-100/80 rounded-full px-2 py-0.5"
-                    title={`${offlineQueueSize} action(s) en attente de synchronisation`}
-                  >
-                    <CloudOff size={10} />
-                    {offlineQueueSize}
-                  </span>
-                )}
+                {showQueueChip && <OfflineQueuePopover queueSize={offlineQueueSize} />}
                 <div className="relative ml-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); setOverflowOpen((v) => !v); }}
