@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
-  Sparkles, ChevronDown, FolderOpen, StickyNote, FolderKanban,
+  Sparkles, ChevronDown, ChevronUp, FolderOpen, StickyNote, FolderKanban,
+  Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,12 @@ import { subtasksQueryKey } from "@/hooks/useSubtasks";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 
 const PENDING_KEY = ["inbox-captures", "admin", "pending"] as const;
+const KEPT_KEY    = ["inbox-captures", "admin", "kept"] as const;
+
+/** Destination label used by the pre-2026-05-26 "Garder" button. Captures
+ *  matching this prefix get surfaced in the recovery section so the operator
+ *  can route them into a real destination now that the button is gone. */
+const LEGACY_KEPT_DESTINATION = "kept-as-note";
 
 type PickerMode = "subtask" | "decision" | "note" | null;
 
@@ -42,58 +49,102 @@ export function InboxPanel() {
     staleTime: 30_000,
   });
 
+  // Surface previously "Garder"-ed captures so they can be re-routed into a
+  // real note destination. Filtered client-side to the legacy marker — other
+  // triaged destinations stay archived and out of the way.
+  const { data: triagedData } = useQuery<InboxList>({
+    queryKey: KEPT_KEY,
+    queryFn: () => listInboxCaptures({ status: "triaged", source: "admin", limit: 200 }),
+    staleTime: 60_000,
+  });
+
   const items = data?.items ?? [];
+  const keptItems = useMemo(
+    () => (triagedData?.items ?? []).filter(
+      (c) => c.triaged_destination === LEGACY_KEPT_DESTINATION,
+    ),
+    [triagedData],
+  );
+
+  /** Optimistically removes a row from the cached list whose query key is
+   *  passed in. Used by both the pending list and the kept-recovery list. */
+  function dropFromList(key: readonly unknown[], id: string) {
+    qc.setQueryData<InboxList>(key as readonly string[], (p) =>
+      p ? {
+        ...p,
+        items: p.items.filter((i) => i.id !== id),
+        pendingCount: key === PENDING_KEY ? Math.max(0, p.pendingCount - 1) : p.pendingCount,
+      } : p,
+    );
+  }
 
   const triage = useMutation({
     mutationFn: ({ id, destination }: { id: string; destination: string }) =>
       markCaptureTriaged(id, destination),
     onMutate: async ({ id }) => {
       await qc.cancelQueries({ queryKey: PENDING_KEY });
-      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
-      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
-        p ? { ...p, items: p.items.filter(i => i.id !== id), pendingCount: Math.max(0, p.pendingCount - 1) } : p,
-      );
-      return { prev };
+      await qc.cancelQueries({ queryKey: KEPT_KEY });
+      const prevPending = qc.getQueryData<InboxList>(PENDING_KEY);
+      const prevKept    = qc.getQueryData<InboxList>(KEPT_KEY);
+      dropFromList(PENDING_KEY, id);
+      dropFromList(KEPT_KEY, id);
+      return { prevPending, prevKept };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      if (ctx?.prevPending) qc.setQueryData(PENDING_KEY, ctx.prevPending);
+      if (ctx?.prevKept)    qc.setQueryData(KEPT_KEY, ctx.prevKept);
       toast({ title: "Action échouée", description: "Réessaye ?", variant: "destructive" });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteInboxCapture(id),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: PENDING_KEY });
-      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
-      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
-        p ? { ...p, items: p.items.filter(i => i.id !== id), pendingCount: Math.max(0, p.pendingCount - 1) } : p,
-      );
-      return { prev };
+      await qc.cancelQueries({ queryKey: KEPT_KEY });
+      const prevPending = qc.getQueryData<InboxList>(PENDING_KEY);
+      const prevKept    = qc.getQueryData<InboxList>(KEPT_KEY);
+      dropFromList(PENDING_KEY, id);
+      dropFromList(KEPT_KEY, id);
+      return { prevPending, prevKept };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      if (ctx?.prevPending) qc.setQueryData(PENDING_KEY, ctx.prevPending);
+      if (ctx?.prevKept)    qc.setQueryData(KEPT_KEY, ctx.prevKept);
       toast({ title: "Suppression échouée", variant: "destructive" });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
+    },
   });
 
   const editText = useMutation({
     mutationFn: ({ id, text }: { id: string; text: string }) => updateCaptureText(id, text),
     onMutate: async ({ id, text }) => {
       await qc.cancelQueries({ queryKey: PENDING_KEY });
-      const prev = qc.getQueryData<InboxList>(PENDING_KEY);
-      qc.setQueryData<InboxList>(PENDING_KEY, (p) =>
-        p ? { ...p, items: p.items.map(i => i.id === id ? { ...i, text } : i) } : p,
-      );
-      return { prev };
+      await qc.cancelQueries({ queryKey: KEPT_KEY });
+      const prevPending = qc.getQueryData<InboxList>(PENDING_KEY);
+      const prevKept    = qc.getQueryData<InboxList>(KEPT_KEY);
+      const patch = (list: InboxList | undefined) =>
+        list ? { ...list, items: list.items.map((i) => i.id === id ? { ...i, text } : i) } : list;
+      qc.setQueryData<InboxList>(PENDING_KEY, patch);
+      qc.setQueryData<InboxList>(KEPT_KEY, patch);
+      return { prevPending, prevKept };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(PENDING_KEY, ctx.prev);
+      if (ctx?.prevPending) qc.setQueryData(PENDING_KEY, ctx.prevPending);
+      if (ctx?.prevKept)    qc.setQueryData(KEPT_KEY, ctx.prevKept);
       toast({ title: "Modification échouée", variant: "destructive" });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: PENDING_KEY }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
+    },
   });
 
   async function convertToSubtask(capture: InboxCapture, objective: UnifiedObjective) {
@@ -106,6 +157,7 @@ export function InboxPanel() {
       await markCaptureTriaged(capture.id, `subtask:${objective.text.slice(0, 80)}`);
       qc.invalidateQueries({ queryKey: subtasksQueryKey });
       qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
       toast({ title: "Convertie en étape", description: `Ajoutée à « ${objective.text} »` });
     } catch (e) {
       toast({
@@ -125,6 +177,7 @@ export function InboxPanel() {
       });
       await markCaptureTriaged(capture.id, `decision:${objective.text.slice(0, 80)}`);
       qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
       toast({ title: "Décision archivée", description: `Sous « ${objective.text} »` });
     } catch (e) {
       toast({
@@ -164,6 +217,7 @@ export function InboxPanel() {
         toast({ title: "Note ajoutée à l'objectif", description: `« ${target.objective.text} »` });
       }
       qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: KEPT_KEY });
     } catch (e) {
       toast({
         title: "Conversion échouée",
@@ -173,8 +227,8 @@ export function InboxPanel() {
     }
   }
 
-  // Hide entirely when there's nothing pending (and not loading)
-  if (!isLoading && items.length === 0) return null;
+  // Hide entirely when there's nothing pending AND nothing legacy to recover.
+  if (!isLoading && items.length === 0 && keptItems.length === 0) return null;
 
   return (
     <section className="rounded-2xl border border-violet-200/50 dark:border-violet-500/20 bg-gradient-to-br from-violet-50/40 via-card/40 to-card/30 dark:from-violet-500/8 backdrop-blur-sm p-4 sm:p-5">
@@ -198,34 +252,128 @@ export function InboxPanel() {
           <Loader2 size={16} className="animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <ul className="space-y-1.5">
-          <AnimatePresence initial={false}>
-            {items.map(item => (
-              <motion.li
-                key={item.id}
-                layout
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -12, transition: { duration: 0.15 } }}
-                transition={{ duration: 0.18 }}
-              >
-                <CaptureRow
-                  capture={item}
-                  objectives={objectives}
-                  projects={projects}
-                  busy={triage.isPending || remove.isPending || editText.isPending}
-                  onDelete={() => remove.mutate(item.id)}
-                  onEdit={(text) => editText.mutate({ id: item.id, text })}
-                  onConvertSubtask={(obj) => convertToSubtask(item, obj)}
-                  onConvertDecision={(obj) => convertToDecision(item, obj)}
-                  onConvertNote={(target) => convertToNote(item, target)}
-                />
-              </motion.li>
-            ))}
-          </AnimatePresence>
-        </ul>
+        <>
+          {items.length > 0 && (
+            <ul className="space-y-1.5">
+              <AnimatePresence initial={false}>
+                {items.map(item => (
+                  <motion.li
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -12, transition: { duration: 0.15 } }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <CaptureRow
+                      capture={item}
+                      objectives={objectives}
+                      projects={projects}
+                      busy={triage.isPending || remove.isPending || editText.isPending}
+                      onDelete={() => remove.mutate(item.id)}
+                      onEdit={(text) => editText.mutate({ id: item.id, text })}
+                      onConvertSubtask={(obj) => convertToSubtask(item, obj)}
+                      onConvertDecision={(obj) => convertToDecision(item, obj)}
+                      onConvertNote={(target) => convertToNote(item, target)}
+                    />
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </ul>
+          )}
+          {keptItems.length > 0 && (
+            <KeptCapturesSection
+              captures={keptItems}
+              objectives={objectives}
+              projects={projects}
+              busy={triage.isPending || remove.isPending || editText.isPending}
+              onDelete={(id) => remove.mutate(id)}
+              onEdit={(id, text) => editText.mutate({ id, text })}
+              onConvertSubtask={(c, o) => convertToSubtask(c, o)}
+              onConvertDecision={(c, o) => convertToDecision(c, o)}
+              onConvertNote={(c, t) => convertToNote(c, t)}
+            />
+          )}
+        </>
       )}
     </section>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Surfaces captures that were previously "Garder"-ed (i.e. marked as
+ *  triaged with destination=kept-as-note but never actually saved as a
+ *  note). Collapsed by default — it's a one-shot recovery surface, not
+ *  the daily flow. */
+function KeptCapturesSection({
+  captures, objectives, projects, busy,
+  onDelete, onEdit, onConvertSubtask, onConvertDecision, onConvertNote,
+}: {
+  captures: InboxCapture[];
+  objectives: UnifiedObjective[];
+  projects: StoredProject[];
+  busy: boolean;
+  onDelete: (id: string) => void;
+  onEdit: (id: string, text: string) => void;
+  onConvertSubtask: (capture: InboxCapture, objective: UnifiedObjective) => void;
+  onConvertDecision: (capture: InboxCapture, objective: UnifiedObjective) => void;
+  onConvertNote: (capture: InboxCapture, target: NoteTarget) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-200/60 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/8 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-amber-100/40 dark:hover:bg-amber-500/15 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Archive size={13} className="text-amber-700 dark:text-amber-300" />
+          <span className="text-xs font-display font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wider">
+            Anciennes captures « gardées » · {captures.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-body text-amber-700/70 dark:text-amber-300/70 italic hidden sm:inline">
+            À convertir ou supprimer
+          </span>
+          {open ? <ChevronUp size={14} className="text-amber-700 dark:text-amber-300" /> : <ChevronDown size={14} className="text-amber-700 dark:text-amber-300" />}
+        </div>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <p className="text-[11px] font-body text-amber-800/80 dark:text-amber-200/80 px-3 pb-2 leading-relaxed">
+              Le bouton « Garder » ne créait pas vraiment de note — ces captures sont restées en archive. Convertis-les en note projet ou objectif, ou supprime celles qui ne servent plus.
+            </p>
+            <ul className="space-y-1.5 px-3 pb-3">
+              {captures.map((c) => (
+                <li key={c.id}>
+                  <CaptureRow
+                    capture={c}
+                    objectives={objectives}
+                    projects={projects}
+                    busy={busy}
+                    onDelete={() => onDelete(c.id)}
+                    onEdit={(text) => onEdit(c.id, text)}
+                    onConvertSubtask={(obj) => onConvertSubtask(c, obj)}
+                    onConvertDecision={(obj) => onConvertDecision(c, obj)}
+                    onConvertNote={(target) => onConvertNote(c, target)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
