@@ -19,11 +19,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Pencil, Trash2, Check, RotateCcw, Loader2, CalendarClock,
-  AlertCircle, Repeat, CalendarRange, TrendingDown,
+  AlertCircle, Repeat, CalendarRange, TrendingDown, TrendingUp,
+  ArrowDownRight, ArrowUpRight,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as ReTooltip, ResponsiveContainer,
+  Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -31,10 +32,11 @@ import {
 } from "@/api/payables";
 import { listAccounts } from "@/api/accounts";
 import {
-  type Payable, type PayableStatus, type PayableRecurrence,
+  type Payable, type PayableStatus, type PayableRecurrence, type PayableDirection,
   PAYABLE_STATUS_LABELS, PAYABLE_RECURRENCE_LABELS,
 } from "@/types/payable";
 import type { Account } from "@/types/account";
+import { cn } from "@/lib/utils";
 
 function formatCHF(n: number, currency = "CHF") {
   try {
@@ -73,23 +75,31 @@ function advanceOccurrence(d: Date, recurrence: PayableRecurrence): boolean {
   switch (recurrence) {
     case "weekly":    d.setDate(d.getDate() + 7); return true;
     case "monthly":   d.setMonth(d.getMonth() + 1); return true;
+    case "bimonthly": d.setMonth(d.getMonth() + 2); return true;
     case "quarterly": d.setMonth(d.getMonth() + 3); return true;
+    case "biannual":  d.setMonth(d.getMonth() + 6); return true;
     case "yearly":    d.setFullYear(d.getFullYear() + 1); return true;
     default: return false;
   }
 }
 
-function projectByMonth(payables: Payable[], monthsAhead = 6): { ym: string; label: string; total: number }[] {
+interface MonthBucket { ym: string; label: string; out: number; in: number; net: number }
+
+function projectByMonth(payables: Payable[], monthsAhead = 6): MonthBucket[] {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const horizon = new Date(today.getFullYear(), today.getMonth() + monthsAhead, 0, 23, 59, 59);
 
-  const buckets: { ym: string; label: string; total: number }[] = [];
+  const buckets: MonthBucket[] = [];
   for (let i = 0; i < monthsAhead; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    buckets.push({ ym, label: d.toLocaleDateString("fr-CH", { month: "short" }), total: 0 });
+    buckets.push({ ym, label: d.toLocaleDateString("fr-CH", { month: "short" }), out: 0, in: 0, net: 0 });
   }
   const byYm = new Map(buckets.map(b => [b.ym, b]));
+
+  const accrue = (b: MonthBucket, amount: number, direction: PayableDirection) => {
+    if (direction === "in") b.in += amount; else b.out += amount;
+  };
 
   for (const p of payables) {
     if (p.status !== "pending" && p.status !== "scheduled") continue;
@@ -101,16 +111,28 @@ function projectByMonth(payables: Payable[], monthsAhead = 6): { ym: string; lab
       if (recEnd && occ > recEnd) break;
       const ym = `${occ.getFullYear()}-${String(occ.getMonth() + 1).padStart(2, "0")}`;
       const bucket = byYm.get(ym);
-      if (bucket) bucket.total += p.amount;
+      if (bucket) accrue(bucket, p.amount, p.direction);
       if (!advanceOccurrence(occ, p.recurrence)) break;
     }
+    // Apply year-end adjustment (e.g. impôts rattrapage) on its own bucket.
+    if (p.adjustmentAmount != null && p.adjustmentDueDate) {
+      const adj = new Date(p.adjustmentDueDate + "T00:00:00");
+      if (adj <= horizon) {
+        const ym = `${adj.getFullYear()}-${String(adj.getMonth() + 1).padStart(2, "0")}`;
+        const bucket = byYm.get(ym);
+        if (bucket) accrue(bucket, p.adjustmentAmount, p.direction);
+      }
+    }
   }
-  return buckets.map(b => ({ ...b, total: Math.round(b.total) }));
+  for (const b of buckets) { b.out = Math.round(b.out); b.in = Math.round(b.in); b.net = b.in - b.out; }
+  return buckets;
 }
 
-function sumUntil(payables: Payable[], until: string): { total: number; count: number } {
+interface RangeSummary { out: number; in: number; outCount: number; inCount: number }
+
+function sumUntil(payables: Payable[], until: string): RangeSummary {
   const limit = new Date(until + "T23:59:59");
-  let total = 0, count = 0;
+  const r: RangeSummary = { out: 0, in: 0, outCount: 0, inCount: 0 };
   for (const p of payables) {
     if (p.status !== "pending" && p.status !== "scheduled") continue;
     if (!p.dueDate) continue;
@@ -119,17 +141,34 @@ function sumUntil(payables: Payable[], until: string): { total: number; count: n
     let safety = 0;
     while (occ <= limit && safety++ < 500) {
       if (recEnd && occ > recEnd) break;
-      total += p.amount; count++;
+      if (p.direction === "in") { r.in += p.amount; r.inCount++; }
+      else                      { r.out += p.amount; r.outCount++; }
       if (!advanceOccurrence(occ, p.recurrence)) break;
     }
+    if (p.adjustmentAmount != null && p.adjustmentDueDate) {
+      const adj = new Date(p.adjustmentDueDate + "T00:00:00");
+      if (adj <= limit) {
+        if (p.direction === "in") { r.in += p.adjustmentAmount; r.inCount++; }
+        else                      { r.out += p.adjustmentAmount; r.outCount++; }
+      }
+    }
   }
-  return { total, count };
+  return r;
+}
+
+function sumDirection(payables: Payable[], direction: PayableDirection, withinDays: number): number {
+  return payables
+    .filter(p => p.direction === direction)
+    .filter(p => (p.status === "pending" || p.status === "scheduled") && p.dueDate)
+    .filter(p => { const d = daysUntil(p.dueDate); return d !== null && d <= withinDays; })
+    .reduce((s, p) => s + p.amount, 0);
 }
 
 interface FormState {
   label: string;
   amount: string;
   currency: string;
+  direction: PayableDirection;
   dueDate: string;
   accountId: string;
   status: PayableStatus;
@@ -138,12 +177,15 @@ interface FormState {
   recurrence: PayableRecurrence;
   recurrenceDay: string;
   recurrenceEnd: string;
+  adjustmentAmount: string;
+  adjustmentDueDate: string;
 }
 
 const EMPTY_FORM: FormState = {
-  label: "", amount: "", currency: "CHF", dueDate: "", accountId: "",
+  label: "", amount: "", currency: "CHF", direction: "out", dueDate: "", accountId: "",
   status: "pending", category: "", notes: "",
   recurrence: "none", recurrenceDay: "", recurrenceEnd: "",
+  adjustmentAmount: "", adjustmentDueDate: "",
 };
 
 export function PayablesManager() {
@@ -151,6 +193,7 @@ export function PayablesManager() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "scheduled" | "paid" | "all">("pending");
+  const [directionFilter, setDirectionFilter] = useState<"all" | PayableDirection>("all");
   const [editing, setEditing] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -172,19 +215,17 @@ export function PayablesManager() {
   const accountById = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
 
   const filtered = useMemo(() => {
-    if (tab === "all") return payables;
-    return payables.filter(p => p.status === tab);
-  }, [payables, tab]);
+    let xs = payables;
+    if (directionFilter !== "all") xs = xs.filter(p => p.direction === directionFilter);
+    if (tab !== "all") xs = xs.filter(p => p.status === tab);
+    return xs;
+  }, [payables, tab, directionFilter]);
 
-  const totalDue30 = useMemo(() => {
-    return payables
-      .filter(p => (p.status === "pending" || p.status === "scheduled") && p.dueDate)
-      .filter(p => { const d = daysUntil(p.dueDate); return d !== null && d <= 30; })
-      .reduce((s, p) => s + p.amount, 0);
-  }, [payables]);
+  const totalDue30Out = useMemo(() => sumDirection(payables, "out", 30), [payables]);
+  const totalDue30In  = useMemo(() => sumDirection(payables, "in",  30), [payables]);
 
   const overdueCount = useMemo(() => {
-    return payables.filter(p => p.status === "pending" && p.dueDate && (daysUntil(p.dueDate) ?? 1) < 0).length;
+    return payables.filter(p => p.status === "pending" && p.direction === "out" && p.dueDate && (daysUntil(p.dueDate) ?? 1) < 0).length;
   }, [payables]);
 
   // Default "jusqu'au" = end of next month, so the calculator opens with a
@@ -195,16 +236,17 @@ export function PayablesManager() {
   });
 
   const chartData     = useMemo(() => projectByMonth(payables, 6), [payables]);
-  const chartHasData  = useMemo(() => chartData.some(d => d.total > 0), [chartData]);
+  const chartHasData  = useMemo(() => chartData.some(d => d.out > 0 || d.in > 0), [chartData]);
   const untilSummary  = useMemo(() => sumUntil(payables, untilDate), [payables, untilDate]);
+  const untilNet      = untilSummary.in - untilSummary.out;
   const untilDateNice = useMemo(() => {
     if (!untilDate) return "";
     return new Date(untilDate + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
   }, [untilDate]);
 
-  function openCreate() {
+  function openCreate(direction: PayableDirection = directionFilter === "in" ? "in" : "out") {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, direction });
     setDialogOpen(true);
   }
 
@@ -214,6 +256,7 @@ export function PayablesManager() {
       label: p.label,
       amount: p.amount.toString(),
       currency: p.currency,
+      direction: p.direction,
       dueDate: p.dueDate ?? "",
       accountId: p.accountId ?? "",
       status: p.status,
@@ -222,6 +265,8 @@ export function PayablesManager() {
       recurrence: p.recurrence,
       recurrenceDay: p.recurrenceDay?.toString() ?? "",
       recurrenceEnd: p.recurrenceEnd ?? "",
+      adjustmentAmount: p.adjustmentAmount != null ? p.adjustmentAmount.toString() : "",
+      adjustmentDueDate: p.adjustmentDueDate ?? "",
     });
     setDialogOpen(true);
   }
@@ -231,10 +276,12 @@ export function PayablesManager() {
     const amount = parseFloat(form.amount.replace(",", "."));
     if (!isFinite(amount)) { errToast("Montant invalide"); return; }
     setSaving(true);
+    const adj = form.adjustmentAmount ? parseFloat(form.adjustmentAmount.replace(",", ".")) : null;
     const payload = {
       label: form.label.trim(),
       amount,
       currency: form.currency.trim() || "CHF",
+      direction: form.direction,
       dueDate: form.dueDate || null,
       accountId: form.accountId || null,
       status: form.status,
@@ -243,6 +290,8 @@ export function PayablesManager() {
       recurrence: form.recurrence,
       recurrenceDay: form.recurrenceDay ? parseInt(form.recurrenceDay, 10) : null,
       recurrenceEnd: form.recurrenceEnd || null,
+      adjustmentAmount: adj !== null && isFinite(adj) ? adj : null,
+      adjustmentDueDate: form.adjustmentDueDate || null,
     };
     try {
       if (editing) {
@@ -312,57 +361,75 @@ export function PayablesManager() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-primary" /> À payer
+            <CalendarClock className="h-5 w-5 text-primary" /> Paiements
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tes obligations financières à venir.
+            Tout ce qui sort ou rentre — sorties + entrées attendues.
           </p>
         </div>
-        <Button size="sm" onClick={openCreate} className="gap-1.5">
-          <Plus className="h-4 w-4" /> Payable
+        <Button size="sm" onClick={() => openCreate()} className="gap-1.5">
+          <Plus className="h-4 w-4" /> Nouveau
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl border p-4 bg-muted/30">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Dans 30 jours</div>
-          <div className="font-display text-2xl font-semibold tabular-nums mt-1">{formatCHF(totalDue30)}</div>
-        </div>
-        <div className="rounded-xl border p-4 bg-muted/30">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> En retard
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="rounded-xl border p-3 sm:p-4 bg-muted/30">
+          <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <ArrowDownRight className="h-3 w-3 text-red-600 dark:text-red-400" /> Sorties 30j
           </div>
-          <div className={`font-display text-2xl font-semibold tabular-nums mt-1 ${overdueCount > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{overdueCount}</div>
+          <div className="font-display text-xl sm:text-2xl font-semibold tabular-nums mt-1 text-red-700 dark:text-red-400">
+            {formatCHF(totalDue30Out)}
+          </div>
         </div>
-        <div className="rounded-xl border p-4 bg-muted/30">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <CalendarRange className="h-3.5 w-3.5" /> Jusqu'au
+        <div className="rounded-xl border p-3 sm:p-4 bg-muted/30">
+          <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <ArrowUpRight className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Entrées 30j
+          </div>
+          <div className="font-display text-xl sm:text-2xl font-semibold tabular-nums mt-1 text-emerald-700 dark:text-emerald-400">
+            {formatCHF(totalDue30In)}
+          </div>
+        </div>
+        <div className="rounded-xl border p-3 sm:p-4 bg-muted/30">
+          <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" /> En retard
+          </div>
+          <div className={cn("font-display text-xl sm:text-2xl font-semibold tabular-nums mt-1", overdueCount > 0 && "text-red-700 dark:text-red-400")}>
+            {overdueCount}
+          </div>
+        </div>
+        <div className="rounded-xl border p-3 sm:p-4 bg-muted/30 col-span-2 lg:col-span-1">
+          <div className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <CalendarRange className="h-3 w-3" /> Jusqu'au
           </div>
           <div className="mt-1 flex items-center gap-2">
             <Input
               type="date"
               value={untilDate}
               onChange={e => setUntilDate(e.target.value)}
-              className="h-8 text-xs w-[8.5rem]"
+              className="h-7 text-[11px] w-[8.5rem]"
             />
           </div>
-          <div className="font-display text-xl font-semibold tabular-nums mt-2">{formatCHF(untilSummary.total)}</div>
-          {untilSummary.count > 0 && (
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {untilSummary.count} échéance{untilSummary.count > 1 ? "s" : ""} d'ici le {untilDateNice}
-            </div>
-          )}
+          <div className={cn(
+            "font-display text-lg sm:text-xl font-semibold tabular-nums mt-2",
+            untilNet < 0 ? "text-red-700 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"
+          )}>
+            {untilNet >= 0 ? "+" : ""}{formatCHF(untilNet)}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+            −{formatCHF(untilSummary.out)} · +{formatCHF(untilSummary.in)}
+          </div>
         </div>
       </div>
 
       {chartHasData && (
         <div className="rounded-xl border bg-muted/30 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground">Projection 6 mois</h3>
             <span className="text-[10px] text-muted-foreground/70 ml-auto">récurrences projetées</span>
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 5, right: 4, left: -12, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
@@ -384,20 +451,47 @@ export function PayablesManager() {
                   fontFamily: "var(--font-body)",
                   fontSize: 12,
                 }}
-                formatter={(value: number) => [formatCHF(value), "À sortir"]}
+                formatter={(value: number, name: string) => {
+                  if (name === "out") return [formatCHF(value), "Sorties"];
+                  if (name === "in")  return [formatCHF(value), "Entrées"];
+                  return [formatCHF(value), name];
+                }}
                 cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
               />
-              <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-body)" }}
+                formatter={(value) => value === "out" ? "Sorties" : value === "in" ? "Entrées" : value}
+              />
+              <Bar dataKey="out" fill="hsl(0 72% 51%)" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="in"  fill="hsl(142 71% 45%)" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Direction</span>
+        {(["all", "out", "in"] as const).map(d => (
+          <button
+            key={d}
+            onClick={() => setDirectionFilter(d)}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-full border transition",
+              directionFilter === d
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {d === "all" ? "Tout" : d === "out" ? "Sorties" : "Entrées"}
+          </button>
+        ))}
+      </div>
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
-          <TabsTrigger value="pending">À payer</TabsTrigger>
+          <TabsTrigger value="pending">À régler</TabsTrigger>
           <TabsTrigger value="scheduled">Programmés</TabsTrigger>
-          <TabsTrigger value="paid">Payés</TabsTrigger>
+          <TabsTrigger value="paid">Réglés</TabsTrigger>
           <TabsTrigger value="all">Tous</TabsTrigger>
         </TabsList>
         <TabsContent value={tab} className="mt-4">
@@ -410,11 +504,17 @@ export function PayablesManager() {
               {filtered.map(p => {
                 const due = dueLabel(p.dueDate);
                 const account = p.accountId ? accountById.get(p.accountId) : null;
+                const isIn = p.direction === "in";
                 return (
-                  <li key={p.id} className="group border rounded-lg p-3 transition hover:border-primary/40">
+                  <li key={p.id} className={cn(
+                    "group border rounded-lg p-3 transition hover:border-primary/40 border-l-4",
+                    isIn ? "border-l-emerald-500/60" : "border-l-red-500/60",
+                  )}>
                     <div className="flex items-start justify-between gap-3">
                       <button onClick={() => openEdit(p)} className="flex-1 text-left min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {isIn ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                : <ArrowDownRight className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />}
                           <span className="font-medium truncate">{p.label}</span>
                           {p.recurrence !== "none" && (
                             <Badge variant="outline" className="text-xs gap-1">
@@ -426,20 +526,28 @@ export function PayablesManager() {
                         <div className="text-xs mt-1 flex items-center gap-3 flex-wrap">
                           <span className={toneClass[due.tone]}>{due.text}</span>
                           {account && <span className="text-muted-foreground">· {account.name}</span>}
+                          {p.adjustmentAmount != null && p.adjustmentDueDate && (
+                            <span className="text-muted-foreground">
+                              · ajust. {p.adjustmentAmount >= 0 ? "+" : ""}{formatCHF(p.adjustmentAmount, p.currency)}
+                            </span>
+                          )}
                         </div>
                         {p.notes && <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{p.notes}</div>}
                       </button>
                       <div className="text-right shrink-0">
-                        <div className="font-display text-lg font-semibold tabular-nums">
-                          {formatCHF(p.amount, p.currency)}
+                        <div className={cn(
+                          "font-display text-lg font-semibold tabular-nums",
+                          isIn ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
+                        )}>
+                          {isIn ? "+" : ""}{formatCHF(p.amount, p.currency)}
                         </div>
                         <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition justify-end">
                           {p.status === "paid" ? (
-                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Remettre à payer" onClick={() => markUnpaid(p)}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title={isIn ? "Remettre en attente" : "Remettre à payer"} onClick={() => markUnpaid(p)}>
                               <RotateCcw className="h-3.5 w-3.5" />
                             </Button>
                           ) : (
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-700 dark:text-emerald-400" title="Marquer payé" onClick={() => markPaid(p)}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-700 dark:text-emerald-400" title={isIn ? "Marquer reçu" : "Marquer payé"} onClick={() => markPaid(p)}>
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -463,12 +571,40 @@ export function PayablesManager() {
       <ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>{editing ? "Modifier le payable" : "Nouveau payable"}</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {editing ? "Modifier" : "Nouveau"} {form.direction === "in" ? "encaissement" : "paiement"}
+            </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
           <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, direction: "out" }))}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition",
+                  form.direction === "out"
+                    ? "border-red-500/60 bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ArrowDownRight className="h-4 w-4" /> Sortie
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, direction: "in" }))}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition",
+                  form.direction === "in"
+                    ? "border-emerald-500/60 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ArrowUpRight className="h-4 w-4" /> Entrée
+              </button>
+            </div>
             <div>
               <label className="text-xs text-muted-foreground">Libellé</label>
-              <Input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="ex. Loyer juin, SIG, paiement mykistudio…" />
+              <Input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder={form.direction === "in" ? "ex. Salaire, paiement client X…" : "ex. Loyer juin, SIG, impôts…"} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -482,7 +618,7 @@ export function PayablesManager() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground">Échéance</label>
+                <label className="text-xs text-muted-foreground">{form.direction === "in" ? "Date attendue" : "Échéance"}</label>
                 <Input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
               </div>
               <div>
@@ -538,13 +674,31 @@ export function PayablesManager() {
                 </div>
               )}
             </div>
+            {form.recurrence !== "none" && (
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-dashed border-border p-3">
+                <div className="col-span-2 -mb-1">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Ajustement (optionnel)</span>
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                    Correction ponctuelle sur la récurrence (ex. impôts rattrapage de fin d'année).
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Montant ± (CHF)</label>
+                  <Input type="text" inputMode="decimal" value={form.adjustmentAmount} onChange={e => setForm(f => ({ ...f, adjustmentAmount: e.target.value }))} placeholder="ex. +200 ou -150" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Date</label>
+                  <Input type="date" value={form.adjustmentDueDate} onChange={e => setForm(f => ({ ...f, adjustmentDueDate: e.target.value }))} />
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-xs text-muted-foreground">Notes</label>
               <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
             {form.recurrence !== "none" && (
               <p className="text-xs text-muted-foreground italic">
-                Quand tu marqueras ce payable comme payé, la prochaine occurrence sera créée automatiquement.
+                Quand tu marqueras cette ligne comme {form.direction === "in" ? "reçue" : "payée"}, la prochaine occurrence sera créée automatiquement.
               </p>
             )}
           </div>

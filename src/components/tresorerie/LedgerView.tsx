@@ -95,7 +95,8 @@ export function LedgerView() {
           id: `p-${p.id}`,
           date: (p.paidAt ? p.paidAt.slice(0, 10) : p.dueDate) || new Date().toISOString().slice(0, 10),
           label: p.label,
-          amount: -Math.abs(p.amount),
+          // direction='in' = received income (positive). 'out' = expense (negative).
+          amount: p.direction === "in" ? Math.abs(p.amount) : -Math.abs(p.amount),
           currency: p.currency,
           accountId: p.accountId ?? null,
           category: p.category ?? null,

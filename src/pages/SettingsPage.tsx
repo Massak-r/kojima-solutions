@@ -59,10 +59,11 @@ export default function SettingsPage() {
 
 function MaintenanceSection() {
   const { toast } = useToast();
-  const [running, setRunning] = useState(false);
+  const [runningSchema, setRunningSchema] = useState(false);
+  const [runningData,   setRunningData]   = useState(false);
 
   async function runMigrations() {
-    setRunning(true);
+    setRunningSchema(true);
     try {
       // Backfill is INSERT IGNORE so re-running is harmless. Marks pre-cutoff
       // migrations as applied when self-healing app code beat the runner to the
@@ -98,7 +99,36 @@ function MaintenanceSection() {
         variant: "destructive",
       });
     } finally {
-      setRunning(false);
+      setRunningSchema(false);
+    }
+  }
+
+  async function migrateToPayables() {
+    setRunningData(true);
+    try {
+      const res = await apiFetch<{
+        plans_migrated: string[];
+        plans_skipped:  string[];
+        costs_migrated: string[];
+        costs_skipped:  string[];
+      }>("_migrate_to_payables.php", { method: "POST" });
+      const total = res.plans_migrated.length + res.costs_migrated.length;
+      if (total === 0) {
+        toast({ title: "Rien à migrer", description: "Plans et charges récurrentes sont déjà importés." });
+      } else {
+        toast({
+          title: `${total} ligne${total > 1 ? "s" : ""} importée${total > 1 ? "s" : ""} dans À payer`,
+          description: `${res.plans_migrated.length} plan(s) · ${res.costs_migrated.length} charge(s)`,
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Échec de l'import",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setRunningData(false);
     }
   }
 
@@ -110,7 +140,7 @@ function MaintenanceSection() {
           Maintenance
         </h2>
       </div>
-      <div className="p-5">
+      <div className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-body font-medium text-foreground">Appliquer les migrations en attente</p>
@@ -118,8 +148,22 @@ function MaintenanceSection() {
               Débloque le runner si un schéma a été appliqué hors-bande, puis applique les migrations restantes.
             </p>
           </div>
-          <Button size="sm" onClick={runMigrations} disabled={running} className="shrink-0">
-            {running ? "En cours…" : "Lancer"}
+          <Button size="sm" onClick={runMigrations} disabled={runningSchema} className="shrink-0">
+            {runningSchema ? "En cours…" : "Lancer"}
+          </Button>
+        </div>
+
+        <div className="h-px bg-border/30" />
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-body font-medium text-foreground">Importer Plans + charges récurrentes dans À payer</p>
+            <p className="text-xs font-body text-muted-foreground/70 mt-0.5">
+              Crée un payable récurrent pour chaque plan (avec direction et ajustement) et chaque charge récurrente. Idempotent — ne touche pas les sources.
+            </p>
+          </div>
+          <Button size="sm" onClick={migrateToPayables} disabled={runningData} className="shrink-0" variant="secondary">
+            {runningData ? "Import…" : "Importer"}
           </Button>
         </div>
       </div>

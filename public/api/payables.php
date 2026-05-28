@@ -2,25 +2,32 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAdminSession();
 
+const PAYABLE_RECURRENCE_VALUES = ['none','weekly','monthly','bimonthly','quarterly','biannual','yearly'];
+const PAYABLE_DIRECTION_VALUES  = ['out','in'];
+const PAYABLE_STATUS_VALUES     = ['pending','scheduled','paid','cancelled'];
+
 function mapPayable(array $row): array {
     return [
-        'id'             => $row['id'],
-        'label'          => $row['label'],
-        'amount'         => (float)$row['amount'],
-        'currency'       => $row['currency'] ?? 'CHF',
-        'dueDate'        => $row['due_date'] ?? null,
-        'accountId'      => $row['account_id'] ?? null,
-        'status'         => $row['status'],
-        'category'       => $row['category'] ?? null,
-        'notes'          => $row['notes'] ?? null,
-        'recurrence'     => $row['recurrence'] ?? 'none',
-        'recurrenceDay'  => isset($row['recurrence_day']) ? (int)$row['recurrence_day'] : null,
-        'recurrenceEnd'  => $row['recurrence_end'] ?? null,
-        'paidAt'         => $row['paid_at'] ?? null,
-        'sourceType'     => $row['source_type'] ?? null,
-        'sourceId'       => $row['source_id'] ?? null,
-        'createdAt'      => $row['created_at'],
-        'updatedAt'      => $row['updated_at'],
+        'id'                 => $row['id'],
+        'label'              => $row['label'],
+        'amount'             => (float)$row['amount'],
+        'currency'           => $row['currency'] ?? 'CHF',
+        'direction'          => $row['direction'] ?? 'out',
+        'dueDate'            => $row['due_date'] ?? null,
+        'accountId'          => $row['account_id'] ?? null,
+        'status'             => $row['status'],
+        'category'           => $row['category'] ?? null,
+        'notes'              => $row['notes'] ?? null,
+        'recurrence'         => $row['recurrence'] ?? 'none',
+        'recurrenceDay'      => isset($row['recurrence_day']) ? (int)$row['recurrence_day'] : null,
+        'recurrenceEnd'      => $row['recurrence_end'] ?? null,
+        'adjustmentAmount'   => isset($row['adjustment_amount']) && $row['adjustment_amount'] !== null ? (float)$row['adjustment_amount'] : null,
+        'adjustmentDueDate'  => $row['adjustment_due_date'] ?? null,
+        'paidAt'             => $row['paid_at'] ?? null,
+        'sourceType'         => $row['source_type'] ?? null,
+        'sourceId'           => $row['source_id'] ?? null,
+        'createdAt'          => $row['created_at'],
+        'updatedAt'          => $row['updated_at'],
     ];
 }
 
@@ -34,13 +41,15 @@ function nextDueDate(?string $previousDue, string $recurrence, ?int $recurrenceD
     $next = match ($recurrence) {
         'weekly'    => $base->modify('+1 week'),
         'monthly'   => $base->modify('+1 month'),
+        'bimonthly' => $base->modify('+2 months'),
         'quarterly' => $base->modify('+3 months'),
+        'biannual'  => $base->modify('+6 months'),
         'yearly'    => $base->modify('+1 year'),
         default     => null,
     };
     if (!$next) return null;
-    // Snap to recurrence_day for monthly/quarterly/yearly if set.
-    if ($recurrenceDay && in_array($recurrence, ['monthly', 'quarterly', 'yearly'], true)) {
+    // Snap to recurrence_day for any month-or-longer cadence if set.
+    if ($recurrenceDay && in_array($recurrence, ['monthly','bimonthly','quarterly','biannual','yearly'], true)) {
         $day = max(1, min(31, $recurrenceDay));
         $candidate = $next->setDate((int)$next->format('Y'), (int)$next->format('m'), 1);
         $lastDay   = (int)$candidate->format('t');
@@ -57,13 +66,17 @@ $id     = $_GET['id'] ?? null;
 if ($method === 'GET') {
     $status     = $_GET['status']    ?? null;
     $accountId  = $_GET['accountId'] ?? null;
+    $direction  = $_GET['direction'] ?? null;
     $where      = [];
     $params     = [];
-    if ($status && in_array($status, ['pending','scheduled','paid','cancelled'], true)) {
+    if ($status && in_array($status, PAYABLE_STATUS_VALUES, true)) {
         $where[] = 'status = ?'; $params[] = $status;
     }
     if ($accountId) {
         $where[] = 'account_id = ?'; $params[] = $accountId;
+    }
+    if ($direction && in_array($direction, PAYABLE_DIRECTION_VALUES, true)) {
+        $where[] = 'direction = ?'; $params[] = $direction;
     }
     $sql = 'SELECT * FROM payables'
          . (empty($where) ? '' : ' WHERE ' . implode(' AND ', $where))
@@ -78,20 +91,24 @@ if ($method === 'POST') {
     $newId = uuid();
 
     $recurrence = $data['recurrence'] ?? 'none';
-    if (!in_array($recurrence, ['none','weekly','monthly','quarterly','yearly'], true)) $recurrence = 'none';
+    if (!in_array($recurrence, PAYABLE_RECURRENCE_VALUES, true)) $recurrence = 'none';
     $status = $data['status'] ?? 'pending';
-    if (!in_array($status, ['pending','scheduled','paid','cancelled'], true)) $status = 'pending';
+    if (!in_array($status, PAYABLE_STATUS_VALUES, true)) $status = 'pending';
+    $direction = $data['direction'] ?? 'out';
+    if (!in_array($direction, PAYABLE_DIRECTION_VALUES, true)) $direction = 'out';
 
     $pdo->prepare(
         'INSERT INTO payables
-         (id, label, amount, currency, due_date, account_id, status, category, notes,
-          recurrence, recurrence_day, recurrence_end, paid_at, source_type, source_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+         (id, label, amount, currency, direction, due_date, account_id, status, category, notes,
+          recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
+          paid_at, source_type, source_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
         $newId,
         trim($data['label'] ?? 'Sans titre'),
         (float)($data['amount'] ?? 0),
         $data['currency']      ?? 'CHF',
+        $direction,
         $data['dueDate']       ?? null,
         $data['accountId']     ?? null,
         $status,
@@ -99,7 +116,9 @@ if ($method === 'POST') {
         $data['notes']         ?? null,
         $recurrence,
         isset($data['recurrenceDay']) ? (int)$data['recurrenceDay'] : null,
-        $data['recurrenceEnd'] ?? null,
+        $data['recurrenceEnd']        ?? null,
+        isset($data['adjustmentAmount']) && $data['adjustmentAmount'] !== null ? (float)$data['adjustmentAmount'] : null,
+        $data['adjustmentDueDate']    ?? null,
         $status === 'paid' ? ($data['paidAt'] ?? date('Y-m-d H:i:s')) : null,
         $data['sourceType']    ?? null,
         $data['sourceId']      ?? null,
@@ -123,23 +142,29 @@ if ($method === 'PUT') {
     $fields = [];
     $values = [];
 
-    if (array_key_exists('label',         $data)) { $fields[] = 'label = ?';          $values[] = trim($data['label']); }
-    if (array_key_exists('amount',        $data)) { $fields[] = 'amount = ?';         $values[] = (float)$data['amount']; }
-    if (array_key_exists('currency',      $data)) { $fields[] = 'currency = ?';       $values[] = $data['currency']; }
-    if (array_key_exists('dueDate',       $data)) { $fields[] = 'due_date = ?';       $values[] = $data['dueDate']; }
-    if (array_key_exists('accountId',     $data)) { $fields[] = 'account_id = ?';     $values[] = $data['accountId']; }
-    if (array_key_exists('category',      $data)) { $fields[] = 'category = ?';       $values[] = $data['category']; }
-    if (array_key_exists('notes',         $data)) { $fields[] = 'notes = ?';          $values[] = $data['notes']; }
-    if (array_key_exists('recurrence',    $data)) {
-        $r = in_array($data['recurrence'], ['none','weekly','monthly','quarterly','yearly'], true) ? $data['recurrence'] : 'none';
+    if (array_key_exists('label',             $data)) { $fields[] = 'label = ?';               $values[] = trim($data['label']); }
+    if (array_key_exists('amount',            $data)) { $fields[] = 'amount = ?';              $values[] = (float)$data['amount']; }
+    if (array_key_exists('currency',          $data)) { $fields[] = 'currency = ?';            $values[] = $data['currency']; }
+    if (array_key_exists('direction',         $data)) {
+        $d = in_array($data['direction'], PAYABLE_DIRECTION_VALUES, true) ? $data['direction'] : 'out';
+        $fields[] = 'direction = ?'; $values[] = $d;
+    }
+    if (array_key_exists('dueDate',           $data)) { $fields[] = 'due_date = ?';            $values[] = $data['dueDate']; }
+    if (array_key_exists('accountId',         $data)) { $fields[] = 'account_id = ?';          $values[] = $data['accountId']; }
+    if (array_key_exists('category',          $data)) { $fields[] = 'category = ?';            $values[] = $data['category']; }
+    if (array_key_exists('notes',             $data)) { $fields[] = 'notes = ?';               $values[] = $data['notes']; }
+    if (array_key_exists('recurrence',        $data)) {
+        $r = in_array($data['recurrence'], PAYABLE_RECURRENCE_VALUES, true) ? $data['recurrence'] : 'none';
         $fields[] = 'recurrence = ?'; $values[] = $r;
     }
-    if (array_key_exists('recurrenceDay', $data)) { $fields[] = 'recurrence_day = ?'; $values[] = isset($data['recurrenceDay']) ? (int)$data['recurrenceDay'] : null; }
-    if (array_key_exists('recurrenceEnd', $data)) { $fields[] = 'recurrence_end = ?'; $values[] = $data['recurrenceEnd']; }
+    if (array_key_exists('recurrenceDay',     $data)) { $fields[] = 'recurrence_day = ?';      $values[] = isset($data['recurrenceDay']) ? (int)$data['recurrenceDay'] : null; }
+    if (array_key_exists('recurrenceEnd',     $data)) { $fields[] = 'recurrence_end = ?';      $values[] = $data['recurrenceEnd']; }
+    if (array_key_exists('adjustmentAmount',  $data)) { $fields[] = 'adjustment_amount = ?';   $values[] = $data['adjustmentAmount'] !== null ? (float)$data['adjustmentAmount'] : null; }
+    if (array_key_exists('adjustmentDueDate', $data)) { $fields[] = 'adjustment_due_date = ?'; $values[] = $data['adjustmentDueDate']; }
 
     $statusChanged = false;
     $newStatus = $current['status'];
-    if (array_key_exists('status', $data) && in_array($data['status'], ['pending','scheduled','paid','cancelled'], true)) {
+    if (array_key_exists('status', $data) && in_array($data['status'], PAYABLE_STATUS_VALUES, true)) {
         $newStatus = $data['status'];
         if ($newStatus !== $current['status']) {
             $statusChanged = true;
@@ -182,14 +207,16 @@ if ($method === 'PUT') {
                 $spawnId = uuid();
                 $pdo->prepare(
                     'INSERT INTO payables
-                     (id, label, amount, currency, due_date, account_id, status, category, notes,
-                      recurrence, recurrence_day, recurrence_end, source_type, source_id)
-                     VALUES (?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?)'
+                     (id, label, amount, currency, direction, due_date, account_id, status, category, notes,
+                      recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
+                      source_type, source_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 )->execute([
                     $spawnId,
                     $updated['label'],
                     (float)$updated['amount'],
                     $updated['currency'] ?? 'CHF',
+                    $updated['direction'] ?? 'out',
                     $nextDue,
                     $updated['account_id'],
                     $updated['category'],
@@ -197,6 +224,8 @@ if ($method === 'PUT') {
                     $recurrence,
                     $recurrenceDay,
                     $recurrenceEnd,
+                    isset($updated['adjustment_amount']) && $updated['adjustment_amount'] !== null ? (float)$updated['adjustment_amount'] : null,
+                    $updated['adjustment_due_date'] ?? null,
                     'recurrence',
                     $id,
                 ]);

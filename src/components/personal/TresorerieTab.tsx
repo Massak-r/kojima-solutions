@@ -337,6 +337,14 @@ export function TresorerieTab() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
 
+      {/* Migration notice — Plans were absorbed into "À payer" with direction + adjustment. */}
+      <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/10 dark:border-amber-500/30 px-4 py-3 text-xs font-body">
+        <strong className="text-amber-800 dark:text-amber-300">Onglet legacy.</strong>
+        <span className="text-amber-900/80 dark:text-amber-200/80 ml-1">
+          Les plans peuvent être importés dans <strong>À payer</strong> via Réglages → Maintenance → "Importer". Cet onglet reste utile pour comparer avant de supprimer les données ici.
+        </span>
+      </div>
+
       {/* ── Forecast (6-month balance projection + runway) ── */}
       <ForecastPanel plans={plans} costs={costs} />
 

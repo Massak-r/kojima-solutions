@@ -724,6 +724,12 @@ export function BudgetTab() {
               className="overflow-hidden"
             >
               <div className="px-4 pb-4 space-y-4">
+                <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/10 dark:border-amber-500/30 px-3 py-2 text-[11px] font-body">
+                  <strong className="text-amber-800 dark:text-amber-300">Section legacy.</strong>
+                  <span className="text-amber-900/80 dark:text-amber-200/80 ml-1">
+                    Ces charges peuvent être importées dans <strong>À payer</strong> (Réglages → Maintenance → Importer). Une fois vérifiées, supprime-les ici.
+                  </span>
+                </div>
                 {/* Add form */}
                 <div className="bg-muted/30 rounded-xl p-3 space-y-2">
                   <p className="text-xs font-body text-muted-foreground font-medium">Nouvelle dépense récurrente</p>

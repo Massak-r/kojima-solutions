@@ -1,10 +1,13 @@
 import { apiFetch } from "./client";
-import type { Payable, PayableCreate, PayableStatus, PayableUpdate } from "@/types/payable";
+import type {
+  Payable, PayableCreate, PayableDirection, PayableStatus, PayableUpdate,
+} from "@/types/payable";
 
-export function listPayables(opts?: { status?: PayableStatus; accountId?: string }) {
+export function listPayables(opts?: { status?: PayableStatus; accountId?: string; direction?: PayableDirection }) {
   const qs = new URLSearchParams();
   if (opts?.status) qs.set("status", opts.status);
   if (opts?.accountId) qs.set("accountId", opts.accountId);
+  if (opts?.direction) qs.set("direction", opts.direction);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<Payable[]>(`payables.php${suffix}`);
 }
