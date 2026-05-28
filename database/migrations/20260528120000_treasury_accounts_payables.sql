@@ -44,8 +44,10 @@ CREATE TABLE IF NOT EXISTS payables (
   INDEX idx_payables_account (account_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE expenses        ADD COLUMN account_id VARCHAR(36) NULL;
-ALTER TABLE personal_costs  ADD COLUMN account_id VARCHAR(36) NULL;
+-- IF NOT EXISTS so re-running after a partial failure is safe: MySQL DDL
+-- auto-commits, so rollback can't undo earlier statements.
+ALTER TABLE expenses        ADD COLUMN IF NOT EXISTS account_id VARCHAR(36) NULL;
+ALTER TABLE personal_costs  ADD COLUMN IF NOT EXISTS account_id VARCHAR(36) NULL;
 
-CREATE INDEX idx_expenses_account ON expenses (account_id);
-CREATE INDEX idx_personal_costs_account ON personal_costs (account_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_account       ON expenses       (account_id);
+CREATE INDEX IF NOT EXISTS idx_personal_costs_account ON personal_costs (account_id);
