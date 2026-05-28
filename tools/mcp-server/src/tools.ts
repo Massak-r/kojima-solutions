@@ -19,6 +19,8 @@ import {
   listPersonalDocs, updatePersonalDoc,
   listExpenses, createExpense, updateExpense,
   listPersonalCosts, createPersonalCost, updatePersonalCost,
+  listAccounts, createAccount, updateAccount, deleteAccount,
+  listPayables, createPayable, updatePayable, deletePayable,
   classifyPdf, generateBriefFromIntake, suggestQuoteLines,
   listInboxCaptures, addInboxCapture, markCaptureTriaged, deleteInboxCapture,
   type ObjectiveSource, type ObjectiveSummary, type SubtaskItem,
@@ -396,6 +398,32 @@ export const TOOLS: ToolDefinition[] = [
   { name: "update_personal_cost", description: "Patch a recurring cost.",
     inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
 
+  // ── Trésorerie : comptes (perso + entreprise, snapshot manuel) ─
+  { name: "list_accounts", description: "List bank/cash accounts (perso + entreprise) with current balance, currency, institution. Used to surface 'combien j'ai sur mes comptes'.",
+    inputSchema: { type: "object", properties: {
+      includeArchived: { type: "boolean", description: "Include archived accounts. Defaults to false." },
+      type:            { type: "string", enum: ["perso", "entreprise"], description: "Filter by account type." },
+    } } },
+  { name: "create_account", description: "Create a new account. Required: name. Optional: type (perso|entreprise, default perso), institution, currency (default CHF), balance, sortOrder, notes.",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_account", description: "Patch an account. Updating 'balance' auto-stamps balanceUpdatedAt. Use this for snapshot updates from bank statements.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+  { name: "delete_account", description: "Delete an account. Detaches account_id from any linked expenses, costs and payables (no cascade delete).",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+
+  // ── Trésorerie : payables (à payer) ────────────────────────────
+  { name: "list_payables", description: "List payables (à payer). Optional filters by status (pending|scheduled|paid|cancelled) and accountId. Sorted by due date.",
+    inputSchema: { type: "object", properties: {
+      status:    { type: "string", enum: ["pending","scheduled","paid","cancelled"] },
+      accountId: { type: "string" },
+    } } },
+  { name: "create_payable", description: "Create a new payable. Required: label, amount. Optional: dueDate (YYYY-MM-DD), accountId, status (default pending), category, notes, recurrence (none|weekly|monthly|quarterly|yearly), recurrenceDay (1-31), recurrenceEnd.",
+    inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
+  { name: "update_payable", description: "Patch a payable. Setting status='paid' stamps paidAt and, if recurrence != none, auto-spawns the next instance with the next due date (returned in response under spawned).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },
+  { name: "delete_payable", description: "Delete a payable. Does not affect any account balance — payables are obligations, not transactions.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+
   // ── Phase 2 automations ────────────────────────────────────────
   {
     name: "classify_pdf",
@@ -702,6 +730,17 @@ export async function dispatch(name: string, args: Record<string, any>): Promise
     case "list_personal_costs":  return await listPersonalCosts();
     case "create_personal_cost": return await createPersonalCost(args.data);
     case "update_personal_cost": return await updatePersonalCost(args.id, args.data);
+
+    // ── Trésorerie : comptes + payables ────────────────────────
+    case "list_accounts":   return await listAccounts({ includeArchived: args.includeArchived, type: args.type });
+    case "create_account":  return await createAccount(args.data);
+    case "update_account":  return await updateAccount(args.id, args.data);
+    case "delete_account":  return await deleteAccount(args.id);
+
+    case "list_payables":   return await listPayables({ status: args.status, accountId: args.accountId });
+    case "create_payable":  return await createPayable(args.data);
+    case "update_payable":  return await updatePayable(args.id, args.data);
+    case "delete_payable":  return await deletePayable(args.id);
 
     // ── Phase 2 automations ─────────────────────────────────────
     case "classify_pdf":

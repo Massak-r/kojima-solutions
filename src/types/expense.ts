@@ -37,5 +37,6 @@ export interface Expense {
   description: string;
   category: ExpenseCategory;
   notes?: string;
+  accountId?: string | null;
   createdAt: string;     // ISO timestamp
 }

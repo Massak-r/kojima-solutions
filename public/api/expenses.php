@@ -10,6 +10,7 @@ function mapExpense(array $row): array {
         'description' => $row['description'],
         'category'    => $row['category'],
         'notes'       => $row['notes'] ?? null,
+        'accountId'   => $row['account_id'] ?? null,
         'createdAt'   => $row['created_at'],
     ];
 }
@@ -38,7 +39,7 @@ if ($method === 'POST') {
         $items = body();
         if (!is_array($items)) fail('Expected array');
 
-        $stmt = $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt = $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
         $imported = 0;
         foreach ($items as $data) {
             $expId = $data['id'] ?? uuid();
@@ -49,6 +50,7 @@ if ($method === 'POST') {
                 $data['description'] ?? '',
                 $data['category']    ?? 'other',
                 $data['notes']       ?? null,
+                $data['accountId']   ?? null,
             ]);
             $imported++;
         }
@@ -58,7 +60,7 @@ if ($method === 'POST') {
     $data  = body();
     $newId = uuid();
 
-    $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes) VALUES (?, ?, ?, ?, ?, ?)')
+    $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
         ->execute([
             $newId,
             $data['date']        ?? date('Y-m-d'),
@@ -66,6 +68,7 @@ if ($method === 'POST') {
             $data['description'] ?? '',
             $data['category']    ?? 'other',
             $data['notes']       ?? null,
+            $data['accountId']   ?? null,
         ]);
 
     $stmt = $pdo->prepare('SELECT * FROM expenses WHERE id = ?');
@@ -85,6 +88,7 @@ if ($method === 'PUT') {
     if (array_key_exists('description', $data)) { $fields[] = 'description = ?'; $values[] = $data['description']; }
     if (array_key_exists('category',    $data)) { $fields[] = 'category = ?';    $values[] = $data['category']; }
     if (array_key_exists('notes',       $data)) { $fields[] = 'notes = ?';       $values[] = $data['notes']; }
+    if (array_key_exists('accountId',   $data)) { $fields[] = 'account_id = ?';  $values[] = $data['accountId']; }
 
     if (!empty($fields)) {
         $values[] = $id;

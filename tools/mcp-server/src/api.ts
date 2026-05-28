@@ -313,6 +313,29 @@ export const listPersonalCosts  = ()                          => call<any[]>("pe
 export const createPersonalCost = (data: Record<string, unknown>) => call<any>("personal_costs.php", { method: "POST", body: JSON.stringify(data) });
 export const updatePersonalCost = (id: string, data: Record<string, unknown>) => call<any>(`personal_costs.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
 
+// ── Trésorerie : accounts + payables ─────────────────────────────
+export const listAccounts   = (opts?: { includeArchived?: boolean; type?: "perso" | "entreprise" }) => {
+  const qs = new URLSearchParams();
+  if (opts?.includeArchived) qs.set("includeArchived", "1");
+  if (opts?.type) qs.set("type", opts.type);
+  const s = qs.toString();
+  return call<any[]>(`accounts.php${s ? `?${s}` : ""}`);
+};
+export const createAccount  = (data: Record<string, unknown>) => call<any>("accounts.php", { method: "POST", body: JSON.stringify(data) });
+export const updateAccount  = (id: string, data: Record<string, unknown>) => call<any>(`accounts.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteAccount  = (id: string) => call<void>(`accounts.php?id=${id}`, { method: "DELETE" });
+
+export const listPayables   = (opts?: { status?: string; accountId?: string }) => {
+  const qs = new URLSearchParams();
+  if (opts?.status) qs.set("status", opts.status);
+  if (opts?.accountId) qs.set("accountId", opts.accountId);
+  const s = qs.toString();
+  return call<any[]>(`payables.php${s ? `?${s}` : ""}`);
+};
+export const createPayable  = (data: Record<string, unknown>) => call<any>("payables.php", { method: "POST", body: JSON.stringify(data) });
+export const updatePayable  = (id: string, data: Record<string, unknown>) => call<any>(`payables.php?id=${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deletePayable  = (id: string) => call<void>(`payables.php?id=${id}`, { method: "DELETE" });
+
 // ── Phase 2 automations ───────────────────────────────────────────
 export const classifyPdf             = (docId: string)     => call<any>("auto/classify_pdf.php",       { method: "POST", body: JSON.stringify({ docId }) });
 export const generateBriefFromIntake = (intakeId: string)  => call<any>("auto/generate_brief.php",     { method: "POST", body: JSON.stringify({ intakeId }) });

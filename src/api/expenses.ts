@@ -7,6 +7,7 @@ export interface ExpenseItem {
   description: string;
   category:    string;
   notes?:      string | null;
+  accountId?:  string | null;
   createdAt:   string;
 }
 

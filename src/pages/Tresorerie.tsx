@@ -1,7 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet } from "lucide-react";
+import { Wallet, Banknote, CalendarClock, History } from "lucide-react";
 import { TresorerieTab } from "@/components/personal/TresorerieTab";
 import { BudgetTab } from "@/components/tresorerie/BudgetTab";
+import { AccountsManager } from "@/components/tresorerie/AccountsManager";
+import { PayablesManager } from "@/components/tresorerie/PayablesManager";
+import { LedgerView } from "@/components/tresorerie/LedgerView";
 
 export default function Tresorerie() {
   return (
@@ -11,18 +14,30 @@ export default function Tresorerie() {
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
             Tr<span className="text-primary">é</span>sorerie
           </h1>
-          <p className="text-muted-foreground text-sm font-body mt-1">Budget et trésorerie.</p>
+          <p className="text-muted-foreground text-sm font-body mt-1">Comptes, paiements et historique.</p>
         </div>
 
-        <Tabs defaultValue="budget">
+        <Tabs defaultValue="accounts">
           <div className="overflow-x-auto mb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
             <TabsList className="font-body w-max">
+              <TabsTrigger value="accounts" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <Banknote size={13} /> Comptes
+              </TabsTrigger>
+              <TabsTrigger value="payables" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <CalendarClock size={13} /> À payer
+              </TabsTrigger>
+              <TabsTrigger value="ledger" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <History size={13} /> Historique
+              </TabsTrigger>
               <TabsTrigger value="budget" className="text-xs sm:text-sm">Budget</TabsTrigger>
               <TabsTrigger value="tresorerie" className="text-xs sm:text-sm flex items-center gap-1.5">
-                <Wallet size={13} /> Trésorerie
+                <Wallet size={13} /> Plans
               </TabsTrigger>
             </TabsList>
           </div>
+          <TabsContent value="accounts"><AccountsManager /></TabsContent>
+          <TabsContent value="payables"><PayablesManager /></TabsContent>
+          <TabsContent value="ledger"><LedgerView /></TabsContent>
           <TabsContent value="budget"><BudgetTab /></TabsContent>
           <TabsContent value="tresorerie"><TresorerieTab /></TabsContent>
         </Tabs>

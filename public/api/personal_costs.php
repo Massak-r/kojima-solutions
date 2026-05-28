@@ -10,6 +10,7 @@ function mapCost(array $row): array {
         'frequency' => $row['frequency'],
         'category'  => $row['category'] ?? null,
         'lastPaid'  => $row['last_paid'] ?? null,
+        'accountId' => $row['account_id'] ?? null,
         'createdAt' => $row['created_at'],
     ];
 }
@@ -28,7 +29,7 @@ if ($method === 'POST') {
     $data  = body();
     $newId = uuid();
 
-    $pdo->prepare('INSERT INTO personal_costs (id, name, amount, frequency, category, last_paid) VALUES (?, ?, ?, ?, ?, ?)')
+    $pdo->prepare('INSERT INTO personal_costs (id, name, amount, frequency, category, last_paid, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
         ->execute([
             $newId,
             $data['name']      ?? '',
@@ -36,6 +37,7 @@ if ($method === 'POST') {
             $data['frequency'] ?? 'monthly',
             $data['category']  ?? null,
             $data['lastPaid']  ?? null,
+            $data['accountId'] ?? null,
         ]);
 
     $stmt = $pdo->prepare('SELECT * FROM personal_costs WHERE id = ?');
@@ -55,6 +57,7 @@ if ($method === 'PUT') {
     if (array_key_exists('frequency', $data)) { $fields[] = 'frequency = ?'; $values[] = $data['frequency']; }
     if (array_key_exists('category',  $data)) { $fields[] = 'category = ?';  $values[] = $data['category']; }
     if (array_key_exists('lastPaid',  $data)) { $fields[] = 'last_paid = ?'; $values[] = $data['lastPaid']; }
+    if (array_key_exists('accountId', $data)) { $fields[] = 'account_id = ?'; $values[] = $data['accountId']; }
 
     if (!empty($fields)) {
         $values[] = $id;
