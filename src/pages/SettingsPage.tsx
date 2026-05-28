@@ -1,4 +1,4 @@
-import { Settings, Bell, Globe, Receipt, Landmark, Wand2, Plus, Trash2, RotateCcw } from "lucide-react";
+import { Settings, Bell, Globe, Receipt, Landmark, Wand2, Plus, Trash2, RotateCcw, Wrench } from "lucide-react";
 import { EmailTemplates } from "@/components/EmailTemplates";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import type { CompanySettings, QuotePreset } from "@/types/companySettings";
+import { apiFetch } from "@/api/client";
 import {
   DEFAULT_PAYMENT_TERMS_PRESETS,
   DEFAULT_CONDITIONS_PRESETS,
@@ -48,7 +49,80 @@ export default function SettingsPage() {
 
         {/* Site Info */}
         <SiteInfoSection />
+
+        {/* Maintenance — DB migration runner */}
+        <MaintenanceSection />
       </main>
+    </div>
+  );
+}
+
+function MaintenanceSection() {
+  const { toast } = useToast();
+  const [running, setRunning] = useState(false);
+
+  async function runMigrations() {
+    setRunning(true);
+    try {
+      // Backfill is INSERT IGNORE so re-running is harmless. Marks pre-cutoff
+      // migrations as applied when self-healing app code beat the runner to the
+      // DDL — without this, the runner halts at the first duplicate-column
+      // error and never reaches newer migrations.
+      await apiFetch<{ marked: string[]; skipped_newer: string[] }>(
+        "_migrate_backfill.php?before=20260528120000",
+        { method: "POST" }
+      );
+      const runner = await apiFetch<{
+        migrations: { file: string; status: "applied" | "skipped" | "error"; error?: string }[];
+      }>("db_migrate.php", { method: "POST" });
+      const applied = runner.migrations.filter((m) => m.status === "applied");
+      const errored = runner.migrations.find((m) => m.status === "error");
+      if (errored) {
+        toast({
+          title: "Migration en erreur",
+          description: `${errored.file} — ${errored.error ?? "voir logs serveur"}`,
+          variant: "destructive",
+        });
+      } else if (applied.length > 0) {
+        toast({
+          title: applied.length === 1 ? "1 migration appliquée" : `${applied.length} migrations appliquées`,
+          description: applied.map((m) => m.file).join(", "),
+        });
+      } else {
+        toast({ title: "Schéma déjà à jour" });
+      }
+    } catch (e) {
+      toast({
+        title: "Échec",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
+        <Wrench size={14} className="text-primary" />
+        <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          Maintenance
+        </h2>
+      </div>
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-body font-medium text-foreground">Appliquer les migrations en attente</p>
+            <p className="text-xs font-body text-muted-foreground/70 mt-0.5">
+              Débloque le runner si un schéma a été appliqué hors-bande, puis applique les migrations restantes.
+            </p>
+          </div>
+          <Button size="sm" onClick={runMigrations} disabled={running} className="shrink-0">
+            {running ? "En cours…" : "Lancer"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
