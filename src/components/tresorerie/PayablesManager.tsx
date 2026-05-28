@@ -19,8 +19,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Pencil, Trash2, Check, RotateCcw, Loader2, CalendarClock,
-  AlertCircle, Repeat,
+  AlertCircle, Repeat, CalendarRange, TrendingDown,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as ReTooltip, ResponsiveContainer,
+} from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import {
   listPayables, createPayable, updatePayable, deletePayable,
@@ -58,6 +62,68 @@ function dueLabel(date?: string | null): { text: string; tone: "ok" | "warn" | "
   if (d <= 7)  return { text: `Dans ${d} j`, tone: "warn" };
   if (d <= 30) return { text: `Dans ${d} j`, tone: "ok" };
   return { text: new Date(date! + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }), tone: "muted" };
+}
+
+// ── Forecast helpers ──────────────────────────────────────────────────────────
+// Both project recurring payables into virtual future occurrences. The DB only
+// holds the current open instance (next one is spawned on mark-paid), so any
+// forward-looking view has to synthesize what will accrue if nothing is paid.
+
+function advanceOccurrence(d: Date, recurrence: PayableRecurrence): boolean {
+  switch (recurrence) {
+    case "weekly":    d.setDate(d.getDate() + 7); return true;
+    case "monthly":   d.setMonth(d.getMonth() + 1); return true;
+    case "quarterly": d.setMonth(d.getMonth() + 3); return true;
+    case "yearly":    d.setFullYear(d.getFullYear() + 1); return true;
+    default: return false;
+  }
+}
+
+function projectByMonth(payables: Payable[], monthsAhead = 6): { ym: string; label: string; total: number }[] {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const horizon = new Date(today.getFullYear(), today.getMonth() + monthsAhead, 0, 23, 59, 59);
+
+  const buckets: { ym: string; label: string; total: number }[] = [];
+  for (let i = 0; i < monthsAhead; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    buckets.push({ ym, label: d.toLocaleDateString("fr-CH", { month: "short" }), total: 0 });
+  }
+  const byYm = new Map(buckets.map(b => [b.ym, b]));
+
+  for (const p of payables) {
+    if (p.status !== "pending" && p.status !== "scheduled") continue;
+    if (!p.dueDate) continue;
+    const recEnd = p.recurrenceEnd ? new Date(p.recurrenceEnd + "T23:59:59") : null;
+    const occ = new Date(p.dueDate + "T00:00:00");
+    let safety = 0;
+    while (occ <= horizon && safety++ < 200) {
+      if (recEnd && occ > recEnd) break;
+      const ym = `${occ.getFullYear()}-${String(occ.getMonth() + 1).padStart(2, "0")}`;
+      const bucket = byYm.get(ym);
+      if (bucket) bucket.total += p.amount;
+      if (!advanceOccurrence(occ, p.recurrence)) break;
+    }
+  }
+  return buckets.map(b => ({ ...b, total: Math.round(b.total) }));
+}
+
+function sumUntil(payables: Payable[], until: string): { total: number; count: number } {
+  const limit = new Date(until + "T23:59:59");
+  let total = 0, count = 0;
+  for (const p of payables) {
+    if (p.status !== "pending" && p.status !== "scheduled") continue;
+    if (!p.dueDate) continue;
+    const recEnd = p.recurrenceEnd ? new Date(p.recurrenceEnd + "T23:59:59") : null;
+    const occ = new Date(p.dueDate + "T00:00:00");
+    let safety = 0;
+    while (occ <= limit && safety++ < 500) {
+      if (recEnd && occ > recEnd) break;
+      total += p.amount; count++;
+      if (!advanceOccurrence(occ, p.recurrence)) break;
+    }
+  }
+  return { total, count };
 }
 
 interface FormState {
@@ -120,6 +186,21 @@ export function PayablesManager() {
   const overdueCount = useMemo(() => {
     return payables.filter(p => p.status === "pending" && p.dueDate && (daysUntil(p.dueDate) ?? 1) < 0).length;
   }, [payables]);
+
+  // Default "jusqu'au" = end of next month, so the calculator opens with a
+  // useful value already filled in instead of empty.
+  const [untilDate, setUntilDate] = useState<string>(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + 2); d.setDate(0);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const chartData     = useMemo(() => projectByMonth(payables, 6), [payables]);
+  const chartHasData  = useMemo(() => chartData.some(d => d.total > 0), [chartData]);
+  const untilSummary  = useMemo(() => sumUntil(payables, untilDate), [payables, untilDate]);
+  const untilDateNice = useMemo(() => {
+    if (!untilDate) return "";
+    return new Date(untilDate + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
+  }, [untilDate]);
 
   function openCreate() {
     setEditing(null);
@@ -242,7 +323,7 @@ export function PayablesManager() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border p-4 bg-muted/30">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Dans 30 jours</div>
           <div className="font-display text-2xl font-semibold tabular-nums mt-1">{formatCHF(totalDue30)}</div>
@@ -253,7 +334,64 @@ export function PayablesManager() {
           </div>
           <div className={`font-display text-2xl font-semibold tabular-nums mt-1 ${overdueCount > 0 ? "text-red-700 dark:text-red-400" : ""}`}>{overdueCount}</div>
         </div>
+        <div className="rounded-xl border p-4 bg-muted/30">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <CalendarRange className="h-3.5 w-3.5" /> Jusqu'au
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <Input
+              type="date"
+              value={untilDate}
+              onChange={e => setUntilDate(e.target.value)}
+              className="h-8 text-xs w-[8.5rem]"
+            />
+          </div>
+          <div className="font-display text-xl font-semibold tabular-nums mt-2">{formatCHF(untilSummary.total)}</div>
+          {untilSummary.count > 0 && (
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {untilSummary.count} échéance{untilSummary.count > 1 ? "s" : ""} d'ici le {untilDateNice}
+            </div>
+          )}
+        </div>
       </div>
+
+      {chartHasData && (
+        <div className="rounded-xl border bg-muted/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground">Projection 6 mois</h3>
+            <span className="text-[10px] text-muted-foreground/70 ml-auto">récurrences projetées</span>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chartData} margin={{ top: 5, right: 4, left: -12, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fontFamily: "var(--font-body)" }}
+                stroke="hsl(var(--muted-foreground))"
+              />
+              <YAxis
+                tick={{ fontSize: 11, fontFamily: "var(--font-body)" }}
+                stroke="hsl(var(--muted-foreground))"
+                tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
+                width={40}
+              />
+              <ReTooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: 8,
+                  fontFamily: "var(--font-body)",
+                  fontSize: 12,
+                }}
+                formatter={(value: number) => [formatCHF(value), "À sortir"]}
+                cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+              />
+              <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
