@@ -8,7 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { FileText, FolderInput, Clock, Loader2, Zap } from "lucide-react";
+import { FileText, FolderInput, Clock, Loader2, Zap, LayoutGrid } from "lucide-react";
 import type { DocFolder } from "@/api/adminDocs";
 import { DOC_CATEGORIES, folderOptions, formatBytes } from "./helpers";
 
@@ -30,6 +30,9 @@ interface ScanSortDialogProps {
   setUrgent: (v: boolean) => void;
   saving: boolean;
   onSubmit: (status: "to_sort" | "filed") => void;
+  /** Opens the page editor on this document (reorder / rotate / delete /
+   *  extract). Omitted when there's nothing to edit. */
+  onEditPages?: () => void;
 }
 
 /**
@@ -40,7 +43,7 @@ interface ScanSortDialogProps {
 export function ScanSortDialog({
   open, onOpenChange, fileName, fileSize, preparing, folders,
   title, setTitle, category, setCategory, folderId, setFolderId,
-  urgent, setUrgent, saving, onSubmit,
+  urgent, setUrgent, saving, onSubmit, onEditPages,
 }: ScanSortDialogProps) {
   const opts = folderOptions(folders);
   const busy = saving || preparing;
@@ -61,6 +64,20 @@ export function ScanSortDialog({
               {preparing ? "préparation…" : formatBytes(fileSize)}
             </span>
           </div>
+
+          {/* Edit pages — reorder / rotate / delete / extract before filing */}
+          {onEditPages && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5"
+              disabled={busy}
+              onClick={onEditPages}
+            >
+              <LayoutGrid size={14} className="text-primary" />
+              Modifier les pages (réorganiser, pivoter, extraire)
+            </Button>
+          )}
 
           {/* Title */}
           <div>

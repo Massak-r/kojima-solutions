@@ -10,7 +10,7 @@ import {
 import { useAdminDocs, useInvalidateAdminDocs } from "@/hooks/useAdminDocs";
 import { bufferFile, MAX_PDF_SIZE, isImage, imagesToPdf } from "./helpers";
 import { ScanSortDialog } from "./ScanSortDialog";
-import { BatchAssembleDialog } from "./BatchAssembleDialog";
+import { PdfPageEditorDialog } from "./PdfPageEditorDialog";
 import { TriageDocCard } from "./TriageDocCard";
 
 const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
@@ -44,10 +44,13 @@ export function TriageTab() {
   const [folderId, setFolderId] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
 
-  // ── Batch-assemble dialog (several PDFs → one document) ─────
-  const [batchOpen, setBatchOpen] = useState(false);
-  const [batchFiles, setBatchFiles] = useState<File[]>([]);
-  const [batchPreparing, setBatchPreparing] = useState(false);
+  // ── Page editor (assemble + reorder / rotate / delete / extract) ──
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorFiles, setEditorFiles] = useState<File[]>([]);
+  const [editorPreparing, setEditorPreparing] = useState(false);
+  // True while the editor is staged from the sort dialog on an existing single
+  // document — on return we keep the title/folder the user already chose.
+  const editingExisting = useRef(false);
 
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -117,38 +120,56 @@ export function TriageTab() {
   }
 
   async function acceptBatch(raw: File[]) {
-    // Kick off every read synchronously, then open the assembler.
+    // Kick off every read synchronously, then open the page editor.
     const bufferPromises = raw.map(bufferFile);
-    setBatchFiles([]);
-    setBatchPreparing(true);
-    setBatchOpen(true);
+    editingExisting.current = false;
+    setEditorFiles([]);
+    setEditorPreparing(true);
+    setEditorOpen(true);
     try {
-      setBatchFiles(await Promise.all(bufferPromises));
+      setEditorFiles(await Promise.all(bufferPromises));
     } catch {
       toast({ title: "Erreur", description: "Impossible de lire un des fichiers.", variant: "destructive" });
-      setBatchOpen(false);
+      setEditorOpen(false);
     } finally {
-      setBatchPreparing(false);
+      setEditorPreparing(false);
     }
   }
 
-  /** Opens the assembler empty — for adding PDFs one by one. */
-  function openAssembler() {
-    setBatchFiles([]);
-    setBatchPreparing(false);
-    setBatchOpen(true);
+  /** Opens the editor empty — for building a document from scratch. */
+  function openEditor() {
+    editingExisting.current = false;
+    setEditorFiles([]);
+    setEditorPreparing(false);
+    setEditorOpen(true);
   }
 
-  /** The assembler merged several PDFs — hand the result to the sort dialog. */
-  function handleBatchMerged(merged: File) {
-    setBatchOpen(false);
-    setBatchFiles([]);
-    setTitle(merged.name.replace(/\.pdf$/i, ""));
-    setCategory("Général");
-    setFolderId(null);
-    setUrgent(false);
-    setFileMeta({ name: merged.name, size: merged.size });
-    setPendingFile(merged); // already an in-memory File — no buffering needed
+  /** From the sort dialog: re-open the editor on the document being staged so
+   *  the user can clean it up (rotate a sideways page, drop a blank, etc.). */
+  function editCurrentPages() {
+    if (!pendingFile) return;
+    editingExisting.current = true;
+    setDialogOpen(false);
+    setEditorFiles([pendingFile]); // already buffered in memory
+    setEditorPreparing(false);
+    setEditorOpen(true);
+  }
+
+  /** The editor produced one assembled PDF — hand it to the sort dialog. When we
+   *  came from an already-staged doc, keep its title/category/folder choices. */
+  function handleAssembled(assembled: File) {
+    const keepMeta = editingExisting.current;
+    editingExisting.current = false;
+    setEditorOpen(false);
+    setEditorFiles([]);
+    if (!keepMeta) {
+      setTitle(assembled.name.replace(/\.pdf$/i, ""));
+      setCategory("Général");
+      setFolderId(null);
+      setUrgent(false);
+    }
+    setFileMeta({ name: assembled.name, size: assembled.size });
+    setPendingFile(assembled); // already an in-memory File — no buffering needed
     setPreparing(false);
     setDialogOpen(true);
   }
@@ -290,8 +311,8 @@ export function TriageTab() {
           <p className="font-display font-semibold text-base">Zone de scan</p>
           <p className="text-sm text-muted-foreground font-body mt-1 max-w-sm">
             {isMobile
-              ? "Touche pour scanner avec l'appareil photo ou choisir un PDF. Plusieurs fichiers d'un coup s'assemblent en un document."
-              : "Glisse-dépose tes PDF ou photos scannés ici, ou clique pour parcourir. Plusieurs fichiers d'un coup s'assemblent en un document."}
+              ? "Touche pour scanner avec l'appareil photo ou choisir un PDF. Plusieurs fichiers d'un coup ouvrent l'éditeur de pages."
+              : "Glisse-dépose tes PDF ou photos scannés ici, ou clique pour parcourir. Plusieurs fichiers d'un coup ouvrent l'éditeur de pages."}
           </p>
           <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-body font-medium text-primary">
             <Upload size={13} /> PDF, JPG ou PNG · scan caméra mobile pris en charge
@@ -310,14 +331,14 @@ export function TriageTab() {
           )}
           <button
             type="button"
-            onClick={openAssembler}
+            onClick={openEditor}
             className={cn(
               "w-full flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-xs font-body text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors",
               !isMobile && "sm:col-span-2",
             )}
           >
             <Layers size={14} className="text-primary" />
-            Plusieurs fichiers pour un seul document ? Assemble-les dans l'ordre
+            Éditer / assembler des pages — réorganiser, pivoter, extraire
           </button>
         </div>
       </div>
@@ -394,14 +415,24 @@ export function TriageTab() {
         setUrgent={setUrgent}
         saving={saving}
         onSubmit={handleSubmit}
+        onEditPages={pendingFile ? editCurrentPages : undefined}
       />
 
-      <BatchAssembleDialog
-        open={batchOpen}
-        onOpenChange={(v) => { if (!v) { setBatchOpen(false); setBatchFiles([]); } }}
-        initialFiles={batchFiles}
-        preparing={batchPreparing}
-        onMerged={handleBatchMerged}
+      <PdfPageEditorDialog
+        open={editorOpen}
+        onOpenChange={(v) => {
+          if (v) return;
+          // Cancelling an edit that came from the sort dialog returns there with
+          // the document unchanged, rather than dropping the user to an empty UI.
+          const backToSort = editingExisting.current && !!pendingFile;
+          editingExisting.current = false;
+          setEditorOpen(false);
+          setEditorFiles([]);
+          if (backToSort) setDialogOpen(true);
+        }}
+        initialFiles={editorFiles}
+        preparing={editorPreparing}
+        onMerged={handleAssembled}
       />
     </div>
   );

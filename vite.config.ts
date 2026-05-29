@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("react-markdown") || id.includes("remark-") || id.includes("micromark")) return "vendor-markdown";
             if (id.includes("@dnd-kit")) return "vendor-dnd";
             if (id.includes("pdf-lib")) return "vendor-pdf";
+            if (id.includes("pdfjs-dist")) return "vendor-pdfjs";
             if (id.includes("date-fns")) return "vendor-datefns";
             if (id.includes("lucide-react")) return "vendor-icons";
           }
