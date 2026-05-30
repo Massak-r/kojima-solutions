@@ -84,7 +84,10 @@ function advanceOccurrence(d: Date, recurrence: PayableRecurrence): boolean {
   }
 }
 
-interface MonthBucket { ym: string; label: string; out: number; in: number; net: number }
+interface MonthBucket {
+  ym: string; label: string; out: number; in: number; net: number;
+  outCommitted: number; outForecast: number; inCommitted: number; inForecast: number;
+}
 
 function projectByMonth(payables: Payable[], monthsAhead = 6): MonthBucket[] {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -94,12 +97,18 @@ function projectByMonth(payables: Payable[], monthsAhead = 6): MonthBucket[] {
   for (let i = 0; i < monthsAhead; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    buckets.push({ ym, label: d.toLocaleDateString("fr-CH", { month: "short" }), out: 0, in: 0, net: 0 });
+    buckets.push({ ym, label: d.toLocaleDateString("fr-CH", { month: "short" }), out: 0, in: 0, net: 0, outCommitted: 0, outForecast: 0, inCommitted: 0, inForecast: 0 });
   }
   const byYm = new Map(buckets.map(b => [b.ym, b]));
 
-  const accrue = (b: MonthBucket, amount: number, direction: PayableDirection) => {
-    if (direction === "in") b.in += amount; else b.out += amount;
+  const accrue = (b: MonthBucket, amount: number, direction: PayableDirection, commitment: PayableCommitment) => {
+    if (direction === "in") {
+      b.in += amount;
+      if (commitment === "forecast") b.inForecast += amount; else b.inCommitted += amount;
+    } else {
+      b.out += amount;
+      if (commitment === "forecast") b.outForecast += amount; else b.outCommitted += amount;
+    }
   };
 
   for (const p of payables) {
@@ -112,7 +121,7 @@ function projectByMonth(payables: Payable[], monthsAhead = 6): MonthBucket[] {
       if (recEnd && occ > recEnd) break;
       const ym = `${occ.getFullYear()}-${String(occ.getMonth() + 1).padStart(2, "0")}`;
       const bucket = byYm.get(ym);
-      if (bucket) accrue(bucket, p.amount, p.direction);
+      if (bucket) accrue(bucket, p.amount, p.direction, p.commitment);
       if (!advanceOccurrence(occ, p.recurrence)) break;
     }
     // Apply year-end adjustment (e.g. impôts rattrapage) on its own bucket.
@@ -121,11 +130,15 @@ function projectByMonth(payables: Payable[], monthsAhead = 6): MonthBucket[] {
       if (adj <= horizon) {
         const ym = `${adj.getFullYear()}-${String(adj.getMonth() + 1).padStart(2, "0")}`;
         const bucket = byYm.get(ym);
-        if (bucket) accrue(bucket, p.adjustmentAmount, p.direction);
+        if (bucket) accrue(bucket, p.adjustmentAmount, p.direction, p.commitment);
       }
     }
   }
-  for (const b of buckets) { b.out = Math.round(b.out); b.in = Math.round(b.in); b.net = b.in - b.out; }
+  for (const b of buckets) {
+    b.out = Math.round(b.out); b.in = Math.round(b.in); b.net = b.in - b.out;
+    b.outCommitted = Math.round(b.outCommitted); b.outForecast = Math.round(b.outForecast);
+    b.inCommitted = Math.round(b.inCommitted); b.inForecast = Math.round(b.inForecast);
+  }
   return buckets;
 }
 
@@ -477,18 +490,26 @@ export function PayablesManager() {
                   fontSize: 12,
                 }}
                 formatter={(value: number, name: string) => {
-                  if (name === "out") return [formatCHF(value), "Sorties"];
-                  if (name === "in")  return [formatCHF(value), "Entrées"];
-                  return [formatCHF(value), name];
+                  const labels: Record<string, string> = {
+                    outCommitted: "Sorties · obligatoire", outForecast: "Sorties · prévision",
+                    inCommitted: "Entrées · attendu", inForecast: "Entrées · prévision",
+                  };
+                  return [formatCHF(value), labels[name] ?? name];
                 }}
                 cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
               />
               <Legend
                 wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-body)" }}
-                formatter={(value) => value === "out" ? "Sorties" : value === "in" ? "Entrées" : value}
+                formatter={(value) => ({
+                  outCommitted: "Sorties oblig.", outForecast: "Sorties prév.",
+                  inCommitted: "Entrées att.", inForecast: "Entrées prév.",
+                }[value as string] ?? value)}
               />
-              <Bar dataKey="out" fill="hsl(0 72% 51%)" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="in"  fill="hsl(142 71% 45%)" radius={[3, 3, 0, 0]} />
+              {/* Stacked: committed (solid) at the base, prévision (faded) on top. */}
+              <Bar dataKey="outCommitted" stackId="out" fill="hsl(0 72% 51%)" />
+              <Bar dataKey="outForecast"  stackId="out" fill="hsla(0, 72%, 51%, 0.4)" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="inCommitted"  stackId="in" fill="hsl(142 71% 45%)" />
+              <Bar dataKey="inForecast"   stackId="in" fill="hsla(142, 71%, 45%, 0.4)" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
