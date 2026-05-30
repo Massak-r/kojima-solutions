@@ -63,9 +63,11 @@ export const ResponsiveDialogContent = React.forwardRef<
         {...props}
       >
         {/* Scrollable body — vaul ignores drag attempts that originate inside
-            this region, so Radix selects/inputs don't fight the drawer. */}
+            this region, so Radix selects/inputs don't fight the drawer.
+            `min-h-0` lets this flex child shrink below its content height so
+            `overflow-y-auto` actually engages instead of overflowing the sheet. */}
         <div
-          className={cn("overflow-y-auto", padded && "px-4 pb-5")}
+          className={cn("min-h-0 overflow-y-auto", padded && "px-4 pb-5")}
           data-vaul-no-drag
         >
           {children}
