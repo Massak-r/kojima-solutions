@@ -197,8 +197,13 @@ export function PayablesManager() {
   const [tab, setTab] = useState<"pending" | "scheduled" | "paid" | "all">("pending");
   const [directionFilter, setDirectionFilter] = useState<"all" | PayableDirection>("all");
   const [commitmentFilter, setCommitmentFilter] = useState<"all" | PayableCommitment>("all");
-  // List horizon: show only rows due on/before this date. "" = no limit (Tout).
-  const [horizonDate, setHorizonDate] = useState<string>("");
+  // Unified horizon: ONE date drives both the "Jusqu'au" projection and the list
+  // scope (rows due on/before it). The slider and the date input both edit it.
+  // Default = end of next month, so the projection opens on a useful value.
+  const [untilDate, setUntilDate] = useState<string>(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + 2); d.setDate(0);
+    return d.toISOString().slice(0, 10);
+  });
   const [editing, setEditing] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -225,17 +230,26 @@ export function PayablesManager() {
     if (commitmentFilter !== "all") xs = xs.filter(p => p.commitment === commitmentFilter);
     // ISO dates compare lexicographically; undated rows always pass (no horizon
     // to exceed) and overdue rows pass too (dueDate < today ≤ horizon).
-    if (horizonDate) xs = xs.filter(p => !p.dueDate || p.dueDate <= horizonDate);
+    if (untilDate) xs = xs.filter(p => !p.dueDate || p.dueDate <= untilDate);
     if (tab !== "all") xs = xs.filter(p => p.status === tab);
     return xs;
-  }, [payables, tab, directionFilter, commitmentFilter, horizonDate]);
+  }, [payables, tab, directionFilter, commitmentFilter, untilDate]);
 
-  // Slider position = days from today; "" (no limit) parks the thumb at the far end.
-  const horizonDays = horizonDate ? Math.max(0, Math.min(365, daysUntil(horizonDate) ?? 365)) : 365;
+  // Slider position = days from today, clamped to its 0–365 range. A date picked
+  // further out via the input still filters/projects correctly; the thumb just
+  // pins at the far end.
+  const horizonDays = Math.max(0, Math.min(365, daysUntil(untilDate) ?? 365));
   const setHorizonFromDays = (d: number) => {
     const base = new Date(); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + d);
-    setHorizonDate(`${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`);
+    setUntilDate(`${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`);
   };
+  // "Tout" shortcut → stretch the horizon to the furthest due date so every row
+  // shows (undated rows always do); falls back to today if nothing is dated.
+  const maxDueDate = useMemo(() => {
+    let m: string | null = null;
+    for (const p of payables) if (p.dueDate && (!m || p.dueDate > m)) m = p.dueDate;
+    return m;
+  }, [payables]);
 
   const totalDue30Out = useMemo(() => sumDirection(payables, "out", 30), [payables]);
   const totalDue30In  = useMemo(() => sumDirection(payables, "in",  30), [payables]);
@@ -243,13 +257,6 @@ export function PayablesManager() {
   const overdueCount = useMemo(() => {
     return payables.filter(p => p.status === "pending" && p.direction === "out" && p.dueDate && (daysUntil(p.dueDate) ?? 1) < 0).length;
   }, [payables]);
-
-  // Default "jusqu'au" = end of next month, so the calculator opens with a
-  // useful value already filled in instead of empty.
-  const [untilDate, setUntilDate] = useState<string>(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + 2); d.setDate(0);
-    return d.toISOString().slice(0, 10);
-  });
 
   const chartData     = useMemo(() => projectByMonth(payables, 6), [payables]);
   const chartHasData  = useMemo(() => chartData.some(d => d.out > 0 || d.in > 0), [chartData]);
@@ -523,9 +530,10 @@ export function PayablesManager() {
         ))}
       </div>
 
-      {/* Horizon — scope the list to everything due on/before a date. */}
+      {/* Unified horizon — the slider IS the "Jusqu'au" date: it drives both the
+          projection card above and the list scope below. */}
       <div className="flex items-center gap-3 flex-wrap rounded-lg border bg-muted/30 px-3 py-2">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">Voir jusqu'au</span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">Jusqu'au</span>
         <Slider
           value={[horizonDays]}
           min={0}
@@ -537,26 +545,23 @@ export function PayablesManager() {
         />
         <Input
           type="date"
-          value={horizonDate}
-          onChange={e => setHorizonDate(e.target.value)}
+          value={untilDate}
+          onChange={e => setUntilDate(e.target.value)}
           className="h-7 text-[11px] w-[8.5rem] shrink-0"
         />
         <button
-          onClick={() => setHorizonDate("")}
-          className={cn(
-            "text-xs px-2.5 py-1 rounded-full border transition shrink-0",
-            !horizonDate
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-background border-border text-muted-foreground hover:text-foreground"
-          )}
+          onClick={() => setUntilDate(maxDueDate ?? untilDate)}
+          title="Jusqu'à la dernière échéance"
+          className="text-xs px-2.5 py-1 rounded-full border transition shrink-0 bg-background border-border text-muted-foreground hover:text-foreground"
         >
           Tout
         </button>
-        {horizonDate && (
-          <span className="text-[11px] text-muted-foreground font-body shrink-0 tabular-nums">
-            {filtered.length} ligne{filtered.length !== 1 ? "s" : ""}
+        <span className="text-[11px] font-body shrink-0 tabular-nums ml-auto">
+          <span className="text-muted-foreground">{filtered.length} ligne{filtered.length !== 1 ? "s" : ""} · solde net </span>
+          <span className={untilNet < 0 ? "text-red-700 dark:text-red-400 font-semibold" : "text-emerald-700 dark:text-emerald-400 font-semibold"}>
+            {untilNet >= 0 ? "+" : ""}{formatCHF(untilNet)}
           </span>
-        )}
+        </span>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
