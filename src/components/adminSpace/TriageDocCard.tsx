@@ -6,13 +6,15 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
-  FileText, Eye, Trash2, Zap, FolderInput, Check, X, Pencil, Sparkles, Loader2,
+  FileText, Eye, Trash2, Zap, FolderInput, Check, X, Pencil, Sparkles, Loader2, Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useClients } from "@/contexts/ClientsContext";
 import { classifyPdf, updateDoc, type AdminDocItem, type DocFolder } from "@/api/adminDocs";
 import { classifyDocument, type ClassifySuggestion, type DocCategory } from "@/lib/docClassifier";
+import { extractInvoiceFields } from "@/lib/invoiceExtractor";
+import { DocToPayableDialog, type PayablePrefill } from "./DocToPayableDialog";
 import { folderOptions, formatBytes, formatDate } from "./helpers";
 import { DocPreviewSheet } from "./DocPreviewSheet";
 
@@ -40,6 +42,9 @@ export function TriageDocCard({
   const [title, setTitle] = useState(doc.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [payableOpen, setPayableOpen] = useState(false);
+  const [payablePrefill, setPayablePrefill] = useState<PayablePrefill | null>(null);
+  const [payableLoading, setPayableLoading] = useState(false);
   const [classifyState, setClassifyState] = useState<
     | { kind: "idle" }
     | { kind: "loading" }
@@ -77,6 +82,30 @@ export function TriageDocCard({
         toast.error("Auto-classement impossible — vérifie ta connexion.");
       }
       setClassifyState({ kind: "idle" });
+    }
+  }
+
+  // Pull the PDF text, run best-effort invoice extraction, open the payable
+  // form pre-filled. The user verifies/edits before it's created.
+  async function openPayable() {
+    setPayableLoading(true);
+    try {
+      const payload = await classifyPdf(doc.id);
+      const f = extractInvoiceFields(payload.extractedText || "");
+      const refBits = [f.iban && `IBAN ${f.iban}`, f.reference && `réf ${f.reference}`].filter(Boolean).join(" · ");
+      setPayablePrefill({
+        label: f.vendor ? `Facture ${f.vendor}` : doc.title,
+        amount: f.amount != null ? String(f.amount) : "",
+        dueDate: f.dueDate ?? "",
+        category: "",
+        notes: `Depuis « ${doc.title} »${refBits ? " · " + refBits : ""}`,
+      });
+      setPayableOpen(true);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "";
+      if (!message.includes("→ 401")) toast.error("Lecture du document impossible.");
+    } finally {
+      setPayableLoading(false);
     }
   }
 
@@ -386,6 +415,16 @@ export function TriageDocCard({
             <Eye size={14} />
             <span className="hidden sm:inline">Aperçu</span>
           </button>
+          <button
+            onClick={openPayable}
+            disabled={busy || payableLoading}
+            className="px-3 py-2 rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 text-xs font-body font-medium"
+            title="Créer un payable depuis cette facture"
+            aria-label="Créer un payable"
+          >
+            {payableLoading ? <Loader2 size={14} className="animate-spin" /> : <Receipt size={14} />}
+            <span className="hidden sm:inline">Payable</span>
+          </button>
         </div>
         {confirmDelete ? (
           <div className="flex items-center gap-1">
@@ -425,6 +464,12 @@ export function TriageDocCard({
         onOpenChange={setPreviewOpen}
         title={doc.title}
         viewUrl={viewUrl}
+      />
+
+      <DocToPayableDialog
+        open={payableOpen}
+        onOpenChange={setPayableOpen}
+        prefill={payablePrefill}
       />
     </div>
   );
