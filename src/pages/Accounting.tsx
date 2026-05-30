@@ -49,6 +49,7 @@ import { formatCHF, todayISO, MONTHS_FR, TVA_RATE } from "@/components/accountin
 import { formatDateSwiss } from "@/lib/dateFormat";
 
 import { StatCard } from "@/components/accounting/StatCard";
+import { ProjectProfitability } from "@/components/accounting/ProjectProfitability";
 
 // ── Main page ─────────────────────────────────────────────────
 
@@ -336,6 +337,7 @@ export default function Accounting() {
               <TabsTrigger value="expenses" className="text-xs sm:text-sm">Dépenses</TabsTrigger>
               <TabsTrigger value="pipeline" className="text-xs sm:text-sm">À recevoir</TabsTrigger>
               <TabsTrigger value="tax"      className="text-xs sm:text-sm">Fiscalité</TabsTrigger>
+              <TabsTrigger value="profitability" className="text-xs sm:text-sm">Rentabilité</TabsTrigger>
             </TabsList>
           </div>
 
@@ -874,6 +876,11 @@ export default function Accounting() {
                 Les revenus sont basés sur les factures marquées comme <strong>Payées</strong> dans le système.
               </p>
             </div>
+          </TabsContent>
+
+          {/* ── Tab: Rentabilité ── */}
+          <TabsContent value="profitability" className="space-y-5">
+            <ProjectProfitability />
           </TabsContent>
         </Tabs>
       </main>
