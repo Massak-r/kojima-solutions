@@ -1,5 +1,6 @@
 export type PayableStatus     = "pending" | "scheduled" | "paid" | "cancelled";
 export type PayableDirection  = "out" | "in";
+export type PayableCommitment = "committed" | "forecast";
 export type PayableRecurrence = "none" | "weekly" | "monthly" | "bimonthly" | "quarterly" | "biannual" | "yearly";
 
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
@@ -12,6 +13,11 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
 export const PAYABLE_DIRECTION_LABELS: Record<PayableDirection, string> = {
   out: "Sortie",
   in:  "Entrée",
+};
+
+export const PAYABLE_COMMITMENT_LABELS: Record<PayableCommitment, string> = {
+  committed: "Obligatoire",
+  forecast:  "Prévision",
 };
 
 export const PAYABLE_RECURRENCE_LABELS: Record<PayableRecurrence, string> = {
@@ -33,6 +39,7 @@ export interface Payable {
   dueDate?:             string | null;
   accountId?:           string | null;
   status:               PayableStatus;
+  commitment:           PayableCommitment;
   category?:            string | null;
   notes?:               string | null;
   recurrence:           PayableRecurrence;

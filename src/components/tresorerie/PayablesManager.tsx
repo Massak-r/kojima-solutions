@@ -20,7 +20,7 @@ import {
 import {
   Plus, Pencil, Trash2, Check, RotateCcw, Loader2, CalendarClock,
   AlertCircle, Repeat, CalendarRange, TrendingDown, TrendingUp,
-  ArrowDownRight, ArrowUpRight,
+  ArrowDownRight, ArrowUpRight, Lock, CircleDashed,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -32,8 +32,8 @@ import {
 } from "@/api/payables";
 import { listAccounts } from "@/api/accounts";
 import {
-  type Payable, type PayableStatus, type PayableRecurrence, type PayableDirection,
-  PAYABLE_STATUS_LABELS, PAYABLE_RECURRENCE_LABELS,
+  type Payable, type PayableStatus, type PayableRecurrence, type PayableDirection, type PayableCommitment,
+  PAYABLE_STATUS_LABELS, PAYABLE_RECURRENCE_LABELS, PAYABLE_COMMITMENT_LABELS,
 } from "@/types/payable";
 import type { Account } from "@/types/account";
 import { cn } from "@/lib/utils";
@@ -172,6 +172,7 @@ interface FormState {
   dueDate: string;
   accountId: string;
   status: PayableStatus;
+  commitment: PayableCommitment;
   category: string;
   notes: string;
   recurrence: PayableRecurrence;
@@ -183,7 +184,7 @@ interface FormState {
 
 const EMPTY_FORM: FormState = {
   label: "", amount: "", currency: "CHF", direction: "out", dueDate: "", accountId: "",
-  status: "pending", category: "", notes: "",
+  status: "pending", commitment: "committed", category: "", notes: "",
   recurrence: "none", recurrenceDay: "", recurrenceEnd: "",
   adjustmentAmount: "", adjustmentDueDate: "",
 };
@@ -194,6 +195,7 @@ export function PayablesManager() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pending" | "scheduled" | "paid" | "all">("pending");
   const [directionFilter, setDirectionFilter] = useState<"all" | PayableDirection>("all");
+  const [commitmentFilter, setCommitmentFilter] = useState<"all" | PayableCommitment>("all");
   const [editing, setEditing] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -217,9 +219,10 @@ export function PayablesManager() {
   const filtered = useMemo(() => {
     let xs = payables;
     if (directionFilter !== "all") xs = xs.filter(p => p.direction === directionFilter);
+    if (commitmentFilter !== "all") xs = xs.filter(p => p.commitment === commitmentFilter);
     if (tab !== "all") xs = xs.filter(p => p.status === tab);
     return xs;
-  }, [payables, tab, directionFilter]);
+  }, [payables, tab, directionFilter, commitmentFilter]);
 
   const totalDue30Out = useMemo(() => sumDirection(payables, "out", 30), [payables]);
   const totalDue30In  = useMemo(() => sumDirection(payables, "in",  30), [payables]);
@@ -260,6 +263,7 @@ export function PayablesManager() {
       dueDate: p.dueDate ?? "",
       accountId: p.accountId ?? "",
       status: p.status,
+      commitment: p.commitment,
       category: p.category ?? "",
       notes: p.notes ?? "",
       recurrence: p.recurrence,
@@ -285,6 +289,7 @@ export function PayablesManager() {
       dueDate: form.dueDate || null,
       accountId: form.accountId || null,
       status: form.status,
+      commitment: form.commitment,
       category: form.category.trim() || null,
       notes: form.notes.trim() || null,
       recurrence: form.recurrence,
@@ -487,6 +492,24 @@ export function PayablesManager() {
         ))}
       </div>
 
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Type</span>
+        {(["all", "committed", "forecast"] as const).map(c => (
+          <button
+            key={c}
+            onClick={() => setCommitmentFilter(c)}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-full border transition",
+              commitmentFilter === c
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {c === "all" ? "Tout" : PAYABLE_COMMITMENT_LABELS[c]}
+          </button>
+        ))}
+      </div>
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
           <TabsTrigger value="pending">À régler</TabsTrigger>
@@ -516,6 +539,18 @@ export function PayablesManager() {
                           {isIn ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 : <ArrowDownRight className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />}
                           <span className="font-medium truncate">{p.label}</span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs gap-1",
+                              p.commitment === "forecast"
+                                ? "border-dashed border-amber-500/50 text-amber-700 dark:text-amber-400"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {p.commitment === "forecast" ? <CircleDashed className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                            {PAYABLE_COMMITMENT_LABELS[p.commitment]}
+                          </Badge>
                           {p.recurrence !== "none" && (
                             <Badge variant="outline" className="text-xs gap-1">
                               <Repeat className="h-3 w-3" /> {PAYABLE_RECURRENCE_LABELS[p.recurrence]}
@@ -601,6 +636,35 @@ export function PayablesManager() {
               >
                 <ArrowUpRight className="h-4 w-4" /> Entrée
               </button>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Type</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, commitment: "committed" }))}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition",
+                    form.commitment === "committed"
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Lock className="h-4 w-4" /> Obligatoire
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, commitment: "forecast" }))}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition",
+                    form.commitment === "forecast"
+                      ? "border-amber-500/60 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CircleDashed className="h-4 w-4" /> Prévision
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Libellé</label>

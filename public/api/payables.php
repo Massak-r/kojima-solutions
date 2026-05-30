@@ -5,6 +5,7 @@ requireAdminSession();
 const PAYABLE_RECURRENCE_VALUES = ['none','weekly','monthly','bimonthly','quarterly','biannual','yearly'];
 const PAYABLE_DIRECTION_VALUES  = ['out','in'];
 const PAYABLE_STATUS_VALUES     = ['pending','scheduled','paid','cancelled'];
+const PAYABLE_COMMITMENT_VALUES = ['committed','forecast'];
 
 function mapPayable(array $row): array {
     return [
@@ -16,6 +17,7 @@ function mapPayable(array $row): array {
         'dueDate'            => $row['due_date'] ?? null,
         'accountId'          => $row['account_id'] ?? null,
         'status'             => $row['status'],
+        'commitment'         => $row['commitment'] ?? 'committed',
         'category'           => $row['category'] ?? null,
         'notes'              => $row['notes'] ?? null,
         'recurrence'         => $row['recurrence'] ?? 'none',
@@ -64,9 +66,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 $id     = $_GET['id'] ?? null;
 
 if ($method === 'GET') {
-    $status     = $_GET['status']    ?? null;
-    $accountId  = $_GET['accountId'] ?? null;
-    $direction  = $_GET['direction'] ?? null;
+    $status     = $_GET['status']     ?? null;
+    $accountId  = $_GET['accountId']  ?? null;
+    $direction  = $_GET['direction']  ?? null;
+    $commitment = $_GET['commitment'] ?? null;
     $where      = [];
     $params     = [];
     if ($status && in_array($status, PAYABLE_STATUS_VALUES, true)) {
@@ -77,6 +80,9 @@ if ($method === 'GET') {
     }
     if ($direction && in_array($direction, PAYABLE_DIRECTION_VALUES, true)) {
         $where[] = 'direction = ?'; $params[] = $direction;
+    }
+    if ($commitment && in_array($commitment, PAYABLE_COMMITMENT_VALUES, true)) {
+        $where[] = 'commitment = ?'; $params[] = $commitment;
     }
     $sql = 'SELECT * FROM payables'
          . (empty($where) ? '' : ' WHERE ' . implode(' AND ', $where))
@@ -96,13 +102,15 @@ if ($method === 'POST') {
     if (!in_array($status, PAYABLE_STATUS_VALUES, true)) $status = 'pending';
     $direction = $data['direction'] ?? 'out';
     if (!in_array($direction, PAYABLE_DIRECTION_VALUES, true)) $direction = 'out';
+    $commitment = $data['commitment'] ?? 'committed';
+    if (!in_array($commitment, PAYABLE_COMMITMENT_VALUES, true)) $commitment = 'committed';
 
     $pdo->prepare(
         'INSERT INTO payables
-         (id, label, amount, currency, direction, due_date, account_id, status, category, notes,
+         (id, label, amount, currency, direction, due_date, account_id, status, commitment, category, notes,
           recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
           paid_at, source_type, source_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
         $newId,
         trim($data['label'] ?? 'Sans titre'),
@@ -112,6 +120,7 @@ if ($method === 'POST') {
         $data['dueDate']       ?? null,
         $data['accountId']     ?? null,
         $status,
+        $commitment,
         $data['category']      ?? null,
         $data['notes']         ?? null,
         $recurrence,
@@ -148,6 +157,10 @@ if ($method === 'PUT') {
     if (array_key_exists('direction',         $data)) {
         $d = in_array($data['direction'], PAYABLE_DIRECTION_VALUES, true) ? $data['direction'] : 'out';
         $fields[] = 'direction = ?'; $values[] = $d;
+    }
+    if (array_key_exists('commitment',        $data)) {
+        $c = in_array($data['commitment'], PAYABLE_COMMITMENT_VALUES, true) ? $data['commitment'] : 'committed';
+        $fields[] = 'commitment = ?'; $values[] = $c;
     }
     if (array_key_exists('dueDate',           $data)) { $fields[] = 'due_date = ?';            $values[] = $data['dueDate']; }
     if (array_key_exists('accountId',         $data)) { $fields[] = 'account_id = ?';          $values[] = $data['accountId']; }
@@ -207,10 +220,10 @@ if ($method === 'PUT') {
                 $spawnId = uuid();
                 $pdo->prepare(
                     'INSERT INTO payables
-                     (id, label, amount, currency, direction, due_date, account_id, status, category, notes,
+                     (id, label, amount, currency, direction, due_date, account_id, status, commitment, category, notes,
                       recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
                       source_type, source_id)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 )->execute([
                     $spawnId,
                     $updated['label'],
@@ -219,6 +232,7 @@ if ($method === 'PUT') {
                     $updated['direction'] ?? 'out',
                     $nextDue,
                     $updated['account_id'],
+                    $updated['commitment'] ?? 'committed',
                     $updated['category'],
                     $updated['notes'],
                     $recurrence,
