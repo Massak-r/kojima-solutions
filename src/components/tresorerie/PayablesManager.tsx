@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tabs, TabsList, TabsTrigger, TabsContent,
@@ -196,6 +197,8 @@ export function PayablesManager() {
   const [tab, setTab] = useState<"pending" | "scheduled" | "paid" | "all">("pending");
   const [directionFilter, setDirectionFilter] = useState<"all" | PayableDirection>("all");
   const [commitmentFilter, setCommitmentFilter] = useState<"all" | PayableCommitment>("all");
+  // List horizon: show only rows due on/before this date. "" = no limit (Tout).
+  const [horizonDate, setHorizonDate] = useState<string>("");
   const [editing, setEditing] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -220,9 +223,19 @@ export function PayablesManager() {
     let xs = payables;
     if (directionFilter !== "all") xs = xs.filter(p => p.direction === directionFilter);
     if (commitmentFilter !== "all") xs = xs.filter(p => p.commitment === commitmentFilter);
+    // ISO dates compare lexicographically; undated rows always pass (no horizon
+    // to exceed) and overdue rows pass too (dueDate < today ≤ horizon).
+    if (horizonDate) xs = xs.filter(p => !p.dueDate || p.dueDate <= horizonDate);
     if (tab !== "all") xs = xs.filter(p => p.status === tab);
     return xs;
-  }, [payables, tab, directionFilter, commitmentFilter]);
+  }, [payables, tab, directionFilter, commitmentFilter, horizonDate]);
+
+  // Slider position = days from today; "" (no limit) parks the thumb at the far end.
+  const horizonDays = horizonDate ? Math.max(0, Math.min(365, daysUntil(horizonDate) ?? 365)) : 365;
+  const setHorizonFromDays = (d: number) => {
+    const base = new Date(); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + d);
+    setHorizonDate(`${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`);
+  };
 
   const totalDue30Out = useMemo(() => sumDirection(payables, "out", 30), [payables]);
   const totalDue30In  = useMemo(() => sumDirection(payables, "in",  30), [payables]);
@@ -508,6 +521,42 @@ export function PayablesManager() {
             {c === "all" ? "Tout" : PAYABLE_COMMITMENT_LABELS[c]}
           </button>
         ))}
+      </div>
+
+      {/* Horizon — scope the list to everything due on/before a date. */}
+      <div className="flex items-center gap-3 flex-wrap rounded-lg border bg-muted/30 px-3 py-2">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">Voir jusqu'au</span>
+        <Slider
+          value={[horizonDays]}
+          min={0}
+          max={365}
+          step={1}
+          onValueChange={([d]) => setHorizonFromDays(d)}
+          className="flex-1 min-w-[140px] max-w-xs"
+          aria-label="Horizon d'échéance"
+        />
+        <Input
+          type="date"
+          value={horizonDate}
+          onChange={e => setHorizonDate(e.target.value)}
+          className="h-7 text-[11px] w-[8.5rem] shrink-0"
+        />
+        <button
+          onClick={() => setHorizonDate("")}
+          className={cn(
+            "text-xs px-2.5 py-1 rounded-full border transition shrink-0",
+            !horizonDate
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background border-border text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Tout
+        </button>
+        {horizonDate && (
+          <span className="text-[11px] text-muted-foreground font-body shrink-0 tabular-nums">
+            {filtered.length} ligne{filtered.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
