@@ -5,11 +5,12 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck } from "lucide-react";
+import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
-import { totalQuote } from "@/types/quote";
+import { totalQuote, netSubtotalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { QuoteStatsPanel } from "@/components/quotes/QuoteStatsPanel";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
@@ -203,6 +204,62 @@ export default function QuotesList() {
     }
   }
 
+  // Acompte: clone a devis into a draft invoice with one line = 50% of the
+  // net subtotal (mirrors renewInvoice/duplicateQuote's clone pattern).
+  function acompteFromQuote(original: Quote) {
+    const pct = 50;
+    const year = new Date().getFullYear();
+    const existing = quotes
+      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`FAC-${year}`))
+      .map((q) => { const p = q.quoteNumber?.split("-"); return p && p.length === 3 ? parseInt(p[2], 10) : 0; });
+    const newNumber = `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
+    const base = netSubtotalQuote(original);
+    const clone: any = {
+      ...original,
+      quoteNumber: newNumber,
+      docType: "invoice",
+      invoiceStatus: "draft",
+      isTemplate: false,
+      templateName: null,
+      discountEnabled: false,
+      projectTitle: `Acompte ${pct}% — ${original.projectTitle || original.quoteNumber}`,
+      lineItems: [{
+        id: crypto.randomUUID?.() ?? `line-${Date.now()}`,
+        description: `Acompte ${pct}% sur ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
+        quantity: 1,
+        unitPrice: Math.round(base * (pct / 100) * 100) / 100,
+      }],
+    };
+    delete clone.id; delete clone.createdAt; delete clone.updatedAt;
+    const nq = addQuote(clone);
+    toast({ title: t("Acompte 50% créé", "50% deposit created"), description: t("Brouillon de facture — ajuste si besoin.", "Draft invoice — adjust if needed.") });
+    if (nq && typeof nq === "object" && "id" in nq) navigate(`/quotes/${(nq as any).id}`);
+  }
+
+  // Retainer: generate this month's draft invoice from an invoice template.
+  function billRetainer(template: Quote) {
+    const year = new Date().getFullYear();
+    const existing = quotes
+      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`FAC-${year}`))
+      .map((q) => { const p = q.quoteNumber?.split("-"); return p && p.length === 3 ? parseInt(p[2], 10) : 0; });
+    const newNumber = `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
+    const monthLabel = new Date().toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+    const baseTitle = template.templateName || template.projectTitle || "Prestation";
+    const clone: any = {
+      ...template,
+      quoteNumber: newNumber,
+      docType: "invoice",
+      invoiceStatus: "draft",
+      isTemplate: false,
+      templateName: null,
+      projectTitle: `${baseTitle} — ${monthLabel}`,
+    };
+    delete clone.id; delete clone.createdAt; delete clone.updatedAt;
+    const nq = addQuote(clone);
+    toast({ title: t("Facture du mois créée", "Monthly invoice created"), description: monthLabel });
+    if (nq && typeof nq === "object" && "id" in nq) navigate(`/quotes/${(nq as any).id}`);
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -254,6 +311,8 @@ export default function QuotesList() {
           />
         ) : (
           <>
+            {!showTemplates && <QuoteStatsPanel quotes={quotes} />}
+
             {/* Search + Filters */}
             <div className="space-y-3 mb-6">
               <div className="relative">
@@ -457,6 +516,28 @@ export default function QuotesList() {
                             onClick={() => renewInvoice(q)}
                           >
                             <RefreshCw size={14} />
+                          </Button>
+                        )}
+                        {q.docType !== "invoice" && !q.isTemplate && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-accent"
+                            title={t("Générer un acompte 50%", "Generate 50% deposit")}
+                            onClick={() => acompteFromQuote(q)}
+                          >
+                            <Coins size={14} />
+                          </Button>
+                        )}
+                        {q.isTemplate && q.docType === "invoice" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs gap-1 h-7"
+                            title={t("Générer la facture du mois", "Generate this month's invoice")}
+                            onClick={() => billRetainer(q)}
+                          >
+                            <CalendarPlus size={12} /> {t("Facturer le mois", "Bill month")}
                           </Button>
                         )}
                         <Button
