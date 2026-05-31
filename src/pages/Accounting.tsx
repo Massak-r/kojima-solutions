@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuotes } from "@/hooks/useQuotes";
-import { totalQuote } from "@/types/quote";
+import { totalQuote, tvaAmountQuote } from "@/types/quote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +50,7 @@ import { formatDateSwiss } from "@/lib/dateFormat";
 
 import { StatCard } from "@/components/accounting/StatCard";
 import { ProjectProfitability } from "@/components/accounting/ProjectProfitability";
+import { TaxSetAside } from "@/components/accounting/TaxSetAside";
 
 // ── Main page ─────────────────────────────────────────────────
 
@@ -165,6 +166,16 @@ export default function Accounting() {
   const totalExpenses = yearExpenses.reduce((s, e) => s + e.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
   const taxEstimate = totalRevenue * TVA_RATE;
+
+  // TVA réellement collectée sur les factures payées (≠ revenue × taux fixe) —
+  // 0 si tu ne factures pas la TVA. Sert à la provision "À mettre de côté".
+  const tvaCollectedReal = useMemo(
+    () => quotes
+      .filter((q) => q.invoiceStatus === "paid")
+      .filter((q) => { const y = new Date(q.date).getFullYear(); return !isNaN(y) && y === year; })
+      .reduce((s, q) => s + tvaAmountQuote(q), 0),
+    [quotes, year]
+  );
 
   // ── Monthly chart data ──
   const monthlyData = useMemo(() => {
@@ -834,6 +845,13 @@ export default function Accounting() {
                 ))}
               </dl>
             </div>
+
+            <TaxSetAside
+              revenueTTC={totalRevenue}
+              tvaCollected={tvaCollectedReal}
+              expenses={totalExpenses}
+              year={year}
+            />
 
             {/* Quarterly */}
             <div className="bg-card border border-border rounded-xl p-5 shadow-card">
