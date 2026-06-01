@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   AlertTriangle, CheckCircle2, Circle, ChevronDown, ChevronUp,
   CalendarDays, User, FileText, Upload, Vote, Package,
-  FileDown, Loader2, MessageSquare, ArrowRight,
+  FileDown, Loader2, MessageSquare, ArrowRight, Sparkles,
 } from "lucide-react";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
@@ -63,10 +63,22 @@ export default function ClientDashboard() {
     setEmailAuthed(getClientAuth(id!) === requiredEmail);
   }, [requiredEmail, id, clientsLoading]);
 
+  // Stamp this visit (once authed) so the next visit can show "what's new".
+  useEffect(() => {
+    if (emailAuthed && id) {
+      try { localStorage.setItem(`kojima-client-lastvisit-${id}`, new Date().toISOString()); } catch { /* ignore */ }
+    }
+  }, [emailAuthed, id]);
+
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [projectQuotes, setProjectQuotes] = useState<Quote[]>([]);
   const [welcomed, setWelcomed] = useState(() => {
     try { return localStorage.getItem(`kojima-client-welcomed-${id}`) === "1"; } catch { return false; }
+  });
+  // Previous-visit timestamp, captured once on mount — drives the "what's new"
+  // feed. Re-stamped to "now" by the effect above for the next visit.
+  const [lastVisit] = useState<string | null>(() => {
+    try { return localStorage.getItem(`kojima-client-lastvisit-${id}`); } catch { return null; }
   });
   const [lightbox, setLightbox] = useState<{ delivery: Delivery; index: number } | null>(null);
   const [cadrage, setCadrage] = useState<Cadrage | null>(null);
@@ -223,6 +235,37 @@ export default function ClientDashboard() {
   const allDeliveries   = project.deliveries ?? [];
   const finalDeliveries = allDeliveries.filter((d) => !d.taskId);
 
+  // ── "What's new since last visit" — informational recap (doc §1 "what
+  // happened since I last checked" / §4 level-2). Hidden on first visit. ──
+  const whatsNew = (() => {
+    type NewItem = { id: string; kind: "step" | "delivery" | "comment"; text: string; date: string };
+    if (!lastVisit) return [] as NewItem[];
+    const since = new Date(lastVisit).getTime();
+    if (!isFinite(since)) return [] as NewItem[];
+    const after = (d?: string | null) => {
+      if (!d) return false;
+      const t = new Date(d).getTime();
+      return isFinite(t) && t > since;
+    };
+    const items: NewItem[] = [];
+    sorted.forEach((task) => {
+      if (task.status === "completed" && after(task.completedAt)) {
+        items.push({ id: `step-${task.id}`, kind: "step", text: `Étape terminée : ${task.title}`, date: task.completedAt! });
+      }
+      (task.comments || []).forEach((c) => {
+        if (c.authorRole !== "client" && after(c.createdAt)) {
+          items.push({ id: `cmt-${c.id}`, kind: "comment", text: `Nouveau message de l'équipe sur « ${task.title} »`, date: c.createdAt });
+        }
+      });
+    });
+    allDeliveries.forEach((d) => {
+      if (after(d.createdAt)) {
+        items.push({ id: `dlv-${d.id}`, kind: "delivery", text: d.title ? `Nouveau livrable : ${d.title}` : "Nouveau livrable ajouté", date: d.createdAt });
+      }
+    });
+    return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
+  })();
+
   return (
     <div className="min-h-screen bg-background">
       {/* ── Image Lightbox ── */}
@@ -340,6 +383,32 @@ export default function ClientDashboard() {
             </section>
           );
         })()}
+
+        {/* ── Nouveautés depuis la dernière visite (informational) ── */}
+        {whatsNew.length > 0 && (
+          <section className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={15} className="text-primary" />
+              <h2 className="font-display text-sm font-semibold text-foreground">Depuis votre dernière visite</h2>
+            </div>
+            <ul className="space-y-2.5">
+              {whatsNew.map((item) => (
+                <li key={item.id} className="flex items-start gap-2.5">
+                  <span className={cn(
+                    "mt-0.5 shrink-0",
+                    item.kind === "step" ? "text-emerald-500" : item.kind === "delivery" ? "text-primary" : "text-muted-foreground",
+                  )}>
+                    {item.kind === "step" ? <CheckCircle2 size={14} /> : item.kind === "delivery" ? <Package size={14} /> : <MessageSquare size={14} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-sm text-foreground/85 leading-snug">{item.text}</p>
+                    <p className="font-body text-[11px] text-muted-foreground/60">{formatDateSwiss(item.date)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* ── Section B: Project Overview ── */}
         <section className="bg-card border border-border rounded-xl p-6">
