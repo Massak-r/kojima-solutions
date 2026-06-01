@@ -81,6 +81,9 @@ export default function SharedFolder() {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-primary mb-1 font-body">Dossier partagé</p>
             <h1 className="font-display text-2xl font-semibold">{data.folder.name}</h1>
+            <p className="text-xs text-muted-foreground font-body mt-1">
+              Partagé par Kojima Solutions · {data.docs.length} document{data.docs.length !== 1 ? "s" : ""}
+            </p>
           </div>
           {data.docs.length > 0 && (
             <a href={getFolderZipUrl(token!)} className="shrink-0">

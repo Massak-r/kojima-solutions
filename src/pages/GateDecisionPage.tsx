@@ -431,6 +431,19 @@ export default function GateDecisionPage() {
           </div>
         )}
 
+        {/* Deadline framing — make inaction a conscious choice (doc §3) */}
+        {isOpen && gate.deadline && (
+          <div className="flex items-start gap-2 rounded-lg bg-secondary/40 border border-border/50 px-3.5 py-2.5">
+            <Clock size={13} className="text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-xs font-body text-muted-foreground leading-relaxed">
+              {t(
+                `Merci de répondre d'ici le ${formatDateSwiss(gate.deadline)}. Sans retour à cette date, nous avancerons avec la version actuelle pour ne pas retarder le projet.`,
+                `Please respond by ${formatDateSwiss(gate.deadline)}. Without your feedback by then, we'll proceed with the current version to avoid delaying the project.`,
+              )}
+            </p>
+          </div>
+        )}
+
         {/* Action buttons */}
         {isOpen && (() => {
           const approveDisabled = busy || (gate.gateType === "choice" && !selectedOptionId);

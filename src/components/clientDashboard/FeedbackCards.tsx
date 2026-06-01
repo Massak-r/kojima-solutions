@@ -454,6 +454,9 @@ export function VoteCard({ request, onRespond, projectId, taskId }: {
         <Send size={14} />
         {selected ? `Confirmer : ${options.find((o) => o.id === selected)?.label}` : "Sélectionnez une option ci-dessus"}
       </Button>
+      <p className="text-center text-[11px] text-muted-foreground/60 font-body">
+        Rien de figé : votre choix oriente la direction, on l'affine ensemble ensuite.
+      </p>
 
       {/* Audit log */}
       {request.responseHistory && request.responseHistory.length > 0 && (
