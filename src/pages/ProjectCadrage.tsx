@@ -17,11 +17,13 @@ import {
   Wallet,
   Loader2,
   Save,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Blocks } from "lucide-react";
 import { getProjectModules } from "@/api/modules";
 import { ModuleResolver } from "@/lib/moduleResolver";
+import type { SelectedModule } from "@/types/module";
 
 const SECTIONS = [
   { key: "objectives", label: "Objectifs du projet", icon: Target, placeholder: "Quels sont les objectifs principaux de ce projet ?" },
@@ -34,6 +36,29 @@ const SECTIONS = [
 ] as const;
 
 type CadrageField = typeof SECTIONS[number]["key"];
+
+/** Derive cadrage seed fields from a linked intake's responses: objectives ←
+ *  client's message, in-scope ← selected modules, budget ← validated amount or
+ *  the estimate band the client saw. Lets the admin start from the client's own
+ *  words instead of a blank page. */
+function intakeSeed(raw: Record<string, unknown> | undefined): Partial<Record<CadrageField, string>> {
+  if (!raw) return {};
+  const out: Partial<Record<CadrageField, string>> = {};
+  const message = typeof raw.message === "string" ? raw.message.trim() : "";
+  if (message) out.objectives = message;
+  const mods = Array.isArray(raw.selectedModules) ? (raw.selectedModules as SelectedModule[]) : [];
+  if (mods.length > 0) {
+    const txt = new ModuleResolver(mods).toDeliverables();
+    if (txt.trim()) out.inScope = txt;
+  }
+  const est = raw.estimate as { low?: number; high?: number } | undefined;
+  if (raw.budget != null && String(raw.budget).trim() !== "") {
+    out.budgetValidated = String(raw.budget);
+  } else if (est && (est.low != null || est.high != null)) {
+    out.budgetValidated = `Estimation client : ${est.low ?? "?"}–${est.high ?? "?"} CHF`;
+  }
+  return out;
+}
 
 export default function ProjectCadrage() {
   const { id } = useParams<{ id: string }>();
@@ -71,14 +96,13 @@ export default function ProjectCadrage() {
           });
           return;
         }
-        // First-time load: seed budgetValidated from intake if one is linked.
+        // First-time load: pre-seed from the linked intake (objectives,
+        // in-scope, budget) so the cadrage isn't a blank page.
         try {
           const intakes = await getIntakeByProject(id);
-          const intake = intakes?.[0];
-          const raw = intake?.responses as Record<string, unknown> | undefined;
-          const budget = raw?.budget ?? raw?.budgetValidated;
-          if (budget !== undefined && budget !== null && String(budget).trim() !== "") {
-            setData((prev) => ({ ...prev, budgetValidated: String(budget) }));
+          const seed = intakeSeed(intakes?.[0]?.responses as Record<string, unknown> | undefined);
+          if (Object.keys(seed).length > 0) {
+            setData((prev) => ({ ...prev, ...seed }));
             setDirty(true);
           }
         } catch {}
@@ -112,6 +136,30 @@ export default function ProjectCadrage() {
     setData((prev) => ({ ...prev, deliverables: current ? `${current}\n${text}` : text }));
     setDirty(true);
     toast({ title: "Livrables importés depuis les modules" });
+  }
+
+  async function handleImportFromIntake() {
+    if (!id) return;
+    try {
+      const intakes = await getIntakeByProject(id);
+      const seed = intakeSeed(intakes?.[0]?.responses as Record<string, unknown> | undefined);
+      if (Object.keys(seed).length === 0) {
+        toast({ title: "Aucune donnée d'intake à importer" });
+        return;
+      }
+      // Fill only empty fields — never clobber existing edits.
+      setData((prev) => {
+        const next = { ...prev };
+        (Object.keys(seed) as CadrageField[]).forEach((k) => {
+          if (!next[k].trim()) next[k] = seed[k]!;
+        });
+        return next;
+      });
+      setDirty(true);
+      toast({ title: "Pré-rempli depuis l'intake" });
+    } catch {
+      toast({ title: "Erreur", variant: "destructive" });
+    }
   }
 
   // Auto-save when dirty (debounced 2s)
@@ -161,15 +209,20 @@ export default function ProjectCadrage() {
             <ClipboardCheck size={18} className="text-primary" />
             <h1 className="font-display text-lg font-bold text-foreground">Note de cadrage</h1>
           </div>
-          <Button
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            size="sm"
-            className="gap-1.5"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Sauvegarder
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleImportFromIntake} variant="outline" size="sm" className="gap-1.5">
+              <Wand2 size={14} /> Intake
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              size="sm"
+              className="gap-1.5"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Sauvegarder
+            </Button>
+          </div>
         </div>
 
         {loading ? (
