@@ -135,7 +135,6 @@ export default function ClientProposal() {
       await confirmProposal(funnel.id, selectedTier, funnel.shareToken);
       setConfirmed(true);
       toast({ title: t("Forfait confirmé !", "Plan confirmed!") });
-      setTimeout(() => navigate(`/client/${id}`), 3000);
     } catch (err: any) {
       toast({ title: t("Erreur", "Error"), description: err.message, variant: "destructive" });
     } finally {
@@ -225,26 +224,55 @@ export default function ClientProposal() {
   // ── Confirmed state ────────────────────────────────────────
 
   if (confirmed) {
+    const tierMeta = TIERS.find((x) => x.key === selectedTier);
+    const firstPhase = funnel?.phases?.[0]?.title;
+    const nextSteps = [
+      t("Nous finalisons le planning détaillé de votre projet.", "We're finalising your project's detailed schedule."),
+      t("Votre portail de suivi est prêt — l'avancement y sera visible en temps réel.", "Your tracking portal is ready — you'll see progress there in real time."),
+      firstPhase
+        ? t(`On démarre : ${firstPhase}.`, `We kick off: ${firstPhase}.`)
+        : t("On démarre la première phase.", "We kick off the first phase."),
+    ];
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
         <div className="max-w-md w-full text-center space-y-6 animate-in fade-in duration-500">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
             <CheckCircle2 size={32} className="text-green-600" />
           </div>
-          <h1 className="font-display text-2xl font-semibold">{t("Forfait confirmé !", "Plan confirmed!")}</h1>
-          <p className="text-muted-foreground font-body text-sm">
-            {t(
-              "Merci pour votre confiance. Nous allons préparer les prochaines étapes de votre projet.",
-              "Thank you for your trust. We'll prepare the next steps of your project.",
+          <div className="space-y-2">
+            <h1 className="font-display text-2xl font-semibold">{t("Forfait confirmé !", "Plan confirmed!")}</h1>
+            {tierMeta && (
+              <Badge className={cn("text-xs", TIER_BADGE_COLORS[selectedTier])}>
+                {t(tierMeta.labelFr, tierMeta.labelEn)}
+              </Badge>
             )}
+            <p className="text-muted-foreground font-body text-sm pt-1">
+              {t(
+                "Merci pour votre confiance. Voici ce qui se passe maintenant :",
+                "Thank you for your trust. Here's what happens next:",
+              )}
+            </p>
+          </div>
+
+          {/* Next steps — close the loop (doc §1 / §7: answer "what's next?") */}
+          <ol className="text-left space-y-3 bg-card border border-border/50 rounded-2xl p-5">
+            {nextSteps.map((step, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary font-display text-xs font-bold flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <span className="font-body text-sm text-foreground/80 leading-relaxed">{step}</span>
+              </li>
+            ))}
+          </ol>
+
+          <Button size="lg" className="w-full" onClick={() => navigate(`/client/${id}`)}>
+            {t("Accéder à mon portail de suivi", "Go to my project portal")}
+            <ArrowRight size={16} className="ml-2" />
+          </Button>
+          <p className="text-xs text-muted-foreground/50 font-body">
+            {t("Une question ? Écrivez-nous, on reste disponible.", "Any questions? Reach out — we're here.")}
           </p>
-          <Badge className={cn("text-xs", TIER_BADGE_COLORS[selectedTier])}>
-            {(() => {
-              const tier = TIERS.find((x) => x.key === selectedTier);
-              return tier ? t(tier.labelFr, tier.labelEn) : "";
-            })()}
-          </Badge>
-          <p className="text-xs text-muted-foreground/40 font-body">{t("Redirection vers votre portail...", "Redirecting to your portal...")}</p>
         </div>
       </div>
     );
@@ -304,6 +332,11 @@ export default function ClientProposal() {
                 <h3 className={cn("font-display text-lg font-bold", tier.color)}>
                   {t(tier.labelFr, tier.labelEn)}
                 </h3>
+                {isRecommended && (
+                  <p className="text-[11px] font-body text-primary/80 mt-1">
+                    {t("Le meilleur équilibre pour la plupart des projets.", "The best balance for most projects.")}
+                  </p>
+                )}
 
                 {tierBudget > 0 && (
                   <p className="font-display text-2xl font-bold mt-3">
@@ -493,6 +526,12 @@ export default function ClientProposal() {
               )}
               {t("Choisir ce forfait", "Choose this plan")}
             </Button>
+            <p className="text-xs text-muted-foreground/70 font-body max-w-md mx-auto">
+              {t(
+                "Rien n'est figé : votre choix donne la direction, et on affine le périmètre ensemble juste après.",
+                "Nothing is set in stone: your choice sets the direction, and we refine the scope together right after.",
+              )}
+            </p>
             <p className="text-[10px] text-muted-foreground/30 font-body">
               {t(
                 "En confirmant, vous acceptez le forfait sélectionné. Les détails seront finalisés ensemble.",
