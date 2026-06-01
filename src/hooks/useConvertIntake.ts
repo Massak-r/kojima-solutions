@@ -5,11 +5,13 @@ import { useClients } from "@/contexts/ClientsContext";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  updateIntakeResponse,
+  updateIntakeResponse, createFunnel,
   type IntakeResponse,
 } from "@/api/funnels";
 import { createEmptyQuote } from "@/types/quote";
 import { generateProposal, type ProposalDraft } from "@/lib/proposalGenerator";
+import { ModuleResolver } from "@/lib/moduleResolver";
+import type { SelectedModule } from "@/types/module";
 
 /**
  * Shared intake → (project + draft quote + client) conversion. Used by both
@@ -75,6 +77,25 @@ export function useConvertIntake(onConverted?: (updated: IntakeResponse) => void
     };
     addQuote(quote);
 
+    // Also create a client proposal (funnel) so the converted lead has a
+    // shareable proposal link — the ClientProposal page needs a funnel. Phases
+    // (roadmap + budget) are seeded from the selected modules. No email sent.
+    try {
+      const raw = (intake.responses as { selectedModules?: unknown }).selectedModules;
+      const selectedModules: SelectedModule[] = Array.isArray(raw) ? (raw as SelectedModule[]) : [];
+      const phases = new ModuleResolver(selectedModules).toFunnelPhases();
+      await createFunnel({
+        projectId: p.id,
+        tier: intake.suggestedTier ?? "professional",
+        status: "proposal",
+        decisionMakerName: draft.clientName || undefined,
+        decisionMakerEmail: draft.clientEmail || undefined,
+        phases: phases.length > 0 ? phases : undefined,
+      });
+    } catch {
+      /* non-fatal — project + quote already exist; the funnel can be added later */
+    }
+
     // Mark intake as converted server-side + propagate the updated row to
     // whichever caller wired up onConverted.
     try {
@@ -89,8 +110,8 @@ export function useConvertIntake(onConverted?: (updated: IntakeResponse) => void
 
     const moduleCount = draft.lineItems.length - 1; // minus the base line
     toast({
-      title: "Projet + devis créés",
-      description: `${moduleCount} ligne${moduleCount > 1 ? "s" : ""} importée${moduleCount > 1 ? "s" : ""}`,
+      title: "Projet, devis et proposition créés",
+      description: `${moduleCount} ligne${moduleCount > 1 ? "s" : ""} importée${moduleCount > 1 ? "s" : ""} · proposition client prête à partager`,
     });
     navigate(`/quotes/${quoteId}`);
   };

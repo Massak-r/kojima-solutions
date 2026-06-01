@@ -147,6 +147,29 @@ export class ModuleResolver {
     }
     return phases;
   }
+
+  /** Funnel proposal roadmap: one phase per module category, budgeted from
+   *  module prices. Feeds createFunnel() so a converted lead gets a shareable
+   *  client proposal. Gates are added later when the project goes active. */
+  toFunnelPhases(): Array<{ title: string; description: string; budget: number }> {
+    const grouped = new Map<string, SelectedModule[]>();
+    for (const sel of this.selection) {
+      const mod = getModuleById(sel.moduleId);
+      if (!mod) continue;
+      if (!grouped.has(mod.category)) grouped.set(mod.category, []);
+      grouped.get(mod.category)!.push(sel);
+    }
+    const phases: Array<{ title: string; description: string; budget: number }> = [];
+    for (const [cat, sels] of grouped) {
+      const budget = sels.reduce((sum, sel) => sum + getModulePrice(sel.moduleId, sel.complexity), 0);
+      phases.push({
+        title: CATEGORY_LABELS[cat] ?? cat,
+        description: `Modules ${(CATEGORY_LABELS[cat] ?? cat).toLowerCase()}`,
+        budget,
+      });
+    }
+    return phases;
+  }
 }
 
 // Step-based quote generation is intentionally separate — it derives lines
