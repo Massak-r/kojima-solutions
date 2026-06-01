@@ -29,6 +29,7 @@ interface Row extends ProjectProfitabilityRow {
   quote: number;
   rate: number;
   laborValue: number;
+  directCosts: number;
   hasQuote: boolean;
   margin: number | null;
   marginPct: number | null;
@@ -72,11 +73,13 @@ export function ProjectProfitability() {
         const quote = parseAmount(r.revisedQuote) || parseAmount(r.initialQuote);
         const rate = r.clientRate ?? rate0;
         const laborValue = r.trackedHours * rate;
+        const directCosts = r.allocatedCosts || 0;
+        const cost = laborValue + directCosts;
         const hasQuote = quote > 0;
-        const margin = hasQuote ? quote - laborValue : null;
+        const margin = hasQuote ? quote - cost : null;
         const marginPct = hasQuote && quote > 0 ? (margin! / quote) * 100 : null;
-        const burnPct = hasQuote && quote > 0 ? (laborValue / quote) * 100 : null;
-        return { ...r, quote, rate, laborValue, hasQuote, margin, marginPct, burnPct };
+        const burnPct = hasQuote && quote > 0 ? (cost / quote) * 100 : null;
+        return { ...r, quote, rate, laborValue, directCosts, hasQuote, margin, marginPct, burnPct };
       })
       // Worst margin first so problem projects surface; quoted before unquoted.
       .sort((a, b) => {
@@ -91,9 +94,10 @@ export function ProjectProfitability() {
     const quoted = rows.filter(r => r.hasQuote);
     const quote = quoted.reduce((s, r) => s + r.quote, 0);
     const labor = quoted.reduce((s, r) => s + r.laborValue, 0);
-    const margin = quote - labor;
+    const costs = quoted.reduce((s, r) => s + r.directCosts, 0);
+    const margin = quote - labor - costs;
     const underwater = quoted.filter(r => (r.margin ?? 0) < 0).length;
-    return { quote, labor, margin, marginPct: quote > 0 ? (margin / quote) * 100 : 0, underwater, count: quoted.length };
+    return { quote, labor, costs, margin, marginPct: quote > 0 ? (margin / quote) * 100 : 0, underwater, count: quoted.length };
   }, [rows]);
 
   if (loading) {
@@ -116,16 +120,17 @@ export function ProjectProfitability() {
       <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3 text-xs font-body text-muted-foreground flex gap-2">
         <Info size={14} className="shrink-0 mt-0.5 text-primary" />
         <span>
-          Coût = heures suivies × taux ({formatCHF(settings.defaultHourlyRate)}/h par défaut, ou le taux du client).
-          Marge = devis − coût. Les coûts directs (achats, sous-traitance) ne sont pas encore alloués par projet.
+          Coût = heures suivies × taux ({formatCHF(settings.defaultHourlyRate)}/h par défaut, ou le taux du client) + coûts directs alloués (payables liés au projet).
+          Marge nette = devis − coût total. Alloue un paiement à un projet dans Trésorerie → À payer.
         </span>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Devis (signés)", value: formatCHF(totals.quote), sub: `${totals.count} projet${totals.count !== 1 ? "s" : ""}`, cls: "" },
           { label: "Coût (temps)", value: formatCHF(totals.labor), sub: "heures × taux", cls: "" },
+          { label: "Coûts directs", value: formatCHF(totals.costs), sub: "payables alloués", cls: totals.costs > 0 ? "text-amber-600" : "" },
           {
             label: "Marge nette",
             value: formatCHF(totals.margin),
@@ -244,7 +249,10 @@ export function ProjectProfitability() {
                       <span className="opacity-70">/ {fmtHours(r.estimatedHours)} est.</span>
                     )}
                   </span>
-                  <span>Coût <strong className="text-foreground">{formatCHF(r.laborValue)}</strong></span>
+                  <span>Main d'œuvre <strong className="text-foreground">{formatCHF(r.laborValue)}</strong></span>
+                  {r.directCosts > 0 && (
+                    <span>Achats <strong className="text-foreground">{formatCHF(r.directCosts)}</strong></span>
+                  )}
                   <span className="opacity-70">{formatCHF(r.rate)}/h</span>
                   {r.hasQuote && (
                     <span className="opacity-70">{(r.burnPct ?? 0).toFixed(0)}% consommé</span>

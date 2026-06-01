@@ -7,6 +7,16 @@ const PAYABLE_DIRECTION_VALUES  = ['out','in'];
 const PAYABLE_STATUS_VALUES     = ['pending','scheduled','paid','cancelled'];
 const PAYABLE_COMMITMENT_VALUES = ['committed','forecast'];
 
+// Self-healing schema: allocate a payable to a project. Older prod DBs predate
+// this column, so add it on the fly (idempotent) rather than requiring a manual
+// migration run — same pattern projects.php uses for `kind`.
+try {
+    $payCols = $pdo->query('SHOW COLUMNS FROM payables')->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('project_id', $payCols, true)) {
+        $pdo->exec('ALTER TABLE payables ADD COLUMN project_id VARCHAR(36) NULL AFTER account_id');
+    }
+} catch (Throwable $e) { /* column already present or DB lagging — ignore */ }
+
 function mapPayable(array $row): array {
     return [
         'id'                 => $row['id'],
@@ -16,6 +26,7 @@ function mapPayable(array $row): array {
         'direction'          => $row['direction'] ?? 'out',
         'dueDate'            => $row['due_date'] ?? null,
         'accountId'          => $row['account_id'] ?? null,
+        'projectId'          => $row['project_id'] ?? null,
         'status'             => $row['status'],
         'commitment'         => $row['commitment'] ?? 'committed',
         'category'           => $row['category'] ?? null,
@@ -68,6 +79,7 @@ $id     = $_GET['id'] ?? null;
 if ($method === 'GET') {
     $status     = $_GET['status']     ?? null;
     $accountId  = $_GET['accountId']  ?? null;
+    $projectId  = $_GET['projectId']  ?? null;
     $direction  = $_GET['direction']  ?? null;
     $commitment = $_GET['commitment'] ?? null;
     $where      = [];
@@ -77,6 +89,9 @@ if ($method === 'GET') {
     }
     if ($accountId) {
         $where[] = 'account_id = ?'; $params[] = $accountId;
+    }
+    if ($projectId) {
+        $where[] = 'project_id = ?'; $params[] = $projectId;
     }
     if ($direction && in_array($direction, PAYABLE_DIRECTION_VALUES, true)) {
         $where[] = 'direction = ?'; $params[] = $direction;
@@ -107,10 +122,10 @@ if ($method === 'POST') {
 
     $pdo->prepare(
         'INSERT INTO payables
-         (id, label, amount, currency, direction, due_date, account_id, status, commitment, category, notes,
+         (id, label, amount, currency, direction, due_date, account_id, project_id, status, commitment, category, notes,
           recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
           paid_at, source_type, source_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
         $newId,
         trim($data['label'] ?? 'Sans titre'),
@@ -119,6 +134,7 @@ if ($method === 'POST') {
         $direction,
         $data['dueDate']       ?? null,
         $data['accountId']     ?? null,
+        $data['projectId']     ?? null,
         $status,
         $commitment,
         $data['category']      ?? null,
@@ -164,6 +180,7 @@ if ($method === 'PUT') {
     }
     if (array_key_exists('dueDate',           $data)) { $fields[] = 'due_date = ?';            $values[] = $data['dueDate']; }
     if (array_key_exists('accountId',         $data)) { $fields[] = 'account_id = ?';          $values[] = $data['accountId']; }
+    if (array_key_exists('projectId',         $data)) { $fields[] = 'project_id = ?';          $values[] = $data['projectId'] ?: null; }
     if (array_key_exists('category',          $data)) { $fields[] = 'category = ?';            $values[] = $data['category']; }
     if (array_key_exists('notes',             $data)) { $fields[] = 'notes = ?';               $values[] = $data['notes']; }
     if (array_key_exists('recurrence',        $data)) {
@@ -220,10 +237,10 @@ if ($method === 'PUT') {
                 $spawnId = uuid();
                 $pdo->prepare(
                     'INSERT INTO payables
-                     (id, label, amount, currency, direction, due_date, account_id, status, commitment, category, notes,
+                     (id, label, amount, currency, direction, due_date, account_id, project_id, status, commitment, category, notes,
                       recurrence, recurrence_day, recurrence_end, adjustment_amount, adjustment_due_date,
                       source_type, source_id)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 )->execute([
                     $spawnId,
                     $updated['label'],
@@ -232,6 +249,7 @@ if ($method === 'PUT') {
                     $updated['direction'] ?? 'out',
                     $nextDue,
                     $updated['account_id'],
+                    $updated['project_id'] ?? null,
                     $updated['commitment'] ?? 'committed',
                     $updated['category'],
                     $updated['notes'],

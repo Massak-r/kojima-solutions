@@ -406,6 +406,7 @@ CREATE TABLE IF NOT EXISTS payables (
   currency        VARCHAR(8)    NOT NULL DEFAULT 'CHF',
   due_date        DATE          NULL,
   account_id      VARCHAR(36)   NULL,
+  project_id      VARCHAR(36)   NULL,
   status          ENUM('pending','scheduled','paid','cancelled') NOT NULL DEFAULT 'pending',
   category        VARCHAR(64)   NULL,
   notes           TEXT          NULL,
@@ -420,7 +421,8 @@ CREATE TABLE IF NOT EXISTS payables (
   PRIMARY KEY (id),
   INDEX idx_payables_status (status),
   INDEX idx_payables_due (due_date),
-  INDEX idx_payables_account (account_id)
+  INDEX idx_payables_account (account_id),
+  INDEX idx_payables_project (project_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ALTER TABLE expenses        ADD COLUMN account_id VARCHAR(36) NULL;

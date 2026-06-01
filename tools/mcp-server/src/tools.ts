@@ -417,7 +417,7 @@ export const TOOLS: ToolDefinition[] = [
       status:    { type: "string", enum: ["pending","scheduled","paid","cancelled"] },
       accountId: { type: "string" },
     } } },
-  { name: "create_payable", description: "Create a new payable. Required: label, amount. Optional: dueDate (YYYY-MM-DD), accountId, status (default pending), category, notes, recurrence (none|weekly|monthly|quarterly|yearly), recurrenceDay (1-31), recurrenceEnd.",
+  { name: "create_payable", description: "Create a new payable. Required: label, amount. Optional: dueDate (YYYY-MM-DD), accountId, projectId (allocate the cost to a project for net-margin profitability), status (default pending), category, notes, recurrence (none|weekly|monthly|quarterly|yearly), recurrenceDay (1-31), recurrenceEnd.",
     inputSchema: { type: "object", properties: { data: { type: "object", additionalProperties: true } }, required: ["data"] } },
   { name: "update_payable", description: "Patch a payable. Setting status='paid' stamps paidAt and, if recurrence != none, auto-spawns the next instance with the next due date (returned in response under spawned).",
     inputSchema: { type: "object", properties: { id: { type: "string" }, data: { type: "object", additionalProperties: true } }, required: ["id", "data"] } },

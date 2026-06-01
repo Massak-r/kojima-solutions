@@ -17,6 +17,8 @@ export interface ProjectProfitabilityRow {
   trackedHours: number;
   /** Sum of timeline-task estimates, in hours; null if none set. */
   estimatedHours: number | null;
+  /** Sum of out-direction payables allocated to this project (direct costs). */
+  allocatedCosts: number;
 }
 
 export function listProjectProfitability() {

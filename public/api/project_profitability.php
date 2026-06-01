@@ -63,6 +63,21 @@ try {
     error_log('project_profitability client-rate failed: ' . $e->getMessage());
 }
 
+// ── Allocated direct costs per project (out-direction payables, non-cancelled) ─
+// payables.project_id may not exist yet on a lagging DB; the try/catch keeps the
+// endpoint alive (costs just fall back to 0 until payables.php self-heals it).
+$costByProject = [];
+try {
+    $sql = "SELECT project_id, SUM(amount) AS total FROM payables
+            WHERE direction = 'out' AND status <> 'cancelled' AND project_id IS NOT NULL
+            GROUP BY project_id";
+    foreach ($pdo->query($sql) as $row) {
+        $costByProject[$row['project_id']] = (float)$row['total'];
+    }
+} catch (Throwable $e) {
+    error_log('project_profitability allocated-costs failed: ' . $e->getMessage());
+}
+
 // SELECT * so a lagging schema (e.g. `kind` not yet migrated) can't 500 the
 // endpoint — missing columns just fall back to defaults below.
 $out = [];
@@ -83,6 +98,7 @@ foreach ($pdo->query("SELECT * FROM projects ORDER BY created_at DESC") as $p) {
         'clientRate'     => ($clientId !== null && isset($rateByClient[$clientId])) ? $rateByClient[$clientId] : null,
         'trackedHours'   => round($sec / 3600, 2),
         'estimatedHours' => isset($estByProject[$pid]) ? round($estByProject[$pid], 2) : null,
+        'allocatedCosts' => $costByProject[$pid] ?? 0.0,
     ];
 }
 

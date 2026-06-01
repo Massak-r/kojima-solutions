@@ -37,6 +37,7 @@ import {
   PAYABLE_STATUS_LABELS, PAYABLE_RECURRENCE_LABELS, PAYABLE_COMMITMENT_LABELS,
 } from "@/types/payable";
 import type { Account } from "@/types/account";
+import { useProjects } from "@/contexts/ProjectsContext";
 import { cn } from "@/lib/utils";
 
 function formatCHF(n: number, currency = "CHF") {
@@ -185,6 +186,7 @@ interface FormState {
   direction: PayableDirection;
   dueDate: string;
   accountId: string;
+  projectId: string;
   status: PayableStatus;
   commitment: PayableCommitment;
   category: string;
@@ -197,13 +199,14 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  label: "", amount: "", currency: "CHF", direction: "out", dueDate: "", accountId: "",
+  label: "", amount: "", currency: "CHF", direction: "out", dueDate: "", accountId: "", projectId: "",
   status: "pending", commitment: "committed", category: "", notes: "",
   recurrence: "none", recurrenceDay: "", recurrenceEnd: "",
   adjustmentAmount: "", adjustmentDueDate: "",
 };
 
 export function PayablesManager() {
+  const { projects } = useProjects();
   const [payables, setPayables] = useState<Payable[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -295,6 +298,7 @@ export function PayablesManager() {
       direction: p.direction,
       dueDate: p.dueDate ?? "",
       accountId: p.accountId ?? "",
+      projectId: p.projectId ?? "",
       status: p.status,
       commitment: p.commitment,
       category: p.category ?? "",
@@ -321,6 +325,7 @@ export function PayablesManager() {
       direction: form.direction,
       dueDate: form.dueDate || null,
       accountId: form.accountId || null,
+      projectId: form.projectId || null,
       status: form.status,
       commitment: form.commitment,
       category: form.category.trim() || null,
@@ -780,6 +785,18 @@ export function PayablesManager() {
                   <SelectItem value="__none__">Aucun</SelectItem>
                   {accounts.filter(a => !a.isArchived).map(a => (
                     <SelectItem key={a.id} value={a.id}>{a.name} ({a.type === "perso" ? "perso" : "entreprise"})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Projet — alloue le coût à la rentabilité</label>
+              <Select value={form.projectId || "__none__"} onValueChange={v => setForm(f => ({ ...f, projectId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Aucun</SelectItem>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}{p.client ? ` — ${p.client}` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

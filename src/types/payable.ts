@@ -38,6 +38,7 @@ export interface Payable {
   direction:            PayableDirection;
   dueDate?:             string | null;
   accountId?:           string | null;
+  projectId?:           string | null;
   status:               PayableStatus;
   commitment:           PayableCommitment;
   category?:            string | null;
