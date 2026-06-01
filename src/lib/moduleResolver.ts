@@ -7,6 +7,20 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/** Distribute `total` hours across `parts` task templates as evenly as
+ *  possible while preserving the sum (e.g. 13h over 3 steps → [5, 4, 4]). */
+function splitHours(total: number, parts: number): number[] {
+  if (parts <= 0) return [];
+  if (total <= 0) return new Array(parts).fill(0);
+  const base = Math.floor(total / parts);
+  let remainder = total - base * parts;
+  return Array.from({ length: parts }, () => {
+    const extra = remainder > 0 ? 1 : 0;
+    remainder -= extra;
+    return base + extra;
+  });
+}
+
 const CATEGORY_COLORS: Record<string, TimelineTask["color"]> = {
   content: "primary",
   interaction: "accent",
@@ -52,7 +66,14 @@ export class ModuleResolver {
     for (const sel of this.selection) {
       const mod = getModuleById(sel.moduleId);
       if (!mod) continue;
-      for (const tpl of mod.taskTemplates) {
+      // Pre-fill each generated step with an hour estimate derived from the
+      // selected complexity tier, spread across the module's task templates so
+      // the per-step hours sum back to the tier total (rather than being
+      // dropped, or duplicating the full total on every step).
+      const tier = mod.tiers.find((t) => t.complexity === sel.complexity);
+      const hours = splitHours(tier?.estimatedHours ?? 0, mod.taskTemplates.length);
+      mod.taskTemplates.forEach((tpl, i) => {
+        const h = hours[i] ?? 0;
         tasks.push({
           id: uid(),
           order: order++,
@@ -62,9 +83,10 @@ export class ModuleResolver {
           dateLabel: "",
           color: CATEGORY_COLORS[mod.category] ?? "primary",
           completed: false,
+          estimatedHours: h > 0 ? h : undefined,
           subtasks: tpl.subtasks.map((s) => ({ id: uid(), title: s, completed: false })),
         });
-      }
+      });
     }
     return tasks;
   }

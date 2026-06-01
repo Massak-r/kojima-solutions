@@ -1,13 +1,13 @@
 import {
   FileText, Image, MapPin, Mail, CalendarDays, Newspaper, ShoppingBag,
   CreditCard, Lock, Globe, Search, BarChart3, MessageCircle, Users,
-  Settings, Server, LayoutGrid, MousePointerClick,
+  Settings, Server, LayoutGrid, MousePointerClick, Database,
 } from "lucide-react";
 
 export const ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
   FileText, Image, MapPin, Mail, CalendarDays, Newspaper, ShoppingBag,
   CreditCard, Lock, Globe, Search, BarChart3, MessageCircle, Users,
-  Settings, Server, LayoutGrid, MousePointerClick,
+  Settings, Server, LayoutGrid, MousePointerClick, Database,
 };
 
 export function ModuleIcon({ name, size = 16, className }: { name: string; size?: number; className?: string }) {

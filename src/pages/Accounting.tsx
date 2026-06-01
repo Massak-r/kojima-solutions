@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuotes } from "@/hooks/useQuotes";
-import { totalQuote, tvaAmountQuote } from "@/types/quote";
+import { totalQuote, tvaAmountQuote, type Quote } from "@/types/quote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download, CheckCircle2 } from "lucide-react";
 import { downloadCSV } from "@/lib/csvExport";
 import {
   BarChart,
@@ -51,6 +51,91 @@ import { formatDateSwiss } from "@/lib/dateFormat";
 import { StatCard } from "@/components/accounting/StatCard";
 import { ProjectProfitability } from "@/components/accounting/ProjectProfitability";
 import { TaxSetAside } from "@/components/accounting/TaxSetAside";
+
+// ── Outstanding money (receivables / potential revenue) ────────
+
+type OutstandingRow = {
+  id: string;
+  clientName: string;
+  quoteNumber: string;
+  projectTitle: string;
+  amount: number;
+  validityDate: string;
+  createdAt: string;
+};
+
+function OutstandingSection({
+  title, subtitle, rows, total, accent, lateLabel, emptyText, icon: Icon, onRowClick,
+}: {
+  title: string;
+  subtitle: string;
+  rows: OutstandingRow[];
+  total: number;
+  accent: "sage" | "amber";
+  lateLabel: string;
+  emptyText: string;
+  icon: React.FC<{ size?: number; className?: string }>;
+  onRowClick: (id: string) => void;
+}) {
+  const accentText = accent === "sage" ? "text-palette-sage" : "text-palette-amber";
+  const accentDot = accent === "sage" ? "bg-palette-sage" : "bg-palette-amber";
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-secondary/20 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon size={15} className={accentText} />
+          <h3 className="font-display text-sm font-semibold text-foreground">{title}</h3>
+          <span className="font-body text-xs text-muted-foreground hidden sm:block">{subtitle}</span>
+        </div>
+        <span className={`font-display text-base font-bold ${accentText} whitespace-nowrap`}>{formatCHF(total)}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-8 text-center text-muted-foreground font-body text-sm">{emptyText}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-body">
+            <thead>
+              <tr className="border-b border-border bg-secondary/10">
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Projet</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell whitespace-nowrap">Échéance</th>
+                <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Montant</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((inv) => {
+                const due = inv.validityDate ? new Date(inv.validityDate) : null;
+                const isLate = due ? due < new Date() : false;
+                return (
+                  <tr
+                    key={inv.id}
+                    className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                    onClick={() => onRowClick(inv.id)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${accentDot}`} />
+                        <span className="font-medium text-foreground break-words">{inv.clientName || "-"}</span>
+                        {isLate && (
+                          <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20 whitespace-nowrap">
+                            {lateLabel}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell break-words max-w-[220px]">{inv.projectTitle || "-"}</td>
+                    <td className={`px-4 py-3 hidden md:table-cell text-xs whitespace-nowrap ${isLate ? "text-destructive font-semibold" : "text-muted-foreground"}`}>{formatDateSwiss(due)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-primary tabular-nums whitespace-nowrap">{formatCHF(inv.amount)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Main page ─────────────────────────────────────────────────
 
@@ -116,7 +201,7 @@ export default function Accounting() {
         .filter((q) => q.invoiceStatus === "paid")
         .map((q) => ({
           id: q.id,
-          date: q.date,
+          date: q.createdAt,
           clientName: q.clientName,
           quoteNumber: q.quoteNumber,
           projectTitle: q.projectTitle,
@@ -132,30 +217,37 @@ export default function Accounting() {
 
   const totalRevenue = paidInvoices.reduce((s, q) => s + q.amount, 0);
 
-  // ── Derived: pipeline = validated + to-validate quotes ──
-  const pipelineInvoices = useMemo(
-    () =>
-      quotes
-        .filter((q) => q.invoiceStatus === "validated" || q.invoiceStatus === "to-validate")
-        .map((q) => ({
-          id: q.id,
-          date: q.date,
-          validityDate: q.validityDate,
-          clientName: q.clientName,
-          quoteNumber: q.quoteNumber,
-          projectTitle: q.projectTitle,
-          amount: totalQuote(q),
-          status: q.invoiceStatus,
-        }))
-        .filter((q) => {
-          const y = new Date(q.date).getFullYear();
-          return !isNaN(y) && y === year;
-        })
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [quotes, year]
-  );
+  // ── Derived: outstanding money (NOT year-scoped — these are forward-looking) ──
+  // Validated quotes = "à recevoir" (créances, l'argent qu'on te doit).
+  // Quotes still awaiting the client's signature = "revenu potentiel"
+  // (spéculatif tant que non validé). Soonest validity/échéance first.
+  const { receivables, potential } = useMemo(() => {
+    const toRow = (q: Quote): OutstandingRow => ({
+      id: q.id,
+      clientName: q.clientName,
+      quoteNumber: q.quoteNumber,
+      projectTitle: q.projectTitle,
+      amount: totalQuote(q),
+      validityDate: q.validityDate,
+      createdAt: q.createdAt,
+    });
+    const bySoonestDue = (a: OutstandingRow, b: OutstandingRow) =>
+      (a.validityDate || "9999").localeCompare(b.validityDate || "9999");
+    return {
+      receivables: quotes
+        .filter((q) => !q.isTemplate && q.invoiceStatus === "validated")
+        .map(toRow)
+        .sort(bySoonestDue),
+      potential: quotes
+        .filter((q) => !q.isTemplate && q.invoiceStatus === "to-validate")
+        .map(toRow)
+        .sort(bySoonestDue),
+    };
+  }, [quotes]);
 
-  const totalPipeline = pipelineInvoices.reduce((s, q) => s + q.amount, 0);
+  const totalReceivables = receivables.reduce((s, q) => s + q.amount, 0);
+  const totalPotential = potential.reduce((s, q) => s + q.amount, 0);
+  const totalPipeline = totalReceivables + totalPotential;
 
   // ── Derived: expenses for year ──
   const yearExpenses = useMemo(
@@ -172,7 +264,7 @@ export default function Accounting() {
   const tvaCollectedReal = useMemo(
     () => quotes
       .filter((q) => q.invoiceStatus === "paid")
-      .filter((q) => { const y = new Date(q.date).getFullYear(); return !isNaN(y) && y === year; })
+      .filter((q) => { const y = new Date(q.createdAt).getFullYear(); return !isNaN(y) && y === year; })
       .reduce((s, q) => s + tvaAmountQuote(q), 0),
     [quotes, year]
   );
@@ -223,7 +315,7 @@ export default function Accounting() {
   const allYears = useMemo(() => {
     const ys = new Set<number>([currentYear]);
     quotes.forEach((q) => {
-      const y = new Date(q.date).getFullYear();
+      const y = new Date(q.createdAt).getFullYear();
       if (!isNaN(y)) ys.add(y);
     });
     expenses.forEach((e) => {
@@ -384,22 +476,35 @@ export default function Accounting() {
               />
             </div>
 
-            {/* Pipeline */}
+            {/* Encaissements à venir */}
             {totalPipeline > 0 && (
               <div className="bg-card border border-border rounded-xl p-5 shadow-card">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Clock size={15} className="text-primary" />
-                    <h2 className="font-display text-sm font-semibold text-foreground">Prévisionnel</h2>
-                    <span className="font-body text-xs text-muted-foreground">devis validés non encore payés</span>
+                    <h2 className="font-display text-sm font-semibold text-foreground">Encaissements à venir</h2>
                   </div>
-                  <span className="font-display text-lg font-bold text-primary">{formatCHF(totalPipeline)}</span>
+                  <div className="flex items-center gap-2 text-xs font-body">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-palette-sage/40 text-palette-sage bg-palette-sage/5 font-semibold">
+                      À recevoir {formatCHF(totalReceivables)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-palette-amber/40 text-palette-amber bg-palette-amber/5 font-semibold">
+                      Potentiel {formatCHF(totalPotential)}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
-                  {pipelineInvoices.map((inv) => (
-                    <div key={inv.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+                  {[
+                    ...receivables.map((inv) => ({ ...inv, kind: "receivable" as const })),
+                    ...potential.map((inv) => ({ ...inv, kind: "potential" as const })),
+                  ].map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/20 -mx-1 px-1 rounded transition-colors"
+                      onClick={() => navigate(`/quotes/${inv.id}`)}
+                    >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${inv.status === "validated" ? "bg-palette-sage" : "bg-palette-amber"}`} />
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${inv.kind === "receivable" ? "bg-palette-sage" : "bg-palette-amber"}`} />
                         <span className="font-body text-sm font-medium text-foreground break-words">{inv.clientName || "-"}</span>
                         <span className="font-body text-xs text-muted-foreground hidden sm:block break-words">{inv.projectTitle}</span>
                       </div>
@@ -732,97 +837,62 @@ export default function Accounting() {
             )}
           </TabsContent>
 
-          {/* ── Tab: Pipeline ── */}
+          {/* ── Tab: À recevoir ── */}
           <TabsContent value="pipeline" className="space-y-5">
-            {/* Pipeline stat */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <StatCard
+                icon={CheckCircle2}
+                label="À recevoir"
+                value={formatCHF(totalReceivables)}
+                sub={`${receivables.length} devis validé${receivables.length !== 1 ? "s" : ""}`}
+                accent="bg-palette-sage"
+              />
               <StatCard
                 icon={Clock}
-                label="À recevoir"
-                value={formatCHF(totalPipeline)}
-                sub={`${pipelineInvoices.length} devis en attente`}
+                label="Revenu potentiel"
+                value={formatCHF(totalPotential)}
+                sub={`${potential.length} devis à valider`}
+                accent="bg-palette-amber"
               />
               <StatCard
                 icon={TrendingUp}
                 label="Déjà encaissé"
                 value={formatCHF(totalRevenue)}
-                sub={`${paidInvoices.length} facture${paidInvoices.length !== 1 ? "s" : ""}`}
-                accent="bg-palette-sage"
+                sub={`${paidInvoices.length} facture${paidInvoices.length !== 1 ? "s" : ""} · ${year}`}
               />
             </div>
 
-            {pipelineInvoices.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground font-body text-sm">
-                Aucun devis validé en attente de paiement pour {year}.
-              </div>
-            ) : (
-              <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm font-body">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/30">
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Projet</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Statut</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Paiement estimé</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Montant</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {pipelineInvoices.map((inv) => {
-                        const dueDate = inv.validityDate ? new Date(inv.validityDate) : null;
-                        const isOverdue = dueDate ? dueDate < new Date() : false;
-                        return (
-                          <tr
-                            key={inv.id}
-                            className="hover:bg-secondary/20 transition-colors cursor-pointer"
-                            onClick={() => navigate(`/quotes/${inv.id}`)}
-                          >
-                            <td className="px-4 py-3 font-medium text-foreground">{inv.clientName || "-"}</td>
-                            <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{inv.projectTitle || "-"}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                                  inv.status === "validated"
-                                    ? "border-palette-sage/40 text-palette-sage bg-palette-sage/5"
-                                    : "border-palette-amber/40 text-palette-amber bg-palette-amber/5"
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${inv.status === "validated" ? "bg-palette-sage" : "bg-palette-amber"}`} />
-                                  {inv.status === "validated" ? "Validé" : "À valider"}
-                                </span>
-                                {isOverdue && (
-                                  <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                                    En retard
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className={`px-4 py-3 hidden md:table-cell text-xs ${isOverdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                              {formatDateSwiss(dueDate)}
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold text-primary tabular-nums">
-                              {formatCHF(inv.amount)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-border bg-secondary/20">
-                        <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Total à recevoir</td>
-                        <td className="px-4 py-3 text-right font-display text-base font-bold text-primary">{formatCHF(totalPipeline)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
+            <OutstandingSection
+              title="À recevoir"
+              subtitle="devis validés, en attente de paiement"
+              rows={receivables}
+              total={totalReceivables}
+              accent="sage"
+              lateLabel="En retard"
+              emptyText="Aucun devis validé en attente de paiement."
+              icon={CheckCircle2}
+              onRowClick={(qid) => navigate(`/quotes/${qid}`)}
+            />
+
+            <OutstandingSection
+              title="Revenu potentiel"
+              subtitle="devis envoyés, en attente de validation client"
+              rows={potential}
+              total={totalPotential}
+              accent="amber"
+              lateLabel="Expiré"
+              emptyText="Aucun devis en attente de validation."
+              icon={Clock}
+              onRowClick={(qid) => navigate(`/quotes/${qid}`)}
+            />
 
             <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/50 border border-border">
               <Info size={14} className="text-muted-foreground mt-0.5 shrink-0" />
               <p className="font-body text-xs text-muted-foreground">
-                Les dates de paiement estimées sont basées sur la date du devis + 30 jours.
-                Les montants correspondent aux devis validés ou en attente de validation.
+                <strong className="text-palette-sage">À recevoir</strong> = devis validés par le client (créances).{" "}
+                <strong className="text-palette-amber">Revenu potentiel</strong> = devis envoyés, en attente de signature — non garanti tant qu'il n'est pas validé.
+                Un devis dont la date de validité est dépassée est marqué « Expiré » (à relancer). Tous les devis en cours sont affichés, toutes années confondues.
               </p>
             </div>
           </TabsContent>
