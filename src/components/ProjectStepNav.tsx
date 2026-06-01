@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   FileText, ClipboardCheck, ListTodo, Blocks, Check,
-  User, Calendar, Circle,
+  User, Calendar, Circle, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/contexts/ProjectsContext";
@@ -27,6 +27,7 @@ const STEPS = [
   { key: "cadrage", label: "Cadrage", icon: ClipboardCheck },
   { key: "modules", label: "Modules", icon: Blocks },
   { key: "etapes", label: "Etapes", icon: ListTodo },
+  { key: "livrables", label: "Livrables", icon: Package },
   { key: "documents", label: "Documents", icon: FileText },
 ] as const;
 
@@ -77,6 +78,7 @@ export function ProjectStepNav({ projectId, currentStep, dirty }: ProjectStepNav
     cadrage: cadrageDone,
     modules: modulesDone,
     etapes: (project?.tasks ?? []).length > 0,
+    livrables: (project?.deliveries ?? []).length > 0,
     documents: quotes.some((q) => q.projectId === projectId),
   };
 

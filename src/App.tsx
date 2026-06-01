@@ -53,6 +53,7 @@ const SharedFolder          = lazy(() => import("./pages/SharedFolder"));
 const ProjectBrief          = lazy(() => import("./pages/ProjectBrief"));
 const ProjectCadrage        = lazy(() => import("./pages/ProjectCadrage"));
 const ProjectModules        = lazy(() => import("./pages/ProjectModules"));
+const ProjectDeliverables   = lazy(() => import("./pages/ProjectDeliverables"));
 const IntakeForm            = lazy(() => import("./pages/IntakeForm"));
 const ClientProposal        = lazy(() => import("./pages/ClientProposal"));
 const FunnelPrintPage       = lazy(() => import("./pages/FunnelPrintPage"));
@@ -153,6 +154,7 @@ const App = () => (
                       <Route path="/project/:id/cadrage" element={<ProtectedRoute><ProjectCadrage /></ProtectedRoute>} />
                       <Route path="/project/:id/modules" element={<ProtectedRoute><ProjectModules /></ProtectedRoute>} />
                       <Route path="/project/:id/etapes" element={<ProtectedRoute><ProjectSteps /></ProtectedRoute>} />
+                      <Route path="/project/:id/livrables" element={<ProtectedRoute><ProjectDeliverables /></ProtectedRoute>} />
                       <Route path="/project/:id/documents" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
                       <Route path="/clients" element={<ProtectedRoute><ClientsManager /></ProtectedRoute>} />
                       <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
