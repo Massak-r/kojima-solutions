@@ -1,5 +1,6 @@
 import { UnpaidInvoices } from "@/components/kojimaSpace/UnpaidInvoices";
 import { UpcomingDeadlines } from "@/components/kojimaSpace/UpcomingDeadlines";
+import { OverdueWork } from "@/components/home/OverdueWork";
 import { RenewalRadar } from "@/components/home/RenewalRadar";
 import { PendingFeedback } from "@/components/home/PendingFeedback";
 import { QuotesToInvoice } from "@/components/home/QuotesToInvoice";
@@ -19,6 +20,7 @@ export function AlertsZone() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <OverdueWork />
         <NewIntakes />
         <QuotesToInvoice />
         <UnpaidInvoices />
