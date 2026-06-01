@@ -93,6 +93,17 @@ export function getGlobalWeekSummary() {
   return apiFetch<GlobalWeekSummary>('objective_sessions.php?summary=week&all=1');
 }
 
+export interface WeeksSummary {
+  weeks: { weekStart: string; totalSec: number; sessionCount: number }[];
+  byObjective: { source: ObjectiveSource; objectiveId: string; sec: number; sessionCount: number }[];
+  rangeStart: string;
+}
+
+/** Per-week focus totals across all objectives for the last `n` ISO weeks. */
+export function getWeeksSummary(n = 8) {
+  return apiFetch<WeeksSummary>(`objective_sessions.php?summary=weeks&all=1&n=${n}`);
+}
+
 export interface UnbilledProjectRow {
   projectId:     string;
   projectTitle:  string;

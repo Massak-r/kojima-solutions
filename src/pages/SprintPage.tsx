@@ -10,6 +10,7 @@ import { useAllSubtasks, useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useProjects } from "@/contexts/ProjectsContext";
 import type { SprintItem } from "@/components/sprint/SprintCapProvider";
 import { GlobalWeekSummary } from "@/components/objective/GlobalWeekSummary";
+import { FocusTrends } from "@/components/objective/FocusTrends";
 import { DailyCommitDialog } from "@/components/objective/DailyCommitDialog";
 import { WeeklyReviewDialog } from "@/components/objective/WeeklyReviewDialog";
 import { WeekPlanner } from "@/components/sprint/WeekPlanner";
@@ -424,6 +425,8 @@ export default function SprintPage() {
               ) : null}
 
               <GlobalWeekSummary objectivesById={objectivesById} />
+
+              <FocusTrends />
 
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">

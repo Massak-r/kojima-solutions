@@ -249,6 +249,68 @@ if ($method === 'GET') {
         ]);
     }
 
+    // Multi-week focus trend (across ALL objectives) — per-week totals for the
+    // last N weeks (default 8, capped 26) + top objectives over the range.
+    // Additive & read-only; bucketed in PHP from per-day sums.
+    if ($summary === 'weeks' && $all) {
+        $n = isset($_GET['n']) ? max(1, min(26, (int)$_GET['n'])) : 8;
+        $tz = new DateTimeZone(date_default_timezone_get());
+        $now = new DateTime('now', $tz);
+        $dow = (int)$now->format('N');
+        $thisMonday  = (clone $now)->setTime(0, 0, 0)->modify('-' . ($dow - 1) . ' days');
+        $firstMonday = (clone $thisMonday)->modify('-' . (($n - 1) * 7) . ' days');
+        $rangeStart  = $firstMonday->format('Y-m-d H:i:s');
+        $rangeEnd    = (clone $thisMonday)->modify('+7 days')->format('Y-m-d H:i:s');
+
+        $dayStmt = $pdo->prepare('
+            SELECT DATE(started_at) AS d, COALESCE(SUM(duration_sec), 0) AS sec, COUNT(*) AS cnt
+            FROM objective_sessions
+            WHERE started_at >= ? AND started_at < ? AND duration_sec IS NOT NULL
+            GROUP BY DATE(started_at)
+        ');
+        $dayStmt->execute([$rangeStart, $rangeEnd]);
+        $secByDate = [];
+        $cntByDate = [];
+        foreach ($dayStmt->fetchAll() as $r) {
+            $secByDate[$r['d']] = (int)$r['sec'];
+            $cntByDate[$r['d']] = (int)$r['cnt'];
+        }
+
+        $weeks = [];
+        for ($w = 0; $w < $n; $w++) {
+            $wkMonday = (clone $firstMonday)->modify('+' . ($w * 7) . ' days');
+            $sec = 0; $cnt = 0;
+            for ($i = 0; $i < 7; $i++) {
+                $d = (clone $wkMonday)->modify('+' . $i . ' days')->format('Y-m-d');
+                $sec += $secByDate[$d] ?? 0;
+                $cnt += $cntByDate[$d] ?? 0;
+            }
+            $weeks[] = ['weekStart' => $wkMonday->format('Y-m-d'), 'totalSec' => $sec, 'sessionCount' => $cnt];
+        }
+
+        $objStmt = $pdo->prepare('
+            SELECT source, objective_id, SUM(duration_sec) AS sec, COUNT(*) AS cnt
+            FROM objective_sessions
+            WHERE started_at >= ? AND started_at < ? AND duration_sec IS NOT NULL
+            GROUP BY source, objective_id
+            ORDER BY sec DESC
+            LIMIT 8
+        ');
+        $objStmt->execute([$rangeStart, $rangeEnd]);
+        $byObjective = array_map(fn($r) => [
+            'source'       => $r['source'],
+            'objectiveId'  => $r['objective_id'],
+            'sec'          => (int)$r['sec'],
+            'sessionCount' => (int)$r['cnt'],
+        ], $objStmt->fetchAll());
+
+        ok([
+            'weeks'       => $weeks,
+            'byObjective' => $byObjective,
+            'rangeStart'  => $firstMonday->format('Y-m-d'),
+        ]);
+    }
+
     if (!$source || !$objId) fail('source and objective_id required');
 
     if ($summary === 'week') {
