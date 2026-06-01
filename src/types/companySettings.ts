@@ -15,6 +15,16 @@ export interface CompanySettings {
   bankIban: string;
   bankBic: string;
   bankName: string;
+  // Swiss QR-bill (QR-facture) — créancier / émetteur, configurable so the
+  // account can switch (perso → SARL/PostFinance) without touching code.
+  qrEnabled: boolean;
+  qrIban: string;
+  qrCreditorName: string;
+  qrCreditorStreet: string;
+  qrCreditorBuildingNumber: string;
+  qrCreditorZip: string;
+  qrCreditorCity: string;
+  qrCreditorCountry: string;
   defaultConditions: string;
   defaultHourlyRate: number;
   paymentTermsPresets: QuotePreset[];
@@ -92,6 +102,14 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   bankIban: "",
   bankBic: "",
   bankName: "",
+  qrEnabled: false,
+  qrIban: "",
+  qrCreditorName: "",
+  qrCreditorStreet: "",
+  qrCreditorBuildingNumber: "",
+  qrCreditorZip: "",
+  qrCreditorCity: "",
+  qrCreditorCountry: "CH",
   defaultConditions: "",
   defaultHourlyRate: 120,
   paymentTermsPresets: DEFAULT_PAYMENT_TERMS_PRESETS,

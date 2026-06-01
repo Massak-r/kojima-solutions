@@ -10,6 +10,7 @@ import {
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { formatDateSwiss } from "@/lib/dateFormat";
 import { richHtmlForDisplay } from "@/lib/sanitizeRichHtml";
+import { QrBillSection } from "./QrBillSection";
 
 function formatCurrency(value: number, lang: "fr" | "en"): string {
   return new Intl.NumberFormat(lang === "fr" ? "fr-CH" : "en-CH", {
@@ -271,8 +272,9 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
             </div>
           )}
 
-          {/* Bank details (invoices) — only when IBAN is configured in admin settings */}
-          {isInvoice && !!co.bankIban && (
+          {/* Bank details (invoices) — text block when the QR-bill is off; the
+              QR-bill payment part below carries the account when it's on. */}
+          {isInvoice && !co.qrEnabled && !!co.bankIban && (
             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${accentFaint}` }}>
               <div className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
                 {isFr ? "Coordonnées bancaires" : "Bank details"}
@@ -298,6 +300,11 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
         {/* Right edge accent */}
         <div className="w-1 shrink-0" style={{ backgroundColor: accentFaint }} />
       </div>
+
+      {/* Swiss QR-bill payment part — invoices only, when enabled in Réglages */}
+      {isInvoice && co.qrEnabled && (
+        <QrBillSection quote={quote} settings={co} lang={lang} />
+      )}
     </div>
   );
 }

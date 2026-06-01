@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import type { CompanySettings, QuotePreset } from "@/types/companySettings";
@@ -347,6 +348,58 @@ function QuoteSettings() {
             <div className="space-y-1">
               <Label className="text-xs">Banque</Label>
               <Input value={form.bankName} onChange={(e) => set("bankName", e.target.value)} className="text-sm" />
+            </div>
+          </div>
+        </div>
+
+        <div className="h-px bg-border/50" />
+
+        {/* Swiss QR-bill */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Receipt size={12} className="text-muted-foreground" />
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                QR-facture (Swiss QR-bill)
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="qr-enabled" className="text-xs text-muted-foreground">Activer sur les factures</Label>
+              <Switch id="qr-enabled" checked={!!form.qrEnabled} onCheckedChange={(v) => set("qrEnabled", v)} />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Ajoute la section paiement avec QR-code suisse au bas de tes factures. ⚠️ Vérifie bien l'IBAN —
+            c'est le compte vers lequel tes clients paient. Laisse l'IBAN vide pour réutiliser celui des coordonnées bancaires ci-dessus.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">IBAN / QR-IBAN du bénéficiaire</Label>
+              <Input value={form.qrIban ?? ""} onChange={(e) => set("qrIban", e.target.value)} className="text-sm font-mono" placeholder="sinon IBAN bancaire ci-dessus" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Nom du bénéficiaire</Label>
+              <Input value={form.qrCreditorName ?? ""} onChange={(e) => set("qrCreditorName", e.target.value)} className="text-sm" placeholder="sinon nom de l'entreprise" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Rue</Label>
+              <Input value={form.qrCreditorStreet ?? ""} onChange={(e) => set("qrCreditorStreet", e.target.value)} className="text-sm" placeholder="Chemin Ella-Maillart" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">N°</Label>
+              <Input value={form.qrCreditorBuildingNumber ?? ""} onChange={(e) => set("qrCreditorBuildingNumber", e.target.value)} className="text-sm" placeholder="14" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">NPA</Label>
+              <Input value={form.qrCreditorZip ?? ""} onChange={(e) => set("qrCreditorZip", e.target.value)} className="text-sm" placeholder="1208" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Localité</Label>
+              <Input value={form.qrCreditorCity ?? ""} onChange={(e) => set("qrCreditorCity", e.target.value)} className="text-sm" placeholder="Genève" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pays</Label>
+              <Input value={form.qrCreditorCountry ?? "CH"} onChange={(e) => set("qrCreditorCountry", e.target.value.toUpperCase())} className="text-sm w-24" maxLength={2} placeholder="CH" />
             </div>
           </div>
         </div>
