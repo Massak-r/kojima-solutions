@@ -14,6 +14,7 @@ import {
   type ProjectFunnel, type FunnelPhase, type FunnelGate, type GateOption, type GateComment, type Tier,
 } from "@/api/funnels";
 import { OptionImageGallery } from "@/components/funnel/OptionImageGallery";
+import { useProjects } from "@/contexts/ProjectsContext";
 import { formatDateSwiss, formatDateShort, formatDateTime } from "@/lib/dateFormat";
 
 const TIER_LABELS: Record<Tier, string> = {
@@ -38,6 +39,7 @@ const GATE_TYPE_ICONS: Record<string, typeof List> = {
 export default function FunnelStakeholderView() {
   const { id, token } = useParams<{ id?: string; token?: string }>();
   const { toast } = useToast();
+  const { getProject } = useProjects();
   const [funnel, setFunnel] = useState<ProjectFunnel | null>(null);
   const [error, setError] = useState(false);
   const [stakeholderName, setStakeholderName] = useState(() =>
@@ -106,7 +108,7 @@ export default function FunnelStakeholderView() {
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-primary" />
             <h1 className="font-display text-lg font-bold text-foreground/90">
-              Suivi du projet
+              {funnel.projectTitle ?? getProject(funnel.projectId)?.title ?? "Suivi du projet"}
             </h1>
             {funnel.tier && (
               <Badge variant="secondary" className={cn(

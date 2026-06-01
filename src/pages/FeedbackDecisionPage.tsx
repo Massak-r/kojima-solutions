@@ -308,6 +308,16 @@ export default function FeedbackDecisionPage() {
           <StakeholderVoteSummary votes={request.stakeholderVotes} options={request.options} type="vote" />
         )}
 
+        {/* Decision-safety reassurance — same framing as the proposal (doc §5). */}
+        {!isResolved && (
+          <p className="text-center text-xs text-muted-foreground/70 font-body px-4">
+            {t(
+              "Rien de figé : votre choix oriente la direction, on l'affine ensemble ensuite.",
+              "Nothing is final: your choice sets the direction — we refine it together afterward.",
+            )}
+          </p>
+        )}
+
         {/* Sticky Confirm — keyboard / a11y fallback alongside the in-card
             slide gesture. Stays for users who want a one-tap path. */}
         {!isResolved && (
