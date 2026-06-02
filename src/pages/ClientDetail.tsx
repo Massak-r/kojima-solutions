@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Pencil, FolderKanban, FileText,
@@ -7,8 +7,11 @@ import {
 import { useClients } from "@/contexts/ClientsContext";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useCompanySettings } from "@/contexts/CompanySettingsContext";
 import { totalQuote } from "@/types/quote";
 import { formatCHF } from "@/components/accounting/utils";
+import { listProjectProfitability, type ProjectProfitabilityRow } from "@/api/projectProfitability";
+import { parseAmount } from "@/components/accounting/ProjectProfitability";
 import { SectionCard } from "@/components/ui/section-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +35,13 @@ export default function ClientDetail() {
   const { clients } = useClients();
   const { projects } = useProjects();
   const { quotes } = useQuotes();
+  const { settings } = useCompanySettings();
   const client = clients.find((c) => c.id === id);
+  const [profRows, setProfRows] = useState<ProjectProfitabilityRow[] | null>(null);
+
+  useEffect(() => {
+    listProjectProfitability().then(setProfRows).catch(() => setProfRows([]));
+  }, []);
 
   const data = useMemo(() => {
     if (!client) return null;
@@ -54,6 +63,26 @@ export default function ClientDetail() {
       activeCount: clientProjects.filter((p) => p.status === "in-progress").length,
     };
   }, [client, projects, quotes]);
+
+  // Per-client profitability — same model as the Rentabilité tab (devis signés
+  // − main-d'œuvre − coûts directs alloués), restricted to this client.
+  const profit = useMemo(() => {
+    if (!client || !profRows) return null;
+    const rate0 = settings.defaultHourlyRate || 0;
+    const rows = profRows
+      .filter((r) => r.clientId === client.id)
+      .map((r) => {
+        const quote = parseAmount(r.revisedQuote) || parseAmount(r.initialQuote);
+        const cost = r.trackedHours * (r.clientRate ?? rate0) + (r.allocatedCosts || 0);
+        return { id: r.id, title: r.title, quote, cost, margin: quote - cost, hasQuote: quote > 0 };
+      })
+      .filter((r) => r.hasQuote);
+    if (rows.length === 0) return null;
+    const totQuote = rows.reduce((s, r) => s + r.quote, 0);
+    const totCost = rows.reduce((s, r) => s + r.cost, 0);
+    const totMargin = totQuote - totCost;
+    return { rows, totQuote, totCost, totMargin, marginPct: totQuote > 0 ? (totMargin / totQuote) * 100 : 0 };
+  }, [client, profRows, settings.defaultHourlyRate]);
 
   if (!client || !data) {
     return (
@@ -169,6 +198,38 @@ export default function ClientDetail() {
             </ul>
           )}
         </SectionCard>
+
+        {profit && (
+          <SectionCard icon={TrendingUp} title="Rentabilité" subtitle="devis signés − coûts" bodyClassName="p-0">
+            <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
+              <div className="p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-body mb-1">Devis</p>
+                <p className="font-display text-base font-bold tabular-nums text-foreground">{formatCHF(profit.totQuote)}</p>
+              </div>
+              <div className="p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-body mb-1">Coûts</p>
+                <p className="font-display text-base font-bold tabular-nums text-foreground">{formatCHF(profit.totCost)}</p>
+              </div>
+              <div className="p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-body mb-1">Marge nette</p>
+                <p className={cn("font-display text-base font-bold tabular-nums", profit.totMargin >= 0 ? "text-emerald-600" : "text-destructive")}>
+                  {profit.totMargin >= 0 ? "+" : ""}{formatCHF(profit.totMargin)}
+                </p>
+                <p className="text-[10px] text-muted-foreground font-body">{profit.marginPct >= 0 ? "+" : ""}{profit.marginPct.toFixed(0)}%</p>
+              </div>
+            </div>
+            <ul className="divide-y divide-border">
+              {profit.rows.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
+                  <span className="font-body text-sm text-foreground truncate">{r.title || "(Sans titre)"}</span>
+                  <span className={cn("font-body text-sm font-semibold tabular-nums shrink-0", r.margin >= 0 ? "text-emerald-600" : "text-destructive")}>
+                    {r.margin >= 0 ? "+" : ""}{formatCHF(r.margin)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        )}
 
         {client.notes && (
           <SectionCard title="Notes">

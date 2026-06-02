@@ -12,7 +12,7 @@ import {
 
 // Quote strings are free-text ("5'000", "CHF 4500.-", "4 500,00"). Strip Swiss
 // thousands separators/whitespace, normalise the decimal mark, then parse.
-function parseAmount(raw?: string | null): number {
+export function parseAmount(raw?: string | null): number {
   if (!raw) return 0;
   let s = String(raw).replace(/['\s  ]/g, "").replace(/[^\d.,-]/g, "");
   if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, "");
