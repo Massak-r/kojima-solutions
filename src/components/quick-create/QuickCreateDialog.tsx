@@ -27,28 +27,34 @@ import { useClients } from "@/contexts/ClientsContext";
 
 export type QuickCreateKind = "project" | "client";
 
+/** Optional seed values when opening the dialog (e.g. pre-select a client). */
+export interface QuickCreatePreset {
+  clientId?: string;
+}
+
 interface Props {
   kind: QuickCreateKind | null;
   onClose: () => void;
+  preset?: QuickCreatePreset;
 }
 
-export function QuickCreateDialog({ kind, onClose }: Props) {
+export function QuickCreateDialog({ kind, onClose, preset }: Props) {
   return (
     <ResponsiveDialog open={kind !== null} onOpenChange={(open) => !open && onClose()}>
       <ResponsiveDialogContent className="sm:max-w-md">
-        {kind === "project" && <ProjectForm onClose={onClose} />}
+        {kind === "project" && <ProjectForm onClose={onClose} initialClientId={preset?.clientId ?? null} />}
         {kind === "client" && <ClientForm onClose={onClose} />}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
 }
 
-function ProjectForm({ onClose }: { onClose: () => void }) {
+function ProjectForm({ onClose, initialClientId = null }: { onClose: () => void; initialClientId?: string | null }) {
   const { createProject, updateProject } = useProjects();
   const { clients } = useClients();
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(initialClientId);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const selectedClient = clientId ? clients.find((c) => c.id === clientId) ?? null : null;

@@ -2,17 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Pencil, FolderKanban, FileText,
-  TrendingUp, Clock, ExternalLink,
+  TrendingUp, Clock, ExternalLink, FilePlus2, FolderPlus, Receipt, Activity,
 } from "lucide-react";
 import { useClients } from "@/contexts/ClientsContext";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useCompanySettings } from "@/contexts/CompanySettingsContext";
+import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { totalQuote } from "@/types/quote";
 import { formatCHF } from "@/components/accounting/utils";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { listProjectProfitability, type ProjectProfitabilityRow } from "@/api/projectProfitability";
 import { parseAmount } from "@/components/accounting/ProjectProfitability";
 import { SectionCard } from "@/components/ui/section-card";
+import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -36,8 +39,10 @@ export default function ClientDetail() {
   const { projects } = useProjects();
   const { quotes } = useQuotes();
   const { settings } = useCompanySettings();
+  const quickCreate = useQuickCreate();
   const client = clients.find((c) => c.id === id);
   const [profRows, setProfRows] = useState<ProjectProfitabilityRow[] | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     listProjectProfitability().then(setProfRows).catch(() => setProfRows([]));
@@ -84,6 +89,38 @@ export default function ClientDetail() {
     return { rows, totQuote, totCost, totMargin, marginPct: totQuote > 0 ? (totMargin / totQuote) * 100 : 0 };
   }, [client, profRows, settings.defaultHourlyRate]);
 
+  // Activity feed synthesized from the client's projects + quotes (no extra
+  // fetch): each project creation and each devis/facture, newest first.
+  const activity = useMemo(() => {
+    if (!data) return [];
+    type Ev = { id: string; date: string; kind: "project" | "quote" | "invoice"; title: string; status?: string; href: string };
+    const evs: Ev[] = [];
+    for (const p of data.clientProjects) {
+      if (!p.createdAt) continue;
+      evs.push({
+        id: `p-${p.id}`,
+        date: p.createdAt,
+        kind: "project",
+        title: p.title || "(Sans titre)",
+        status: PROJECT_STATUS_LABEL[p.status] ?? p.status,
+        href: `/project/${p.id}/etapes`,
+      });
+    }
+    for (const q of data.clientQuotes) {
+      if (!q.createdAt) continue;
+      const isInv = q.docType === "invoice";
+      evs.push({
+        id: `q-${q.id}`,
+        date: q.createdAt,
+        kind: isInv ? "invoice" : "quote",
+        title: `${q.quoteNumber || (isInv ? "Facture" : "Devis")}${q.projectTitle ? ` · ${q.projectTitle}` : ""}`,
+        status: (QUOTE_STATUS[q.invoiceStatus ?? "draft"] ?? QUOTE_STATUS.draft).label,
+        href: `/quotes/${q.id}`,
+      });
+    }
+    return evs.sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 12);
+  }, [data]);
+
   if (!client || !data) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-4">
@@ -121,13 +158,32 @@ export default function ClientDetail() {
                 {client.hourlyRate != null && <span className="flex items-center gap-1">{client.hourlyRate} CHF/h</span>}
               </div>
             </div>
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/clients")}
-              className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 gap-1.5"
-            >
-              <Pencil size={14} /> Gérer
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/quotes/new?clientId=${client.id}`)}
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 gap-1.5"
+              >
+                <FilePlus2 size={14} /> Devis
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => quickCreate.open("project", { clientId: client.id })}
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 gap-1.5"
+              >
+                <FolderPlus size={14} /> Projet
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditOpen(true)}
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 gap-1.5"
+              >
+                <Pencil size={14} /> Gérer
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -168,7 +224,17 @@ export default function ClientDetail() {
           )}
         </SectionCard>
 
-        <SectionCard icon={FileText} title="Devis & factures" subtitle={String(data.clientQuotes.length)} bodyClassName="p-0">
+        <SectionCard
+          icon={FileText}
+          title="Devis & factures"
+          subtitle={String(data.clientQuotes.length)}
+          action={data.clientQuotes.length > 0 ? (
+            <Link to={`/quotes?client=${client.id}`} className="text-xs text-primary hover:underline font-body shrink-0 whitespace-nowrap">
+              Voir dans Devis →
+            </Link>
+          ) : undefined}
+          bodyClassName="p-0"
+        >
           {data.clientQuotes.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-muted-foreground font-body">Aucun devis pour ce client.</p>
           ) : (
@@ -231,12 +297,41 @@ export default function ClientDetail() {
           </SectionCard>
         )}
 
+        {activity.length > 0 && (
+          <SectionCard icon={Activity} title="Activité" subtitle="récent" bodyClassName="p-0">
+            <ul className="divide-y divide-border">
+              {activity.map((ev) => {
+                const Icon = ev.kind === "project" ? FolderKanban : ev.kind === "invoice" ? Receipt : FileText;
+                return (
+                  <li key={ev.id}>
+                    <button
+                      onClick={() => navigate(ev.href)}
+                      className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-secondary/30 transition-colors text-left"
+                    >
+                      <span className="w-7 h-7 rounded-full bg-secondary/60 flex items-center justify-center shrink-0">
+                        <Icon size={13} className="text-muted-foreground" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-body text-sm text-foreground truncate block">{ev.title}</span>
+                        <span className="font-body text-[11px] text-muted-foreground">{formatDateSwiss(ev.date)}</span>
+                      </span>
+                      {ev.status && <Badge variant="outline" className="text-[10px] shrink-0">{ev.status}</Badge>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </SectionCard>
+        )}
+
         {client.notes && (
           <SectionCard title="Notes">
             <p className="font-body text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">{client.notes}</p>
           </SectionCard>
         )}
       </main>
+
+      <ClientFormDialog open={editOpen} onOpenChange={setEditOpen} client={client} />
     </div>
   );
 }

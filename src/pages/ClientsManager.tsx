@@ -7,29 +7,20 @@ import { totalQuote } from "@/types/quote";
 import { formatCHF } from "@/components/accounting/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Pencil, Trash2, Building2, Mail, Phone, MapPin, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Mail, Phone, MapPin, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
+import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import type { Client } from "@/types/client";
-
-type FormState = Omit<Client, "id" | "createdAt" | "hourlyRate"> & {
-  /** Editable as string so the empty/decimal state stays predictable in the form. */
-  hourlyRateInput: string;
-};
-
-const EMPTY: FormState = { name: "", organization: "", email: "", phone: "", address: "", notes: "", hourlyRateInput: "" };
 
 export default function ClientsManager() {
   const navigate = useNavigate();
-  const { clients, addClient, updateClient, deleteClient, restoreClient } = useClients();
+  const { clients, deleteClient, restoreClient } = useClients();
   const { projects } = useProjects();
   const { quotes } = useQuotes();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogClient, setDialogClient] = useState<Client | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const { deleteWithUndo } = useUndoableDelete<Client>({
@@ -66,56 +57,14 @@ export default function ClientsManager() {
   }, [projects, quotes, clients]);
 
   function startNew() {
-    setForm(EMPTY);
-    setEditingId(null);
-    setShowNew(true);
+    setDialogClient(null);
+    setDialogOpen(true);
   }
 
   function startEdit(client: Client) {
-    setForm({
-      name: client.name,
-      organization: client.organization ?? "",
-      email: client.email ?? "",
-      phone: client.phone ?? "",
-      address: client.address ?? "",
-      notes: client.notes ?? "",
-      hourlyRateInput: client.hourlyRate != null ? String(client.hourlyRate) : "",
-    });
-    setEditingId(client.id);
-    setShowNew(false);
+    setDialogClient(client);
+    setDialogOpen(true);
   }
-
-  function handleSave() {
-    if (!form.name.trim()) return;
-    const rateTrimmed = form.hourlyRateInput.trim().replace(",", ".");
-    const rateValue = rateTrimmed === "" ? null : Number.parseFloat(rateTrimmed);
-    const hourlyRate = rateValue != null && Number.isFinite(rateValue) && rateValue > 0 ? rateValue : null;
-    const payload = {
-      name: form.name.trim(),
-      organization: form.organization?.trim() || undefined,
-      email: form.email?.trim() || undefined,
-      phone: form.phone?.trim() || undefined,
-      address: form.address?.trim() || undefined,
-      notes: form.notes?.trim() || undefined,
-      hourlyRate,
-    };
-    if (editingId) {
-      updateClient(editingId, payload);
-    } else {
-      addClient(payload);
-    }
-    setShowNew(false);
-    setEditingId(null);
-    setForm(EMPTY);
-  }
-
-  function handleCancel() {
-    setShowNew(false);
-    setEditingId(null);
-    setForm(EMPTY);
-  }
-
-  const isFormOpen = showNew || editingId !== null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,97 +97,6 @@ export default function ClientsManager() {
 
       <main className="max-w-4xl mx-auto px-6 py-8">
 
-        {/* Form */}
-        {isFormOpen && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 space-y-4">
-            <h2 className="font-display text-base font-semibold text-foreground">
-              {editingId ? "Modifier le client" : "Nouveau client"}
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nom *</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Nom complet"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Organisation</Label>
-                <Input
-                  value={form.organization ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, organization: e.target.value }))}
-                  placeholder="Nom de l'entreprise"
-                  autoComplete="organization"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Email</Label>
-                <Input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  value={form.email ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="email@exemple.com"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Téléphone</Label>
-                <Input
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={form.phone ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  placeholder="+41 xx xxx xx xx"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-xs">Adresse</Label>
-                <Input
-                  value={form.address ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  placeholder="Rue, ville, pays"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-xs">Taux horaire personnalisé (CHF/h)</Label>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={form.hourlyRateInput}
-                  onChange={(e) => setForm((f) => ({ ...f, hourlyRateInput: e.target.value }))}
-                  placeholder="Laisser vide pour utiliser le taux par défaut"
-                />
-                <p className="text-[11px] text-muted-foreground/70 leading-snug">
-                  Utilisé par « Importer le temps tracé » lors de la création d'une facture. Si vide, le taux par défaut (Réglages) s'applique.
-                </p>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-xs">Notes</Label>
-                <Textarea
-                  value={form.notes ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Notes internes sur ce client…"
-                  rows={2}
-                  className="resize-none text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end pt-2 border-t border-border">
-              <Button variant="outline" size="sm" onClick={handleCancel}>Annuler</Button>
-              <Button size="sm" onClick={handleSave} disabled={!form.name.trim()}>
-                {editingId ? "Mettre à jour" : "Ajouter"}
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Search */}
         {clients.length > 0 && (
           <div className="relative mb-4">
@@ -256,7 +114,7 @@ export default function ClientsManager() {
         )}
 
         {/* Client list */}
-        {clients.length === 0 && !isFormOpen ? (
+        {clients.length === 0 ? (
           <EmptyState
             icon={Building2}
             title="Aucun client"
@@ -351,6 +209,8 @@ export default function ClientsManager() {
           </div>
         )}
       </main>
+
+      <ClientFormDialog open={dialogOpen} onOpenChange={setDialogOpen} client={dialogClient} />
     </div>
   );
 }

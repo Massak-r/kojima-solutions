@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useClients } from "@/contexts/ClientsContext";
 import { QuoteForm } from "@/components/quotes/QuoteForm";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,13 +15,30 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BookmarkCheck, FilePlus2 } from "lucide-react";
-import { nextQuoteNumber } from "@/types/quote";
+import { createEmptyQuote, nextQuoteNumber } from "@/types/quote";
 
 export default function QuoteNew() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { quotes } = useQuotes();
+  const { clients } = useClients();
+  const [searchParams] = useSearchParams();
+  const clientId = searchParams.get("clientId");
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Prefill from a client fiche (?clientId=…): seed a blank quote with that
+  // client's coordinates. A chosen template still wins (it carries its own client).
+  const prefillClient = clientId ? clients.find((c) => c.id === clientId) ?? null : null;
+  const clientInitial = useMemo(() => {
+    if (!prefillClient) return null;
+    return {
+      ...createEmptyQuote(lang),
+      clientName: prefillClient.name,
+      clientEmail: prefillClient.email ?? "",
+      clientCompany: prefillClient.organization ?? "",
+      clientAddress: prefillClient.address ?? "",
+    };
+  }, [prefillClient, lang]);
 
   const templates = useMemo(
     () => quotes.filter((q) => q.isTemplate === true),
@@ -136,7 +154,7 @@ export default function QuoteNew() {
             </div>
           )}
         </div>
-        <QuoteForm key={templateId ?? "blank"} initial={initial} />
+        <QuoteForm key={templateId ?? (clientId ? `client-${clientId}` : "blank")} initial={initial ?? clientInitial} />
       </div>
     </div>
   );

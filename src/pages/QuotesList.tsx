@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useClients } from "@/contexts/ClientsContext";
+import { useProjects } from "@/contexts/ProjectsContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus } from "lucide-react";
+import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus, Users } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
 import { totalQuote, netSubtotalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
@@ -51,11 +53,15 @@ export default function QuotesList() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { quotes, deleteQuote, addQuote } = useQuotes();
+  const { clients } = useClients();
+  const { projects } = useProjects();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState(searchParams.get("client") ?? "all");
   const [sortBy, setSortBy] = useState("newest");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -108,12 +114,37 @@ export default function QuotesList() {
     return new Date(q.validityDate).getTime() < Date.now();
   }
 
+  // Resolve the selected client to its quote-matching keys (project ids +
+  // email), mirroring the fiche 360 logic: a quote belongs to a client when
+  // it's attached to one of their projects or carries their email.
+  const clientMatch = useMemo(() => {
+    if (clientFilter === "all") return null;
+    const c = clients.find((cl) => cl.id === clientFilter);
+    if (!c) return null;
+    const projIds = new Set(projects.filter((p) => p.clientId === c.id).map((p) => p.id));
+    return { projIds, email: c.email?.toLowerCase() };
+  }, [clientFilter, clients, projects]);
+
+  function changeClientFilter(value: string) {
+    setClientFilter(value);
+    const next = new URLSearchParams(searchParams);
+    if (value === "all") next.delete("client");
+    else next.set("client", value);
+    setSearchParams(next, { replace: true });
+  }
+
   const filtered = useMemo(() => {
     let list = [...quotes];
     // Templates are surfaced in a separate view to keep the main list clean.
     list = list.filter((q) => (q.isTemplate === true) === showTemplates);
     if (statusFilter !== "all") list = list.filter((q) => q.invoiceStatus === statusFilter);
     if (typeFilter !== "all") list = list.filter((q) => q.docType === typeFilter);
+    if (clientMatch) {
+      list = list.filter((q) =>
+        (q.projectId && clientMatch.projIds.has(q.projectId)) ||
+        (!!clientMatch.email && q.clientEmail?.toLowerCase() === clientMatch.email)
+      );
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((item) =>
@@ -132,7 +163,7 @@ export default function QuotesList() {
       default: list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return list;
-  }, [quotes, statusFilter, typeFilter, searchQuery, sortBy, dateFrom, dateTo, showTemplates]);
+  }, [quotes, statusFilter, typeFilter, clientMatch, searchQuery, sortBy, dateFrom, dateTo, showTemplates]);
 
   function renewInvoice(original: Quote) {
     const year = new Date().getFullYear();
@@ -385,8 +416,26 @@ export default function QuotesList() {
                   )}
                 </button>
               </div>
-              {/* Sort + Date range */}
+              {/* Client + Sort + Date range */}
               <div className="flex flex-wrap items-center gap-2">
+                {clients.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <Users size={12} className="text-muted-foreground" />
+                      <select
+                        value={clientFilter}
+                        onChange={(e) => changeClientFilter(e.target.value)}
+                        className="text-xs font-body border border-border rounded-md px-2 py-1 bg-background text-foreground max-w-[160px]"
+                      >
+                        <option value="all">{t("Tous les clients", "All clients")}</option>
+                        {[...clients].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
+                  </>
+                )}
                 <div className="flex items-center gap-1.5">
                   <ArrowUpDown size={12} className="text-muted-foreground" />
                   <select
