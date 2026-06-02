@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
-  FileText, Eye, Trash2, Zap, FolderInput, Check, X, Pencil, Sparkles, Loader2, Receipt,
+  Eye, Trash2, Zap, FolderInput, Check, X, Pencil, Sparkles, Loader2, Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { extractInvoiceFields } from "@/lib/invoiceExtractor";
 import { DocToPayableDialog, type PayablePrefill } from "./DocToPayableDialog";
 import { folderOptions, formatBytes, formatDate } from "./helpers";
 import { DocPreviewSheet } from "./DocPreviewSheet";
+import { PdfThumbnail } from "./PdfThumbnail";
 
 const CATEGORIES: DocCategory[] = ["Comptabilité", "Contrats", "Administratif", "Technique", "RH", "Clients", "Autre"];
 
@@ -150,12 +151,22 @@ export function TriageDocCard({
     )}>
       {/* Title block — full width so it can breathe on narrow screens. */}
       <div className="flex items-start gap-3">
-        <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-          doc.urgent ? "bg-red-100" : "bg-destructive/10",
-        )}>
-          <FileText size={18} className={doc.urgent ? "text-red-500" : "text-destructive/70"} />
-        </div>
+        {/* Inline first-page preview — tap to open the full-screen viewer. */}
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className={cn(
+            "group/thumb relative w-16 shrink-0 aspect-[3/4] rounded-xl overflow-hidden border bg-secondary/40",
+            doc.urgent ? "border-red-200" : "border-border/70",
+          )}
+          title="Aperçu du document"
+          aria-label="Aperçu du document"
+        >
+          <PdfThumbnail viewUrl={viewUrl} className="w-full h-full" label={doc.title} />
+          <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition-colors group-hover/thumb:bg-foreground/30">
+            <Eye size={18} className="text-white opacity-0 drop-shadow transition-opacity group-hover/thumb:opacity-100" />
+          </span>
+        </button>
 
         <div className="flex-1 min-w-0">
           {editing ? (
@@ -405,15 +416,6 @@ export function TriageDocCard({
           >
             <Zap size={14} />
             <span className="hidden sm:inline">{doc.urgent ? "Urgent" : "Urgent ?"}</span>
-          </button>
-          <button
-            onClick={() => setPreviewOpen(true)}
-            className="px-3 py-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1.5 text-xs font-body font-medium"
-            title="Aperçu du PDF"
-            aria-label="Aperçu du PDF"
-          >
-            <Eye size={14} />
-            <span className="hidden sm:inline">Aperçu</span>
           </button>
           <button
             onClick={openPayable}
