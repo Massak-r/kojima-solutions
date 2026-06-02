@@ -70,9 +70,10 @@ export function useFocusSession({ source, objectiveId }: UseFocusSessionOpts): F
             startedAt: open.startedAt,
             subtaskId: open.subtaskId ?? null,
           };
-          // If older than 8 hours, auto-close it
+          // Older than 6h ⇒ almost certainly a forgotten timer: auto-close it.
+          // The server caps the recorded duration too (MAX_SESSION_SEC).
           const ageSec = (Date.now() - new Date(open.startedAt).getTime()) / 1000;
-          if (ageSec > 8 * 3600) {
+          if (ageSec > 6 * 3600) {
             try { await stopSession(open.id, "auto-closed (stale)"); } catch {}
             writeStored(key, null);
             setStored(null);

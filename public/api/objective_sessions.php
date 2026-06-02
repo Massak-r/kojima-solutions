@@ -2,6 +2,11 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAdminSession();
 
+// A single focus session longer than this is treated as a forgotten/stuck
+// timer (left running, overnight, etc.) and its recorded duration is capped
+// on close — keeps focus stats trustworthy without discarding the session.
+const MAX_SESSION_SEC = 21600; // 6h
+
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS objective_sessions (
@@ -121,7 +126,9 @@ function closeSession(PDO $pdo, string $sessionId, ?string $note = null): ?array
     $row = $stmt->fetch();
     if (!$row) return null;
 
-    $pdo->prepare('UPDATE objective_sessions SET ended_at = NOW(), duration_sec = TIMESTAMPDIFF(SECOND, started_at, NOW()), note = COALESCE(?, note) WHERE id = ?')
+    // Cap the recorded duration (see MAX_SESSION_SEC) so a timer left running
+    // doesn't book 20h of phantom focus.
+    $pdo->prepare('UPDATE objective_sessions SET ended_at = NOW(), duration_sec = LEAST(TIMESTAMPDIFF(SECOND, started_at, NOW()), ' . MAX_SESSION_SEC . '), note = COALESCE(?, note) WHERE id = ?')
         ->execute([$note, $sessionId]);
 
     $stmt = $pdo->prepare('SELECT * FROM objective_sessions WHERE id = ?');
