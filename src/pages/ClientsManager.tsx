@@ -1,6 +1,10 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useClients } from "@/contexts/ClientsContext";
+import { useProjects } from "@/contexts/ProjectsContext";
+import { useQuotes } from "@/hooks/useQuotes";
+import { totalQuote } from "@/types/quote";
+import { formatCHF } from "@/components/accounting/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +25,8 @@ const EMPTY: FormState = { name: "", organization: "", email: "", phone: "", add
 export default function ClientsManager() {
   const navigate = useNavigate();
   const { clients, addClient, updateClient, deleteClient, restoreClient } = useClients();
+  const { projects } = useProjects();
+  const { quotes } = useQuotes();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -39,6 +45,25 @@ export default function ClientsManager() {
       [c.name, c.organization, c.email, c.phone].some((f) => f?.toLowerCase().includes(q))
     );
   }, [clients, searchQuery]);
+
+  // Per-client value for the list: encaissé (paid quotes) + active project count.
+  const statsByClient = useMemo(() => {
+    const map: Record<string, { revenue: number; active: number }> = {};
+    for (const p of projects) {
+      if (!p.clientId) continue;
+      (map[p.clientId] ??= { revenue: 0, active: 0 });
+      if (p.status === "in-progress") map[p.clientId].active += 1;
+    }
+    const projClient = new Map(projects.filter((p) => p.clientId).map((p) => [p.id, p.clientId!]));
+    const emailToClient = new Map(clients.filter((c) => c.email).map((c) => [c.email!.toLowerCase(), c.id]));
+    for (const q of quotes) {
+      if (q.isTemplate || q.invoiceStatus !== "paid") continue;
+      let cid = q.projectId ? projClient.get(q.projectId) : undefined;
+      if (!cid && q.clientEmail) cid = emailToClient.get(q.clientEmail.toLowerCase());
+      if (cid) (map[cid] ??= { revenue: 0, active: 0 }).revenue += totalQuote(q);
+    }
+    return map;
+  }, [projects, quotes, clients]);
 
   function startNew() {
     setForm(EMPTY);
@@ -244,7 +269,9 @@ export default function ClientsManager() {
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {filteredClients.map((client) => (
+            {filteredClients.map((client) => {
+              const stats = statsByClient[client.id];
+              return (
               <div
                 key={client.id}
                 className="bg-card border border-border rounded-xl p-4 flex items-start justify-between gap-4"
@@ -268,6 +295,16 @@ export default function ClientsManager() {
                       {client.hourlyRate != null && (
                         <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300/60 dark:border-emerald-500/40">
                           {client.hourlyRate} CHF/h
+                        </Badge>
+                      )}
+                      {stats && stats.active > 0 && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          {stats.active} projet{stats.active > 1 ? "s" : ""} actif{stats.active > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                      {stats && stats.revenue > 0 && (
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300/60 dark:border-emerald-500/40">
+                          {formatCHF(stats.revenue)} encaissé
                         </Badge>
                       )}
                     </div>
@@ -309,7 +346,8 @@ export default function ClientsManager() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
