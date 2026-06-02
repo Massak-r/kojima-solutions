@@ -2,6 +2,7 @@ import { UnpaidInvoices } from "@/components/kojimaSpace/UnpaidInvoices";
 import { UpcomingDeadlines } from "@/components/kojimaSpace/UpcomingDeadlines";
 import { OverdueWork } from "@/components/home/OverdueWork";
 import { RenewalRadar } from "@/components/home/RenewalRadar";
+import { NeglectRadar } from "@/components/home/NeglectRadar";
 import { PendingFeedback } from "@/components/home/PendingFeedback";
 import { QuotesToInvoice } from "@/components/home/QuotesToInvoice";
 import { NewIntakes } from "@/components/home/NewIntakes";
@@ -26,6 +27,7 @@ export function AlertsZone() {
         <UnpaidInvoices />
         <UpcomingDeadlines />
         <RenewalRadar />
+        <NeglectRadar />
         <PendingFeedback />
       </div>
       <OperatorInsights />
