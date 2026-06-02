@@ -3,7 +3,7 @@ import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
-import { Plus, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight, LayoutList, CheckSquare, CheckCheck, Check, X } from "lucide-react";
+import { Plus, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight, LayoutList, CheckSquare, CheckCheck, Check, X, MoreVertical } from "lucide-react";
 import { totalQuote } from "@/types/quote";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +22,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { useState, useMemo, memo, useRef, useCallback } from "react";
+import { useState, useMemo, memo, useRef, useCallback, useEffect } from "react";
 import { toast as sonnerToast } from "sonner";
 import { type ProjectData, type ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
@@ -129,6 +129,14 @@ export function ProjectStatusKanban() {
     setSelected(new Set());
     setConfirmBulkDelete(false);
   }, []);
+
+  // While selecting, hide the app's floating FABs (quick-capture / quick-action)
+  // so they don't collide with the sticky bulk-action bar at the bottom.
+  useEffect(() => {
+    if (selectMode) document.body.dataset.bulkSelecting = "true";
+    else delete document.body.dataset.bulkSelecting;
+    return () => { delete document.body.dataset.bulkSelecting; };
+  }, [selectMode]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
@@ -327,7 +335,7 @@ export function ProjectStatusKanban() {
                 </button>
               ))}
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
               {selectMode ? (
                 <>
                   <Button variant="outline" size="sm" onClick={selectAllVisible} className="gap-1.5 font-body text-xs">
@@ -340,19 +348,21 @@ export function ProjectStatusKanban() {
                   </Button>
                 </>
               ) : (
-                <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} className="gap-1.5 font-body text-xs" aria-pressed={false}>
-                  <CheckSquare size={13} />
-                  Sélectionner
-                </Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} className="gap-1.5 font-body text-xs" aria-pressed={false}>
+                    <CheckSquare size={13} />
+                    Sélectionner
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={toggleShowCompleted} className="gap-1.5 font-body text-xs">
+                    {showCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+                    {showCompleted ? "Masquer terminés" : "Terminés"}
+                  </Button>
+                  <Button onClick={handleCreate} size="sm" className="gap-1.5 font-body text-xs">
+                    <Plus size={14} />
+                    Nouveau projet
+                  </Button>
+                </>
               )}
-              <Button variant="outline" size="sm" onClick={toggleShowCompleted} className="gap-1.5 font-body text-xs">
-                {showCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
-                {showCompleted ? "Masquer terminés" : "Terminés"}
-              </Button>
-              <Button onClick={handleCreate} size="sm" className="gap-1.5 font-body text-xs">
-                <Plus size={14} />
-                Nouveau projet
-              </Button>
             </div>
           </div>
 
@@ -623,54 +633,46 @@ const ProjectCard = memo(function ProjectCard({
         </button>
       )}
 
-      {/* Action cluster — hidden while selecting. The move menu stays visible
-          (no hover gate) so mobile users have a non-drag path; copy/delete keep
-          the hover reveal on desktop to keep cards clean. */}
+      {/* One overflow menu per card — move / copy / delete. A single subtle
+          dot button keeps cards clean on every breakpoint and gives mobile a
+          non-drag path to change status (no hover gate). */}
       {!selectMode && !isOverlay && (
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+        <div className="absolute top-2.5 right-2.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 data-no-longpress
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all"
-                title="Déplacer vers…"
-                aria-label="Déplacer le projet vers une autre colonne"
+                className="p-1.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+                title="Actions"
+                aria-label={`Actions pour ${project.title || "le projet"}`}
               >
-                <ArrowRightLeft size={12} />
+                <MoreVertical size={15} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
-              <DropdownMenuSeparator />
               {otherColumns.map((c) => (
                 <DropdownMenuItem key={c.status} onClick={(e) => { e.stopPropagation(); onMove?.(c.status); }}>
+                  <ArrowRightLeft size={13} className="mr-2 text-muted-foreground" />
                   {c.label}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCopyLink?.(); }}>
+                <Link2 size={13} className="mr-2 text-muted-foreground" />
+                Copier le lien client
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 size={13} className="mr-2" />
+                Supprimer
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
-            data-no-longpress
-            onClick={(e) => { e.stopPropagation(); onCopyLink?.(); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all md:opacity-0 md:group-hover:opacity-100"
-            title="Copier le lien client"
-            aria-label="Copier le lien client"
-          >
-            <Link2 size={12} />
-          </button>
-          <button
-            data-no-longpress
-            onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all md:opacity-0 md:group-hover:opacity-100"
-            title="Supprimer le projet"
-            aria-label={`Supprimer le projet ${project.title || "sans titre"}`}
-          >
-            <Trash2 size={13} />
-          </button>
         </div>
       )}
 

@@ -89,7 +89,7 @@ export function QuickActionFAB() {
   if (!isAdminPage) return null;
 
   return (
-    <div className="fixed bottom-24 sm:bottom-8 right-4 sm:right-6 z-40 flex flex-col-reverse items-end gap-2.5 no-print">
+    <div className="app-fab fixed bottom-24 sm:bottom-8 right-4 sm:right-6 z-40 flex flex-col-reverse items-end gap-2.5 no-print">
       {/* Action items */}
       <AnimatePresence>
         {open && ACTIONS.map((action, i) => (

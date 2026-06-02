@@ -278,6 +278,10 @@
 .quote-rich-content li { margin: 0.05rem 0; }
 .quote-rich-content p { margin: 0; }
 
+/* Hide floating FABs while a bulk-selection bar is docked at the bottom, so
+ * they don't collide with it (set by the projects kanban select mode). */
+body[data-bulk-selecting="true"] .app-fab { display: none !important; }
+
 /* ── Print / PDF export ──────────────────────────────────── */
 
 @media print {
