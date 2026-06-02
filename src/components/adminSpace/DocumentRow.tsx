@@ -61,10 +61,17 @@ export function DocumentRow({
         <button {...handleProps} className="p-0.5 text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing shrink-0 touch-none">
           <GripVertical size={16} />
         </button>
-        <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0 relative">
-          <FileText size={18} className="text-destructive/70" />
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="w-10 h-10 rounded-xl bg-destructive/10 hover:bg-primary/10 flex items-center justify-center shrink-0 relative group/icon transition-colors"
+          title="Aperçu du document"
+          aria-label="Aperçu du document"
+        >
+          <FileText size={18} className="text-destructive/70 group-hover/icon:opacity-0 transition-opacity" />
+          <Eye size={18} className="text-primary absolute opacity-0 group-hover/icon:opacity-100 transition-opacity" />
           {doc.shareToken && <Link2 size={8} className="absolute -top-0.5 -right-0.5 text-primary" />}
-        </div>
+        </button>
 
         <div className="flex-1 min-w-0">
           {isEditing ? (
