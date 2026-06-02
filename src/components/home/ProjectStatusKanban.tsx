@@ -3,7 +3,7 @@ import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Button } from "@/components/ui/button";
-import { Plus, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight, LayoutList } from "lucide-react";
+import { Plus, User, CalendarDays, Trash2, GripVertical, Link2, MessageSquare, Loader2, Search, Eye, EyeOff, ArrowRightLeft, ChevronRight, LayoutList, CheckSquare, CheckCheck, Check, X } from "lucide-react";
 import { totalQuote } from "@/types/quote";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,23 +18,37 @@ import {
   useDraggable,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useMemo, memo } from "react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { useState, useMemo, memo, useRef, useCallback } from "react";
+import { toast as sonnerToast } from "sonner";
 import { type ProjectData, type ProjectKind, KIND_LABELS, KIND_ORDER } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 
-const COLUMNS: { status: StoredProject["status"]; label: string; accent: string; emptyColor: string }[] = [
+type Status = StoredProject["status"];
+
+const COLUMNS: { status: Status; label: string; accent: string; emptyColor: string }[] = [
   { status: "draft",       label: "Brouillon",  accent: "border-muted-foreground/30", emptyColor: "border-muted-foreground/10" },
   { status: "in-progress", label: "En cours",   accent: "border-primary/40",          emptyColor: "border-primary/10" },
   { status: "completed",   label: "Terminé",    accent: "border-palette-sage/40",     emptyColor: "border-palette-sage/10" },
   { status: "on-hold",     label: "En pause",   accent: "border-palette-amber/40",    emptyColor: "border-palette-amber/10" },
 ];
 
+const plural = (n: number) => (n > 1 ? "s" : "");
+
 /**
  * Project status kanban — drag-drop between Draft / In-Progress / Completed / On-hold.
  * Self-contained: filters, search, "À facturer" banner, new project button.
  * No outer page header — designed to embed inside Home tab or any page.
+ *
+ * Beyond desktop drag, every card carries a tap "Déplacer vers" menu (no
+ * hover-drag needed — the path mobile users actually have), and a selection
+ * mode (toolbar toggle or long-press a card) batches move/delete across many
+ * projects at once via a sticky action bar.
  */
 export function ProjectStatusKanban() {
   const navigate = useNavigate();
@@ -77,9 +91,14 @@ export function ProjectStatusKanban() {
     } catch { return "all"; }
   });
 
+  // ── Selection (bulk) mode ─────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
   function setKindFilterPersist(k: ProjectKind | "all") {
     setKindFilter(k);
-    try { localStorage.setItem("dashboard_kind_filter", k); } catch {}
+    try { localStorage.setItem("dashboard_kind_filter", k); } catch { /* ignore */ }
   }
 
   const filteredProjects = useMemo(() => {
@@ -103,6 +122,73 @@ export function ProjectStatusKanban() {
       localStorage.setItem("dashboard_show_completed", String(next));
       return next;
     });
+  }
+
+  const exitSelect = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setConfirmBulkDelete(false);
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const enterSelectWith = useCallback((id: string) => {
+    setSelectMode(true);
+    setSelected(new Set([id]));
+  }, []);
+
+  function selectAllVisible() {
+    const ids = filteredProjects
+      .filter((p) => visibleColumns.some((c) => c.status === p.status))
+      .map((p) => p.id);
+    // Toggle: if everything's already picked, clear instead.
+    setSelected((prev) => (prev.size >= ids.length && ids.length > 0 ? new Set() : new Set(ids)));
+  }
+
+  /** Move a single project (from its per-card menu). No-op if already there. */
+  const moveOne = useCallback((id: string, status: Status) => {
+    const project = projects.find((p) => p.id === id);
+    if (project && project.status !== status) updateProject(id, { status });
+  }, [projects, updateProject]);
+
+  function bulkMove(status: Status) {
+    const ids = [...selected];
+    let moved = 0;
+    ids.forEach((id) => {
+      const p = projects.find((pp) => pp.id === id);
+      if (p && p.status !== status) { updateProject(id, { status }); moved += 1; }
+    });
+    const label = COLUMNS.find((c) => c.status === status)?.label ?? status;
+    toast({
+      title: moved === 0 ? "Déjà à jour" : `${moved} projet${plural(moved)} → ${label}`,
+      description: moved === 0 ? "Les projets choisis sont déjà dans cette colonne." : undefined,
+    });
+    exitSelect();
+  }
+
+  function bulkDelete() {
+    const items = projects.filter((p) => selected.has(p.id));
+    if (items.length === 0) { exitSelect(); return; }
+    items.forEach((p) => deleteProject(p.id));
+    let undone = false;
+    sonnerToast(`${items.length} projet${plural(items.length)} supprimé${plural(items.length)}`, {
+      duration: 6000,
+      action: {
+        label: "Annuler",
+        onClick: () => {
+          if (undone) return;
+          undone = true;
+          items.forEach((p) => restoreProject(p));
+        },
+      },
+    });
+    exitSelect();
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -134,6 +220,10 @@ export function ProjectStatusKanban() {
   }
 
   const activeProject = activeId ? projects.find((p) => p.id === activeId) : null;
+  const allVisibleSelected = useMemo(() => {
+    const ids = filteredProjects.filter((p) => visibleColumns.some((c) => c.status === p.status));
+    return ids.length > 0 && ids.every((p) => selected.has(p.id));
+  }, [filteredProjects, visibleColumns, selected]);
 
   return (
     <div className="space-y-6">
@@ -238,6 +328,23 @@ export function ProjectStatusKanban() {
               ))}
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {selectMode ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={selectAllVisible} className="gap-1.5 font-body text-xs">
+                    <CheckCheck size={13} />
+                    {allVisibleSelected ? "Aucun" : "Tout"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={exitSelect} className="gap-1.5 font-body text-xs">
+                    <X size={13} />
+                    Terminer
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} className="gap-1.5 font-body text-xs" aria-pressed={false}>
+                  <CheckSquare size={13} />
+                  Sélectionner
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={toggleShowCompleted} className="gap-1.5 font-body text-xs">
                 {showCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
                 {showCompleted ? "Masquer terminés" : "Terminés"}
@@ -249,6 +356,12 @@ export function ProjectStatusKanban() {
             </div>
           </div>
 
+          {selectMode && (
+            <p className="text-xs font-body text-muted-foreground -mt-2">
+              Touche les cartes à sélectionner, puis choisis une action en bas.
+            </p>
+          )}
+
           {search.trim() && filteredProjects.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground font-body text-sm">
               Aucun projet trouvé pour « {search} ».
@@ -259,7 +372,7 @@ export function ProjectStatusKanban() {
                 {visibleColumns.map((col) => {
                   const items = filteredProjects.filter((p) => p.status === col.status);
                   return (
-                    <DroppableColumn key={col.status} col={col} items={items} activeId={activeId}>
+                    <DroppableColumn key={col.status} col={col} items={items} activeId={activeId} selectMode={selectMode}>
                       {items.map((project) => (
                         <DraggableCard
                           key={project.id}
@@ -268,7 +381,12 @@ export function ProjectStatusKanban() {
                           onClick={() => navigate(`/project/${project.id}/brief`)}
                           onDelete={() => deleteProjectWithUndo(project)}
                           onCopyLink={() => handleCopyLink(project)}
+                          onMove={(status) => moveOne(project.id, status)}
                           isDragging={activeId === project.id}
+                          selectMode={selectMode}
+                          selected={selected.has(project.id)}
+                          onToggleSelect={() => toggleSelect(project.id)}
+                          onLongPressSelect={() => enterSelectWith(project.id)}
                         />
                       ))}
                     </DroppableColumn>
@@ -280,9 +398,6 @@ export function ProjectStatusKanban() {
                   <ProjectCard
                     project={activeProject}
                     clientDisplayName={clientName(activeProject)}
-                    onClick={() => {}}
-                    onDelete={() => {}}
-                    onCopyLink={() => {}}
                     isOverlay
                   />
                 )}
@@ -291,19 +406,64 @@ export function ProjectStatusKanban() {
           )}
         </>
       )}
+
+      {/* Sticky bulk-action bar */}
+      {selectMode && selected.size > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 sm:bottom-6 z-40 flex items-center gap-1.5 rounded-2xl border border-border bg-card/95 backdrop-blur px-2.5 py-2 shadow-xl max-w-[calc(100vw-1.5rem)]">
+          <span className="text-xs font-body font-semibold px-1.5 tabular-nums whitespace-nowrap">
+            {selected.size} sélectionné{plural(selected.size)}
+          </span>
+          {confirmBulkDelete ? (
+            <>
+              <span className="text-xs font-body text-muted-foreground whitespace-nowrap">Supprimer ?</span>
+              <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={bulkDelete}>Confirmer</Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setConfirmBulkDelete(false)}>Non</Button>
+            </>
+          ) : (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="h-8 gap-1.5 text-xs">
+                    <ArrowRightLeft size={13} /> Déplacer vers
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" side="top">
+                  <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {COLUMNS.map((c) => (
+                    <DropdownMenuItem key={c.status} onClick={() => bulkMove(c.status)}>
+                      {c.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
+                onClick={() => setConfirmBulkDelete(true)}
+              >
+                <Trash2 size={13} />
+                <span className="hidden sm:inline">Supprimer</span>
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function DroppableColumn({
-  col, items, activeId, children,
+  col, items, activeId, selectMode, children,
 }: {
   col: typeof COLUMNS[number];
   items: StoredProject[];
   activeId: string | null;
+  selectMode: boolean;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: col.status });
+  const { setNodeRef, isOver } = useDroppable({ id: col.status, disabled: selectMode });
 
   return (
     <div className="flex flex-col">
@@ -321,7 +481,7 @@ function DroppableColumn({
       >
         {items.length === 0 && !activeId && (
           <div className={`border-2 border-dashed ${col.emptyColor} rounded-lg h-[80px] flex items-center justify-center`}>
-            <p className="text-xs font-body text-muted-foreground/50">Déposer ici</p>
+            <p className="text-xs font-body text-muted-foreground/50">{selectMode ? "Vide" : "Déposer ici"}</p>
           </div>
         )}
         {children}
@@ -331,16 +491,22 @@ function DroppableColumn({
 }
 
 function DraggableCard({
-  project, clientDisplayName, onClick, onDelete, onCopyLink, isDragging,
+  project, clientDisplayName, onClick, onDelete, onCopyLink, onMove, isDragging,
+  selectMode, selected, onToggleSelect, onLongPressSelect,
 }: {
   project: StoredProject;
   clientDisplayName: string | null;
   onClick: () => void;
   onDelete: () => void;
   onCopyLink: () => void;
+  onMove: (status: Status) => void;
   isDragging: boolean;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onLongPressSelect: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: project.id });
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: project.id, disabled: selectMode });
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
 
   return (
@@ -351,7 +517,12 @@ function DraggableCard({
         onClick={onClick}
         onDelete={onDelete}
         onCopyLink={onCopyLink}
+        onMove={onMove}
         dragHandleProps={{ ...attributes, ...listeners }}
+        selectMode={selectMode}
+        selected={selected}
+        onToggleSelect={onToggleSelect}
+        onLongPressSelect={onLongPressSelect}
       />
     </div>
   );
@@ -360,56 +531,153 @@ function DraggableCard({
 interface ProjectCardProps {
   project: StoredProject;
   clientDisplayName?: string | null;
-  onClick: () => void;
-  onDelete: () => void;
-  onCopyLink: () => void;
+  onClick?: () => void;
+  onDelete?: () => void;
+  onCopyLink?: () => void;
+  onMove?: (status: Status) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isOverlay?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  onLongPressSelect?: () => void;
 }
 
 const ProjectCard = memo(function ProjectCard({
-  project, clientDisplayName, onClick, onDelete, onCopyLink, dragHandleProps, isOverlay,
+  project, clientDisplayName, onClick, onDelete, onCopyLink, onMove, dragHandleProps, isOverlay,
+  selectMode = false, selected = false, onToggleSelect, onLongPressSelect,
 }: ProjectCardProps) {
   const pendingResponses = (project.tasks || [])
     .flatMap((t) => t.feedbackRequests || [])
     .filter((r) => r.resolved && r.response).length;
 
+  // Long-press a card (where it isn't a button) to enter selection mode.
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lpFired = useRef(false);
+  const lpStart = useRef<{ x: number; y: number } | null>(null);
+
+  const clearLp = () => {
+    if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+    lpStart.current = null;
+  };
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (selectMode || isOverlay) return;
+    // Ignore presses that land on the grip / action buttons.
+    if ((e.target as HTMLElement).closest("[data-no-longpress]")) return;
+    lpFired.current = false;
+    lpStart.current = { x: e.clientX, y: e.clientY };
+    lpTimer.current = setTimeout(() => {
+      lpFired.current = true;
+      try { navigator.vibrate?.(15); } catch { /* not supported */ }
+      onLongPressSelect?.();
+    }, 450);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!lpStart.current) return;
+    if (Math.abs(e.clientX - lpStart.current.x) > 10 || Math.abs(e.clientY - lpStart.current.y) > 10) clearLp();
+  }
+
+  function handleClick() {
+    // Swallow the click that follows a long-press so it doesn't also navigate.
+    if (lpFired.current) { lpFired.current = false; return; }
+    if (selectMode) onToggleSelect?.();
+    else onClick?.();
+  }
+
+  const otherColumns = COLUMNS.filter((c) => c.status !== project.status);
+
   return (
     <div
-      onClick={onClick}
-      className={`bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative ${isOverlay ? "rotate-1 shadow-xl scale-105 opacity-95" : ""}`}
+      onClick={handleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={clearLp}
+      onPointerLeave={clearLp}
+      className={`bg-card rounded-xl border p-4 shadow-card transition-all duration-200 cursor-pointer group relative ${
+        selected ? "border-primary ring-2 ring-primary/60" : "border-border"
+      } ${
+        selectMode ? "" : "hover:shadow-card-hover hover:scale-[1.01] hover:-translate-y-0.5"
+      } ${isOverlay ? "rotate-1 shadow-xl scale-105 opacity-95" : ""}`}
     >
-      <button
-        {...dragHandleProps}
-        onClick={(e) => e.stopPropagation()}
-        className="absolute top-3 left-3 p-1 rounded text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-all"
-        title="Drag pour déplacer"
-      >
-        <GripVertical size={13} />
-      </button>
+      {/* Selection checkbox (replaces the drag grip while selecting) */}
+      {selectMode ? (
+        <div
+          className={`absolute top-3 left-3 z-10 w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+            selected ? "bg-primary border-primary text-primary-foreground" : "bg-background/80 border-border"
+          }`}
+          aria-hidden
+        >
+          {selected && <Check size={13} />}
+        </div>
+      ) : !isOverlay && (
+        <button
+          {...dragHandleProps}
+          data-no-longpress
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-3 left-3 p-1 rounded text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-all"
+          title="Glisser pour déplacer"
+          aria-label="Glisser pour déplacer le projet"
+        >
+          <GripVertical size={13} />
+        </button>
+      )}
 
-      <div className="absolute top-2.5 right-2.5 flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
-        <button
-          onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
-          className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all"
-          title="Copier le lien client"
-        >
-          <Link2 size={12} />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
-          title="Supprimer le projet"
-          aria-label={`Supprimer le projet ${project.title || "sans titre"}`}
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
+      {/* Action cluster — hidden while selecting. The move menu stays visible
+          (no hover gate) so mobile users have a non-drag path; copy/delete keep
+          the hover reveal on desktop to keep cards clean. */}
+      {!selectMode && !isOverlay && (
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                data-no-longpress
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all"
+                title="Déplacer vers…"
+                aria-label="Déplacer le projet vers une autre colonne"
+              >
+                <ArrowRightLeft size={12} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {otherColumns.map((c) => (
+                <DropdownMenuItem key={c.status} onClick={(e) => { e.stopPropagation(); onMove?.(c.status); }}>
+                  {c.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            data-no-longpress
+            onClick={(e) => { e.stopPropagation(); onCopyLink?.(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded-md text-muted-foreground/50 hover:text-primary hover:bg-primary/10 transition-all md:opacity-0 md:group-hover:opacity-100"
+            title="Copier le lien client"
+            aria-label="Copier le lien client"
+          >
+            <Link2 size={12} />
+          </button>
+          <button
+            data-no-longpress
+            onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all md:opacity-0 md:group-hover:opacity-100"
+            title="Supprimer le projet"
+            aria-label={`Supprimer le projet ${project.title || "sans titre"}`}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      )}
 
       <h3 className="font-display text-sm font-semibold text-foreground mb-1 px-5 line-clamp-2">{project.title}</h3>
 
       {clientDisplayName && (
-        <div className="flex items-center gap-1.5 text-muted-foreground font-body text-xs mb-2">
+        <div className="flex items-center gap-1.5 text-muted-foreground font-body text-xs mb-2 px-5">
           <User size={11} />
           <span>{clientDisplayName}</span>
         </div>
