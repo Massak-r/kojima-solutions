@@ -3,11 +3,11 @@ import { CSS } from "@dnd-kit/utilities";
 
 interface SortableItemProps {
   id: string;
-  children: (props: { handleProps: Record<string, unknown>; isDragging: boolean }) => React.ReactNode;
+  children: (props: { handleProps: Record<string, unknown>; isDragging: boolean; isOver: boolean }) => React.ReactNode;
 }
 
 export function SortableItem({ id, children }: SortableItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -17,7 +17,7 @@ export function SortableItem({ id, children }: SortableItemProps) {
   };
   return (
     <div ref={setNodeRef} style={style}>
-      {children({ handleProps: { ...attributes, ...listeners }, isDragging })}
+      {children({ handleProps: { ...attributes, ...listeners }, isDragging, isOver })}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -7,7 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -25,6 +25,17 @@ import { FolderCard } from "./FolderCard";
 import { DocumentRow } from "./DocumentRow";
 import { UploadDialog } from "./UploadDialog";
 import { NewFolderDialog } from "./NewFolderDialog";
+
+/** A breadcrumb crumb that also accepts a dragged doc, to move it to that
+ *  folder (id "crumb:<folderId>") or the root (id "crumb:root"). */
+function DroppableCrumb({ id, children }: { id: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <span ref={setNodeRef} className={cn("rounded px-1 -mx-1 transition-colors", isOver && "bg-primary/15 ring-1 ring-primary/40")}>
+      {children}
+    </span>
+  );
+}
 
 export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null }) {
   const { toast } = useToast();
@@ -51,6 +62,8 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadCat, setUploadCat] = useState("Général");
   const [uploadYear, setUploadYear] = useState<string>("none");
+  // Target folder for the pending upload — set by drop-on-folder, else current.
+  const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
 
   const [dragging, setDragging] = useState(false);
   const dragCounter = useRef(0);
@@ -127,7 +140,7 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     return Array.from(cats).sort();
   }, [docs]);
 
-  function acceptFile(file: File) {
+  function acceptFile(file: File, targetFolderId: string | null = currentFolderId) {
     if (file.type !== "application/pdf") {
       toast({ title: "Erreur", description: "Seuls les fichiers PDF sont acceptés.", variant: "destructive" });
       return;
@@ -136,6 +149,7 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     setUploadTitle(file.name.replace(/\.pdf$/i, ""));
     setUploadCat("Général");
     setUploadYear("none");
+    setUploadFolderId(targetFolderId);
     setUploadOpen(true);
   }
 
@@ -175,7 +189,7 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
         pendingFile,
         uploadTitle.trim() || pendingFile.name,
         uploadCat,
-        currentFolderId,
+        uploadFolderId,
         uploadYear !== "none" ? Number(uploadYear) : null,
       );
       setDocs(prev => [doc, ...prev]);
@@ -300,44 +314,81 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
 
-  const handleFolderDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = subFolders.findIndex(f => f.id === active.id);
-    const newIndex = subFolders.findIndex(f => f.id === over.id);
+  function reorderFolders(activeId: string, overId: string) {
+    const oldIndex = subFolders.findIndex(f => f.id === activeId);
+    const newIndex = subFolders.findIndex(f => f.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(subFolders, oldIndex, newIndex);
-    const updates = reordered.map((f, i) => ({ ...f, sortOrder: i }));
+    const updates = reordered.map((f, i) => ({ id: f.id, sortOrder: i }));
     setFolders(prev => {
-      const updated = new Map(updates.map(u => [u.id, u.sortOrder]));
-      return prev.map(f => updated.has(f.id) ? { ...f, sortOrder: updated.get(f.id)! } : f);
+      const m = new Map(updates.map(u => [u.id, u.sortOrder]));
+      return prev.map(f => m.has(f.id) ? { ...f, sortOrder: m.get(f.id)! } : f);
     });
-    updates.forEach(f => updateFolder(f.id, { sortOrder: f.sortOrder }).catch((e: unknown) => {
+    updates.forEach(u => updateFolder(u.id, { sortOrder: u.sortOrder }).catch((e: unknown) => {
       const message = e instanceof Error ? e.message : String(e ?? "");
       if (message.includes("→ 401")) return;
       toast({ title: "Réordonnement non sauvegardé", variant: "destructive" });
     }));
-  }, [subFolders, toast]);
+  }
 
-  const handleDocDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  function reorderDocs(activeId: string, overId: string) {
     const sorted = [...visibleDocs].sort((a, b) => a.sortOrder - b.sortOrder);
-    const oldIndex = sorted.findIndex(d => d.id === active.id);
-    const newIndex = sorted.findIndex(d => d.id === over.id);
+    const oldIndex = sorted.findIndex(d => d.id === activeId);
+    const newIndex = sorted.findIndex(d => d.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(sorted, oldIndex, newIndex);
     const updates = reordered.map((d, i) => ({ id: d.id, sortOrder: i }));
     setDocs(prev => {
-      const updated = new Map(updates.map(u => [u.id, u.sortOrder]));
-      return prev.map(d => updated.has(d.id) ? { ...d, sortOrder: updated.get(d.id)! } : d);
+      const m = new Map(updates.map(u => [u.id, u.sortOrder]));
+      return prev.map(d => m.has(d.id) ? { ...d, sortOrder: m.get(d.id)! } : d);
     });
     updates.forEach(u => updateDoc(u.id, { sortOrder: u.sortOrder }).catch((e: unknown) => {
       const message = e instanceof Error ? e.message : String(e ?? "");
       if (message.includes("→ 401")) return;
       toast({ title: "Réordonnement non sauvegardé", variant: "destructive" });
     }));
-  }, [visibleDocs, toast]);
+  }
+
+  // Move an existing doc into a folder (or back to root via folderId=null).
+  // Optimistic — the doc leaves the current folder view immediately.
+  function moveDocToFolder(docId: string, folderId: string | null) {
+    const doc = docs.find(d => d.id === docId);
+    if (!doc || (doc.folderId ?? null) === folderId) return;
+    const prevFolder = doc.folderId ?? null;
+    setDocs(prev => prev.map(d => d.id === docId ? { ...d, folderId } : d));
+    toast({ title: "Document déplacé", description: `« ${doc.title} » → ${getFolderName(folderId)}` });
+    updateDoc(docId, { folderId }).catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e ?? "");
+      if (message.includes("→ 401")) return;
+      setDocs(prev => prev.map(d => d.id === docId ? { ...d, folderId: prevFolder } : d));
+      toast({ title: "Déplacement échoué", variant: "destructive" });
+    });
+  }
+
+  // One handler for the whole tree: a doc dropped on a folder card / breadcrumb
+  // moves it; a doc on another doc reorders; a folder on a folder reorders.
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    if (docs.some(d => d.id === activeId)) {
+      if (overId.startsWith("crumb:")) {
+        const target = overId.slice(6);
+        moveDocToFolder(activeId, target === "root" ? null : target);
+      } else if (folders.some(f => f.id === overId)) {
+        moveDocToFolder(activeId, overId);
+      } else if (docs.some(d => d.id === overId)) {
+        reorderDocs(activeId, overId);
+      }
+      return;
+    }
+    if (folders.some(f => f.id === overId)) {
+      reorderFolders(activeId, overId);
+    }
+  }
 
   const sortedVisibleDocs = useMemo(
     () => [...visibleDocs].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -356,127 +407,133 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
         <div className="absolute inset-0 z-50 bg-primary/5 border-2 border-dashed border-primary rounded-2xl flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <Upload size={32} className="mx-auto mb-2 text-primary" />
-            <p className="font-body text-sm font-semibold text-primary">Déposer le PDF ici</p>
+            <p className="font-body text-sm font-semibold text-primary">Déposer le PDF ici (ou sur un dossier)</p>
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-1 text-sm font-body text-muted-foreground flex-wrap">
-        <button onClick={() => setCurrentFolderId(null)} className="hover:text-primary transition-colors flex items-center gap-1">
-          <Home size={13} /> Racine
-        </button>
-        {breadcrumb.map(f => (
-          <span key={f.id} className="flex items-center gap-1">
-            <ChevronRight size={12} className="opacity-40" />
-            <button onClick={() => setCurrentFolderId(f.id)} className="hover:text-primary transition-colors">
-              {f.name}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="flex items-center gap-1 text-sm font-body text-muted-foreground flex-wrap">
+          <DroppableCrumb id="crumb:root">
+            <button onClick={() => setCurrentFolderId(null)} className="hover:text-primary transition-colors flex items-center gap-1">
+              <Home size={13} /> Racine
             </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="relative w-full sm:w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Rechercher un document..."
-            type="search"
-            inputMode="search"
-            enterKeyHint="search"
-            className="pl-9 h-9 text-sm font-body"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X size={13} />
-            </button>
-          )}
+          </DroppableCrumb>
+          {breadcrumb.map(f => (
+            <span key={f.id} className="flex items-center gap-1">
+              <ChevronRight size={12} className="opacity-40" />
+              <DroppableCrumb id={`crumb:${f.id}`}>
+                <button onClick={() => setCurrentFolderId(f.id)} className="hover:text-primary transition-colors">
+                  {f.name}
+                </button>
+              </DroppableCrumb>
+            </span>
+          ))}
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { setNewFolderName(""); setFolderDialogOpen(true); }} className="gap-1.5 text-xs">
-            <FolderPlus size={14} />
-            Dossier
-          </Button>
-          <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
-            <Upload size={14} />
-            Ajouter un PDF
-          </Button>
-        </div>
-        <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={onFileChange} />
-      </div>
+        <div className="flex flex-wrap gap-2 items-center justify-between">
+          <div className="relative w-full sm:w-64">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Rechercher un document..."
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
+              className="pl-9 h-9 text-sm font-body"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X size={13} />
+              </button>
+            )}
+          </div>
 
-      <div className="flex gap-1.5 flex-wrap">
-        <button
-          onClick={() => setCatFilter("all")}
-          className={cn("px-3 py-1.5 rounded-lg text-xs font-body transition-all border",
-            catFilter === "all"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
-          )}
-        >
-          Tous
-        </button>
-        {categories.map(cat => (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setNewFolderName(""); setFolderDialogOpen(true); }} className="gap-1.5 text-xs">
+              <FolderPlus size={14} />
+              Dossier
+            </Button>
+            <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
+              <Upload size={14} />
+              Ajouter un PDF
+            </Button>
+          </div>
+          <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={onFileChange} />
+        </div>
+
+        <div className="flex gap-1.5 flex-wrap">
           <button
-            key={cat}
-            onClick={() => setCatFilter(cat)}
+            onClick={() => setCatFilter("all")}
             className={cn("px-3 py-1.5 rounded-lg text-xs font-body transition-all border",
-              catFilter === cat
+              catFilter === "all"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
             )}
           >
-            {cat}
+            Tous
           </button>
-        ))}
-        {years.length > 0 && (
-          <>
-            <div className="w-px h-6 bg-border self-center mx-1" />
+          {categories.map(cat => (
             <button
-              onClick={() => setYearFilter("all")}
+              key={cat}
+              onClick={() => setCatFilter(cat)}
               className={cn("px-3 py-1.5 rounded-lg text-xs font-body transition-all border",
-                yearFilter === "all"
+                catFilter === cat
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
               )}
             >
-              Toutes années
+              {cat}
             </button>
-            {years.map(y => (
+          ))}
+          {years.length > 0 && (
+            <>
+              <div className="w-px h-6 bg-border self-center mx-1" />
               <button
-                key={y}
-                onClick={() => setYearFilter(y)}
+                onClick={() => setYearFilter("all")}
                 className={cn("px-3 py-1.5 rounded-lg text-xs font-body transition-all border",
-                  yearFilter === y
+                  yearFilter === "all"
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
                 )}
               >
-                {y}
+                Toutes années
               </button>
-            ))}
-          </>
-        )}
-      </div>
+              {years.map(y => (
+                <button
+                  key={y}
+                  onClick={() => setYearFilter(y)}
+                  className={cn("px-3 py-1.5 rounded-lg text-xs font-body transition-all border",
+                    yearFilter === y
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                  )}
+                >
+                  {y}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
 
-      {loading ? (
-        <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
-      ) : (
-        <>
-          {!isSearching && subFolders.length > 0 && (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFolderDragEnd}>
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="space-y-5">
+            {!isSearching && subFolders.length > 0 && (
               <SortableContext items={subFolders.map(f => f.id)} strategy={verticalListSortingStrategy}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {subFolders.map(f => (
                     <SortableItem key={f.id} id={f.id}>
-                      {({ handleProps }) => (
+                      {({ handleProps, isOver }) => (
                         <FolderCard
                           folder={f}
                           isEditing={editFolderId === f.id}
                           isDeleting={deleteFolderId === f.id}
                           handleProps={handleProps}
+                          isOver={isOver}
+                          onFileDrop={(file) => acceptFile(file, f.id)}
                           onSelect={setCurrentFolderId}
                           onShare={handleShareFolder}
                           onUnshare={handleUnshareFolder}
@@ -492,16 +549,14 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
                   ))}
                 </div>
               </SortableContext>
-            </DndContext>
-          )}
+            )}
 
-          {visibleDocs.length === 0 && subFolders.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FolderOpen size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-body">{isSearching ? "Aucun résultat." : "Dossier vide. Ajoutez un document ou créez un sous-dossier."}</p>
-            </div>
-          ) : visibleDocs.length > 0 && (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDocDragEnd}>
+            {visibleDocs.length === 0 && subFolders.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <FolderOpen size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-body">{isSearching ? "Aucun résultat." : "Dossier vide. Ajoutez un document ou créez un sous-dossier."}</p>
+              </div>
+            ) : visibleDocs.length > 0 && (
               <SortableContext items={sortedVisibleDocs.map(d => d.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {sortedVisibleDocs.map(doc => (
@@ -531,10 +586,10 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
                   ))}
                 </div>
               </SortableContext>
-            </DndContext>
-          )}
-        </>
-      )}
+            )}
+          </div>
+        )}
+      </DndContext>
 
       <UploadDialog
         open={uploadOpen}
@@ -547,7 +602,7 @@ export function DocumentsTab({ defaultFolder }: { defaultFolder?: string | null 
         uploadYear={uploadYear}
         setUploadYear={setUploadYear}
         uploading={uploading}
-        currentFolderName={currentFolderId ? getFolderName(currentFolderId) : null}
+        currentFolderName={uploadFolderId ? getFolderName(uploadFolderId) : null}
         onUpload={handleUpload}
         onCancel={() => { setUploadOpen(false); setPendingFile(null); }}
       />

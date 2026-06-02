@@ -5,6 +5,7 @@ import {
   Plus, Trash2, ExternalLink, Link2, Link2Off, Folder, GripVertical, Pencil,
 } from "lucide-react";
 import type { DocFolder, DocFolderLink } from "@/api/adminDocs";
+import { cn } from "@/lib/utils";
 import { RichText } from "./RichText";
 
 interface FolderCardProps {
@@ -12,6 +13,10 @@ interface FolderCardProps {
   isEditing: boolean;
   isDeleting: boolean;
   handleProps: Record<string, unknown>;
+  /** A doc is being dragged over this folder (dnd-kit) — highlight as a move target. */
+  isOver?: boolean;
+  /** An OS file was dropped on this folder — upload it here. */
+  onFileDrop?: (file: File) => void;
   onSelect: (id: string) => void;
   onShare: (f: DocFolder) => void;
   onUnshare: (f: DocFolder) => void;
@@ -24,7 +29,7 @@ interface FolderCardProps {
 }
 
 export function FolderCard({
-  folder, isEditing, isDeleting, handleProps,
+  folder, isEditing, isDeleting, handleProps, isOver, onFileDrop,
   onSelect, onShare, onUnshare,
   onStartEdit, onSaveEdit, onCancelEdit,
   onStartDelete, onConfirmDelete, onCancelDelete,
@@ -32,6 +37,7 @@ export function FolderCard({
   const [name, setName] = useState(folder.name);
   const [summary, setSummary] = useState(folder.summary ?? "");
   const [links, setLinks] = useState<DocFolderLink[]>(folder.links?.length ? [...folder.links] : []);
+  const [fileOver, setFileOver] = useState(false);
 
   useEffect(() => {
     if (isEditing) {
@@ -52,7 +58,30 @@ export function FolderCard({
   }
 
   return (
-    <div className="glass-card rounded-xl p-4 group cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all">
+    <div
+      className={cn(
+        "glass-card rounded-xl p-4 group cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all",
+        (isOver || fileOver) && "ring-2 ring-primary ring-offset-1 bg-primary/5",
+      )}
+      onDragOver={(e) => {
+        // Native OS-file drag only — dnd-kit doc moves don't expose dataTransfer.
+        if (onFileDrop && Array.from(e.dataTransfer.types).includes("Files")) {
+          e.preventDefault();
+          e.stopPropagation();
+          setFileOver(true);
+        }
+      }}
+      onDragLeave={(e) => { if (fileOver) { e.stopPropagation(); setFileOver(false); } }}
+      onDrop={(e) => {
+        if (onFileDrop && Array.from(e.dataTransfer.types).includes("Files")) {
+          e.preventDefault();
+          e.stopPropagation();
+          setFileOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) onFileDrop(file);
+        }
+      }}
+    >
       {isEditing ? (
         <div className="space-y-2" onClick={e => e.stopPropagation()}>
           <Input
