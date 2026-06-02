@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/contexts/ProjectsContext";
+import { ProjectResumeCard } from "@/components/project/ProjectResumeCard";
 import { useToast } from "@/hooks/use-toast";
 import { createPhase as apiCreatePhase, updatePhase as apiUpdatePhase, deletePhase as apiDeletePhase, listProjectPhases } from "@/api/phases";
 import { getProjectModules } from "@/api/modules";
@@ -309,6 +310,8 @@ export default function ProjectSteps() {
             <StakeholderManager projectId={id!} />
           </div>
         )}
+
+        <ProjectResumeCard project={project} />
 
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Sidebar */}
