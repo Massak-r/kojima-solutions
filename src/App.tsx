@@ -43,6 +43,7 @@ const ProjectSteps          = lazy(() => import("./pages/ProjectSteps"));
 const ClientDashboard       = lazy(() => import("./pages/ClientDashboard"));
 const ProjectDocuments      = lazy(() => import("./pages/ProjectDocuments"));
 const ClientsManager        = lazy(() => import("./pages/ClientsManager"));
+const ClientDetail          = lazy(() => import("./pages/ClientDetail"));
 const Accounting            = lazy(() => import("./pages/Accounting"));
 const Tresorerie            = lazy(() => import("./pages/Tresorerie"));
 const AdminSpace            = lazy(() => import("./pages/AdminSpace"));
@@ -157,6 +158,7 @@ const App = () => (
                       <Route path="/project/:id/livrables" element={<ProtectedRoute><ProjectDeliverables /></ProtectedRoute>} />
                       <Route path="/project/:id/documents" element={<ProtectedRoute><ProjectDocuments /></ProtectedRoute>} />
                       <Route path="/clients" element={<ProtectedRoute><ClientsManager /></ProtectedRoute>} />
+                      <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
                       <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
                       <Route path="/personal"   element={<Navigate to="/tresorerie" replace />} />
                       <Route path="/admin"      element={<Navigate to="/documents" replace />} />

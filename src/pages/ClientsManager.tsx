@@ -249,7 +249,11 @@ export default function ClientsManager() {
                 key={client.id}
                 className="bg-card border border-border rounded-xl p-4 flex items-start justify-between gap-4"
               >
-                <div className="flex items-start gap-3 flex-1 min-w-0">
+                <button
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                  className="flex items-start gap-3 flex-1 min-w-0 text-left"
+                  aria-label={`Voir la fiche de ${client.name}`}
+                >
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Building2 size={18} className="text-primary" />
                   </div>
@@ -285,7 +289,7 @@ export default function ClientsManager() {
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => startEdit(client)}
