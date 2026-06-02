@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { CalendarCheck2, Clock, Flame, Target, Loader2 } from "lucide-react";
+import { CalendarCheck2, Clock, Flame, Target, Loader2, NotebookPen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
   ResponsiveDialogTitle, ResponsiveDialogDescription, ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { getGlobalWeekSummary, type GlobalWeekSummary } from "@/api/objectiveSessions";
+import { getWeekStart, toISODate } from "@/lib/weekDates";
 
 interface WeeklyReviewDialogProps {
   open: boolean;
@@ -28,6 +30,9 @@ function formatDuration(sec: number): string {
 export function WeeklyReviewDialog({ open, onOpenChange, objectiveTextById, onDismiss }: WeeklyReviewDialogProps) {
   const [data, setData] = useState<GlobalWeekSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState("");
+  // Notes are keyed by this week's Monday; MondayBriefDialog reads last week's.
+  const weekKey = `kojima-week-notes-${toISODate(getWeekStart(new Date()))}`;
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +42,16 @@ export function WeeklyReviewDialog({ open, onOpenChange, objectiveTextById, onDi
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    try { setNotes(localStorage.getItem(weekKey) ?? ""); } catch { setNotes(""); }
+  }, [open, weekKey]);
+
+  function saveNotes(v: string) {
+    setNotes(v);
+    try { localStorage.setItem(weekKey, v); } catch { /* ignore */ }
+  }
 
   function handleClose() {
     onDismiss?.();
@@ -152,6 +167,22 @@ export function WeeklyReviewDialog({ open, onOpenChange, objectiveTextById, onDi
             )}
           </div>
         )}
+
+        {/* Notes de la semaine — capturées le vendredi, resurfacées lundi */}
+        <div className="rounded-2xl border border-border/40 bg-card/40 p-4 mt-1">
+          <label className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-2">
+            <NotebookPen size={11} className="text-primary" />
+            Notes de la semaine
+          </label>
+          <Textarea
+            value={notes}
+            onChange={(e) => saveNotes(e.target.value)}
+            rows={3}
+            placeholder="Ce qui a marché, les blocages, ce qu'on ajuste la semaine prochaine…"
+            className="text-sm resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
+          />
+          <p className="text-[10px] text-muted-foreground/50 font-body mt-1">Sauvegardé — tu les reverras dans le brief de lundi.</p>
+        </div>
 
         <ResponsiveDialogFooter>
           <Button onClick={handleClose} className="gap-1.5">

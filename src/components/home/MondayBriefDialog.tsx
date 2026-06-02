@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Sunrise, Sparkles, Flame, Inbox, Target, Clock, ArrowRight, Loader2, Wand2 } from "lucide-react";
+import { Sunrise, Sparkles, Flame, Inbox, Target, Clock, ArrowRight, Loader2, Wand2, NotebookPen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ResponsiveDialog, ResponsiveDialogContent,
 } from "@/components/ui/responsive-dialog";
 import { DialogTitle } from "@/components/ui/dialog";
 import { formatDateShort } from "@/lib/dateFormat";
+import { getWeekStart, toISODate } from "@/lib/weekDates";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useObjectives } from "@/hooks/useObjectives";
@@ -84,6 +85,13 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
   weekEnd.setDate(weekStart.getDate() + 6);
 
   const dateRange = `${formatDateShort(weekStart)} – ${formatDateShort(weekEnd)}`;
+
+  // Notes captured in last Friday's weekly review (keyed by that week's Monday).
+  const lastWeekNotes = useMemo(() => {
+    const lwm = getWeekStart(new Date());
+    lwm.setDate(lwm.getDate() - 7);
+    try { return (localStorage.getItem(`kojima-week-notes-${toISODate(lwm)}`) ?? "").trim(); } catch { return ""; }
+  }, []);
 
   const completionsMap = useMemo(
     () => ({ ...(adminCompl ?? {}), ...(personalCompl ?? {}) }),
@@ -224,6 +232,15 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
                         <div className="text-xs font-body text-muted-foreground/50 italic">—</div>
                       )}
                     </div>
+                  </div>
+                )}
+                {lastWeekNotes && (
+                  <div className="mt-3 rounded-xl border border-border/40 bg-card/40 p-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-body font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1">
+                      <NotebookPen size={10} />
+                      Tes notes de vendredi
+                    </div>
+                    <p className="text-sm font-body text-foreground/85 whitespace-pre-wrap leading-relaxed">{lastWeekNotes}</p>
                   </div>
                 )}
               </section>
