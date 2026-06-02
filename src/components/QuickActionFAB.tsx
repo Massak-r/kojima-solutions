@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Plus, FolderKanban, FileText, Building2, Target, X, NotebookPen } from "lucide-react";
+import { Plus, FolderKanban, FileText, Building2, Target, X, NotebookPen, Compass } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useIsAdminPage } from "@/components/BottomNav";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { OPEN_MEETING_NOTES_EVENT } from "@/components/MeetingNoteDrawer";
+import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
 
 interface Action {
   label: string;
@@ -32,6 +33,13 @@ export function QuickActionFAB() {
   const isOnProjectPage = location.pathname.startsWith("/project/");
 
   const ACTIONS: Action[] = [
+    // Decide-what-to-do-now — externalizes task initiation; reachable anywhere.
+    {
+      label: "Et maintenant ?",
+      icon: Compass,
+      color: "bg-indigo-500",
+      action: () => window.dispatchEvent(new CustomEvent(OPEN_NEXT_ACTION_EVENT)),
+    },
     // Meeting note — only on project pages, surfaced first because the
     // operator is mid-context and likely wants it more than create-anything.
     ...(isOnProjectPage ? [{

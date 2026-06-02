@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
+import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
 import { AlertsZone } from "@/components/home/AlertsZone";
 import { SprintSummary } from "@/components/home/SprintSummary";
 import { StreamsList } from "@/components/home/StreamsList";
@@ -107,6 +108,14 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Button
+                size="sm"
+                onClick={() => window.dispatchEvent(new CustomEvent(OPEN_NEXT_ACTION_EVENT))}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 font-body text-xs gap-1.5"
+              >
+                <Compass size={14} />
+                Et maintenant ?
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigate("/quotes/new")}
@@ -116,9 +125,10 @@ export default function Home() {
                 Nouveau devis
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={handleNewProject}
-                className="bg-accent text-accent-foreground hover:bg-accent/90 font-body text-xs gap-1.5"
+                className="bg-transparent border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 font-body text-xs gap-1.5"
               >
                 <Plus size={14} />
                 Nouveau projet
