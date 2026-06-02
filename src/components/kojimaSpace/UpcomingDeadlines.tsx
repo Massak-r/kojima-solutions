@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/contexts/ProjectsContext";
+import { SectionCard } from "@/components/ui/section-card";
 
 export function UpcomingDeadlines() {
   const navigate = useNavigate();
@@ -24,13 +25,7 @@ export function UpcomingDeadlines() {
   if (upcomingDeadlines.length === 0) return null;
 
   return (
-    <section className="bg-card border border-border rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
-        <Calendar size={14} className="text-amber-500" />
-        <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
-          Deadlines proches
-        </h2>
-      </div>
+    <SectionCard icon={Calendar} title="Deadlines proches" iconClassName="text-amber-500" bodyClassName="p-0">
       <div className="divide-y divide-border/30">
         {upcomingDeadlines.map(p => {
           const daysLeft = Math.ceil((new Date(p.endDate!).getTime() - Date.now()) / 86400000);
@@ -54,6 +49,6 @@ export function UpcomingDeadlines() {
           );
         })}
       </div>
-    </section>
+    </SectionCard>
   );
 }

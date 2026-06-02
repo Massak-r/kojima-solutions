@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { useProjects } from "@/contexts/ProjectsContext";
+import { SectionCard } from "@/components/ui/section-card";
 
 /**
  * "En retard" alert — surfaces overdue execution that the "Deadlines proches"
@@ -50,13 +51,13 @@ export function OverdueWork() {
   if (items.length === 0) return null;
 
   return (
-    <section className="bg-card border border-red-200/50 dark:border-red-500/30 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
-        <AlertTriangle size={14} className="text-red-500" />
-        <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
-          En retard
-        </h2>
-      </div>
+    <SectionCard
+      icon={AlertTriangle}
+      title="En retard"
+      iconClassName="text-red-500"
+      className="border-red-200/50 dark:border-red-500/30"
+      bodyClassName="p-0"
+    >
       <div className="divide-y divide-border/30">
         {items.map((it) => (
           <div
@@ -74,6 +75,6 @@ export function OverdueWork() {
           </div>
         ))}
       </div>
-    </section>
+    </SectionCard>
   );
 }
