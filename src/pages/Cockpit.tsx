@@ -85,15 +85,15 @@ export default function Cockpit() {
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={m.monthly} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.6} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
                 <Tooltip
-                  cursor={{ fill: "hsl(var(--secondary))", opacity: 0.4 }}
+                  cursor={{ fill: "hsl(215 45% 30%)", opacity: 0.08 }}
                   formatter={(v: number) => [formatCHF(v), "CA"]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(35 12% 80%)", fontSize: 12 }}
                 />
-                <Bar dataKey="ca" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ca" className="fill-primary" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
