@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listFiles, uploadFile, updateFile, deleteFile, type ObjectiveFile } from "@/api/objectiveFiles";
 import type { ObjectiveSource } from "@/api/objectiveSource";
+import { bufferFile } from "@/lib/fileBuffer";
 
 interface FilesPanelProps {
   source: ObjectiveSource;
@@ -45,10 +46,14 @@ export function FilesPanel({ source, objectiveId }: FilesPanelProps) {
   async function handleUpload(list: FileList | File[]) {
     setError(null);
     const arr = Array.from(list);
+    // Buffer every file into memory now, before any await — Android revokes the
+    // content URI behind a File across the first await gap, so the 2nd+ upload
+    // would otherwise fail. Kicking off all reads synchronously keeps them valid.
+    const buffered = arr.map(bufferFile);
     setUploading(n => n + arr.length);
-    for (const f of arr) {
+    for (const bufferingFile of buffered) {
       try {
-        const uploaded = await uploadFile(source, objectiveId, f);
+        const uploaded = await uploadFile(source, objectiveId, await bufferingFile);
         setFiles(prev => [uploaded, ...prev]);
       } catch (e: any) {
         setError(e?.message ?? "Échec de l'upload");

@@ -24,16 +24,9 @@ export { formatDateShortWithYear as formatDate } from "@/lib/dateFormat";
 /** Largest PDF the upload endpoint (admin_docs.php) will accept. */
 export const MAX_PDF_SIZE = 25 * 1024 * 1024;
 
-/**
- * Read a picked file fully into memory immediately. Android revokes the
- * temporary content URI behind a `File` after any `await` gap (e.g. while a
- * dialog is open), which makes the upload fail. Materialising the bytes right
- * away — before the dialog interaction — keeps the file readable.
- */
-export async function bufferFile(file: File): Promise<File> {
-  const buf = await file.arrayBuffer();
-  return new File([buf], file.name, { type: file.type, lastModified: file.lastModified });
-}
+// `bufferFile` moved to a shared module so non-admin upload paths (objective
+// files, client feedback images) can reuse the same Android URI-revocation fix.
+export { bufferFile } from "@/lib/fileBuffer";
 
 /**
  * Merges several PDF files into one, preserving the given order. `pdf-lib` is

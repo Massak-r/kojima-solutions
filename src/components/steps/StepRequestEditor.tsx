@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/api/projects";
+import { bufferFile } from "@/lib/fileBuffer";
 import { useToast } from "@/hooks/use-toast";
 import type { VoteOption, FeedbackRequest, GuidedQuestion } from "@/types/timeline";
 
@@ -93,7 +94,10 @@ function ImageUploadInput({ onUrl, placeholder }: { onUrl: (url: string) => void
   const handleFile = useCallback(async (file: File) => {
     setUploading(true);
     try {
-      const imageUrl = await uploadImage(file);
+      // Materialise bytes before the upload await — Android revokes the picked
+      // file's content URI across the gap otherwise (same fix as the triage zone).
+      const buffered = await bufferFile(file);
+      const imageUrl = await uploadImage(buffered);
       setUrl(imageUrl);
       onUrl(imageUrl);
       toast({ title: "Image telechargee" });
