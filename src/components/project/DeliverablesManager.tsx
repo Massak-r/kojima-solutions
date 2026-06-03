@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { uploadImage } from "@/api/projects";
+import { bufferFile } from "@/lib/fileBuffer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Package, Link2, Image as ImageIcon, FileText, Type, Plus, Trash2, Upload, X, ExternalLink, Loader2,
+  Package, Link2, Image as ImageIcon, FileText, Type, Plus, Trash2, Upload, X, ExternalLink, Loader2, ArrowUp, ArrowDown,
 } from "lucide-react";
 import type { TimelineTask } from "@/types/timeline";
 import type { Delivery } from "@/types/project";
@@ -30,7 +31,7 @@ const TYPE_META: Record<Delivery["type"], { label: string; icon: typeof Link2 }>
  * uploadImage; no backend or email involved.
  */
 export function DeliverablesManager({ projectId, tasks }: { projectId: string; tasks: TimelineTask[] }) {
-  const { projects, addDelivery, deleteDelivery } = useProjects();
+  const { projects, addDelivery, deleteDelivery, reorderDelivery } = useProjects();
   const { toast } = useToast();
   const project = projects.find((p) => p.id === projectId);
   const deliveries = project?.deliveries ?? [];
@@ -55,7 +56,7 @@ export function DeliverablesManager({ projectId, tasks }: { projectId: string; t
     if (!file) return;
     setUploading(true);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(await bufferFile(file));
       setImages((prev) => [...prev, url]);
     } catch {
       toast({ title: "Upload échoué", variant: "destructive" });
@@ -92,10 +93,10 @@ export function DeliverablesManager({ projectId, tasks }: { projectId: string; t
         </p>
       ) : (
         <ul className="space-y-2">
-          {deliveries.map((d) => {
+          {deliveries.map((d, idx) => {
             const Icon = TYPE_META[d.type]?.icon ?? Package;
             const step = taskTitle(d.taskId);
-            const count = d.images?.length ?? (d.content ? 1 : 0);
+            const thumbs = (d.images && d.images.length > 0 ? d.images : (d.content ? [d.content] : [])).filter(Boolean);
             return (
               <li key={d.id} className="flex items-start gap-3 bg-card border border-border rounded-xl p-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -112,16 +113,45 @@ export function DeliverablesManager({ projectId, tasks }: { projectId: string; t
                   </div>
                   {d.description && <p className="text-xs text-muted-foreground font-body mt-0.5 break-words">{d.description}</p>}
                   {d.type === "image" ? (
-                    <p className="text-[11px] text-muted-foreground/60 font-body mt-0.5">{count} image{count > 1 ? "s" : ""}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {thumbs.slice(0, 6).map((src, i) => (
+                        <a key={i} href={src} target="_blank" rel="noreferrer" className="block">
+                          <img src={src} alt="" className="w-12 h-12 object-cover rounded-md border border-border hover:border-primary transition-colors" />
+                        </a>
+                      ))}
+                      {thumbs.length > 6 && (
+                        <span className="text-[11px] text-muted-foreground/60 font-body self-center">+{thumbs.length - 6}</span>
+                      )}
+                    </div>
                   ) : d.content ? (
                     <a href={d.content} target="_blank" rel="noreferrer" className="text-[11px] text-primary hover:underline font-body mt-0.5 inline-flex items-center gap-1 break-all">
                       <ExternalLink size={10} /> {d.content}
                     </a>
                   ) : null}
                 </div>
-                <button onClick={() => setToDelete(d)} className="p-1.5 text-muted-foreground/50 hover:text-destructive transition-colors shrink-0" title="Supprimer">
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => reorderDelivery(projectId, d.id, "up")}
+                      disabled={idx === 0}
+                      className="p-0.5 text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-default transition-colors"
+                      title="Monter" aria-label="Monter le livrable"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      onClick={() => reorderDelivery(projectId, d.id, "down")}
+                      disabled={idx === deliveries.length - 1}
+                      className="p-0.5 text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-default transition-colors"
+                      title="Descendre" aria-label="Descendre le livrable"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
+                  </div>
+                  <button onClick={() => setToDelete(d)} className="p-1.5 text-muted-foreground/50 hover:text-destructive transition-colors" title="Supprimer">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </li>
             );
           })}

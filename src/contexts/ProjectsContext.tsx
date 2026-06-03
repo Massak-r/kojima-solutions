@@ -45,6 +45,7 @@ interface ProjectsContextValue {
   toggleStakeholderHighlight: (projectId: string, taskId: string, requestId: string) => void;
   addDelivery: (projectId: string, delivery: Omit<import("@/types/project").Delivery, "id" | "createdAt">) => void;
   deleteDelivery: (projectId: string, deliveryId: string) => void;
+  reorderDelivery: (projectId: string, deliveryId: string, direction: "up" | "down") => void;
   addStepComment: (projectId: string, taskId: string, comment: { message: string; authorName?: string; authorEmail?: string; authorRole?: "client" | "admin" | "stakeholder" }) => void;
   updateStepStatus: (projectId: string, taskId: string, status: StepStatus) => void;
   updateProjectPhases: (projectId: string, phases: ProjectPhase[]) => void;
@@ -431,6 +432,23 @@ export function useProjects(): ProjectsContextValue {
     );
   }, [qc]);
 
+  const reorderDelivery = useCallback((projectId: string, deliveryId: string, direction: "up" | "down") => {
+    const before = snapshot(qc);
+    const proj = before.find((p) => p.id === projectId);
+    const list = [...(proj?.deliveries || [])];
+    const i = list.findIndex((d) => d.id === deliveryId);
+    if (i < 0) return;
+    const j = direction === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    applyAndSync(
+      qc,
+      (prev) => prev.map((p) => (p.id === projectId ? { ...p, deliveries: list } : p)),
+      () => api.updateProject(projectId, { deliveries: list } as Partial<StoredProject>),
+      "Réordonnancement livrable échoué",
+    );
+  }, [qc]);
+
   const addStepComment = useCallback((projectId: string, taskId: string, comment: { message: string; authorName?: string; authorEmail?: string; authorRole?: "client" | "admin" | "stakeholder" }) => {
     const newComment: StepComment = {
       id: crypto.randomUUID(),
@@ -528,6 +546,7 @@ export function useProjects(): ProjectsContextValue {
     toggleStakeholderHighlight,
     addDelivery,
     deleteDelivery,
+    reorderDelivery,
     addStepComment,
     updateStepStatus,
     updateProjectPhases,
