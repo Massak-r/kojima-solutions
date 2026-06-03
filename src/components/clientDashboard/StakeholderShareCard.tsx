@@ -2,9 +2,12 @@ import { useState } from "react";
 import { Users, Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function StakeholderShareCard({ shareToken }: { shareToken: string }) {
+export function StakeholderShareCard({ shareToken }: { shareToken?: string | null }) {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/project/s/${shareToken}`;
+
+  // No stakeholder link generated yet → nothing to share (avoids a /project/s/null link).
+  if (!shareToken) return null;
 
   const handleCopy = async () => {
     try {
