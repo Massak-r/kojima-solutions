@@ -325,7 +325,7 @@ export default function ProjectDocuments() {
                             title="Convertir en facture"
                           >
                             <ArrowRightLeft size={12} />
-                            <span className="hidden sm:inline">Facturer</span>
+                            <span>Facturer</span>
                           </Button>
                         )}
                         <button
