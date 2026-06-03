@@ -7,7 +7,7 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus, Users } from "lucide-react";
+import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus, Users, Wallet } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
 import { totalQuote, netSubtotalQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
@@ -235,60 +235,123 @@ export default function QuotesList() {
     }
   }
 
-  // Acompte: clone a devis into a draft invoice with one line = 50% of the
-  // net subtotal (mirrors renewInvoice/duplicateQuote's clone pattern).
-  function acompteFromQuote(original: Quote) {
-    const pct = 50;
+  // % of a devis already covered by linked invoices (acompte + solde). Derived,
+  // not stored — deleting an invoice automatically frees that share again.
+  function billedPctFor(quoteId: string): number {
+    return quotes
+      .filter((q) => q.docType === "invoice" && q.sourceQuoteId === quoteId)
+      .reduce((sum, q) => sum + (q.billedPct ?? 0), 0);
+  }
+
+  function nextInvoiceNumber(): string {
     const year = new Date().getFullYear();
     const existing = quotes
       .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`FAC-${year}`))
       .map((q) => { const p = q.quoteNumber?.split("-"); return p && p.length === 3 ? parseInt(p[2], 10) : 0; });
-    const newNumber = `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
+    return `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
+  }
+
+  // Bill a percentage of a devis as a draft invoice, linked back to the source
+  // so the devis shows its billed state and the balance can be billed later.
+  function billPctOfQuote(original: Quote, pct: number, kind: "acompte" | "solde"): string {
     const base = netSubtotalQuote(original);
+    const newId = crypto.randomUUID?.() ?? `q-${Date.now()}`;
+    const label = kind === "acompte" ? "Acompte" : "Solde";
     const clone: any = {
       ...original,
-      quoteNumber: newNumber,
+      id: newId,
+      quoteNumber: nextInvoiceNumber(),
       docType: "invoice",
       invoiceStatus: "draft",
       isTemplate: false,
       templateName: null,
       discountEnabled: false,
-      projectTitle: `Acompte ${pct}% — ${original.projectTitle || original.quoteNumber}`,
+      projectTitle: `${label} ${pct}% — ${original.projectTitle || original.quoteNumber}`,
+      sourceQuoteId: original.id,
+      billingKind: kind,
+      billedPct: pct,
       lineItems: [{
         id: crypto.randomUUID?.() ?? `line-${Date.now()}`,
-        description: `Acompte ${pct}% sur ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
+        description: `${label} ${pct}% sur ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
         quantity: 1,
         unitPrice: Math.round(base * (pct / 100) * 100) / 100,
       }],
     };
-    delete clone.id; delete clone.createdAt; delete clone.updatedAt;
-    const nq = addQuote(clone);
+    delete clone.createdAt; delete clone.updatedAt;
+    addQuote(clone);
+    return newId;
+  }
+
+  // Acompte: 50% deposit invoice from a devis.
+  function acompteFromQuote(original: Quote) {
+    const id = billPctOfQuote(original, 50, "acompte");
     toast({ title: t("Acompte 50% créé", "50% deposit created"), description: t("Brouillon de facture — ajuste si besoin.", "Draft invoice — adjust if needed.") });
-    if (nq && typeof nq === "object" && "id" in nq) navigate(`/quotes/${(nq as any).id}`);
+    navigate(`/quotes/${id}`);
+  }
+
+  // Solde: bill whatever percentage of the devis isn't yet invoiced.
+  function soldeFromQuote(original: Quote) {
+    const remaining = Math.round((100 - billedPctFor(original.id)) * 100) / 100;
+    if (remaining <= 0) return;
+    const id = billPctOfQuote(original, remaining, "solde");
+    toast({ title: t(`Solde ${remaining}% créé`, `${remaining}% balance created`), description: t("Brouillon de facture — ajuste si besoin.", "Draft invoice — adjust if needed.") });
+    navigate(`/quotes/${id}`);
+  }
+
+  // Billing action shown on a devis row: acompte when nothing's billed, then
+  // "facturer le solde" until it's fully invoiced, then nothing (badge says so).
+  function billingAction(q: Quote) {
+    if (q.docType === "invoice" || q.isTemplate) return null;
+    const billed = billedPctFor(q.id);
+    if (billed <= 0) {
+      return (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-accent"
+          title={t("Générer un acompte 50%", "Generate 50% deposit")}
+          onClick={() => acompteFromQuote(q)}
+        >
+          <Coins size={14} />
+        </Button>
+      );
+    }
+    if (billed < 100) {
+      const remaining = Math.round((100 - billed) * 100) / 100;
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs gap-1 h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          title={t("Facturer le solde", "Bill the balance")}
+          onClick={() => soldeFromQuote(q)}
+        >
+          <Wallet size={12} /> {t(`Solde ${remaining}%`, `Balance ${remaining}%`)}
+        </Button>
+      );
+    }
+    return null;
   }
 
   // Retainer: generate this month's draft invoice from an invoice template.
   function billRetainer(template: Quote) {
-    const year = new Date().getFullYear();
-    const existing = quotes
-      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`FAC-${year}`))
-      .map((q) => { const p = q.quoteNumber?.split("-"); return p && p.length === 3 ? parseInt(p[2], 10) : 0; });
-    const newNumber = `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
     const monthLabel = new Date().toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
     const baseTitle = template.templateName || template.projectTitle || "Prestation";
+    const newId = crypto.randomUUID?.() ?? `q-${Date.now()}`;
     const clone: any = {
       ...template,
-      quoteNumber: newNumber,
+      id: newId,
+      quoteNumber: nextInvoiceNumber(),
       docType: "invoice",
       invoiceStatus: "draft",
       isTemplate: false,
       templateName: null,
       projectTitle: `${baseTitle} — ${monthLabel}`,
     };
-    delete clone.id; delete clone.createdAt; delete clone.updatedAt;
-    const nq = addQuote(clone);
+    delete clone.createdAt; delete clone.updatedAt;
+    addQuote(clone);
     toast({ title: t("Facture du mois créée", "Monthly invoice created"), description: monthLabel });
-    if (nq && typeof nq === "object" && "id" in nq) navigate(`/quotes/${(nq as any).id}`);
+    navigate(`/quotes/${newId}`);
   }
 
   return (
@@ -530,6 +593,18 @@ export default function QuotesList() {
                               En retard
                             </Badge>
                           )}
+                          {q.docType !== "invoice" && !q.isTemplate && billedPctFor(q.id) > 0 && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-accent/10 text-accent">
+                              {billedPctFor(q.id) >= 100
+                                ? t("Soldé", "Settled")
+                                : t(`Acompte ${billedPctFor(q.id)}% facturé`, `${billedPctFor(q.id)}% invoiced`)}
+                            </Badge>
+                          )}
+                          {q.docType === "invoice" && q.billingKind && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-accent/40 text-accent">
+                              {q.billingKind === "acompte" ? t("Acompte", "Deposit") : t("Solde", "Balance")}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -567,17 +642,7 @@ export default function QuotesList() {
                             <RefreshCw size={14} />
                           </Button>
                         )}
-                        {q.docType !== "invoice" && !q.isTemplate && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-accent"
-                            title={t("Générer un acompte 50%", "Generate 50% deposit")}
-                            onClick={() => acompteFromQuote(q)}
-                          >
-                            <Coins size={14} />
-                          </Button>
-                        )}
+                        {billingAction(q)}
                         {q.isTemplate && q.docType === "invoice" && (
                           <Button
                             variant="outline"

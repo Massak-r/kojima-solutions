@@ -49,6 +49,13 @@ export interface Quote {
   // as starting points for new quotes via the "Partir d'un modèle…" picker.
   isTemplate?: boolean;
   templateName?: string | null;
+
+  // Acompte/solde linkage. Set on an *invoice* to point back at the source
+  // devis it partially bills; the devis's billed state is derived by summing
+  // billedPct across all invoices that reference it (self-healing on delete).
+  sourceQuoteId?: string;
+  billingKind?: "acompte" | "solde";
+  billedPct?: number;
 }
 
 export const TVA_RATE = 8.1;
