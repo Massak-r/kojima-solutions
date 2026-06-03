@@ -24,16 +24,19 @@ function inv(partial: Partial<Quote>): Quote {
 const now = new Date("2026-06-15");
 
 describe("computeCockpitMetrics", () => {
-  it("sums paid CA for the current year and splits receivables/pipeline", () => {
+  it("splits paid CA, receivables (invoices), à-facturer (devis) and pipeline", () => {
     const quotes: Quote[] = [
       inv({ invoiceStatus: "paid", createdAt: "2026-03-01", clientName: "Acme" }),
       inv({ invoiceStatus: "paid", createdAt: "2025-12-01", clientName: "Acme" }), // prior year → excluded from YTD
-      inv({ invoiceStatus: "validated", lineItems: [{ id: "l", description: "", quantity: 1, unitPrice: 500 }] }),
+      inv({ invoiceStatus: "validated", lineItems: [{ id: "l", description: "", quantity: 1, unitPrice: 500 }] }), // billed invoice → receivable
+      inv({ docType: "quote", invoiceStatus: "validated", lineItems: [{ id: "l", description: "", quantity: 1, unitPrice: 700 }] }), // accepted devis → à facturer
       inv({ invoiceStatus: "to-validate", lineItems: [{ id: "l", description: "", quantity: 1, unitPrice: 300 }] }),
+      inv({ isTemplate: true, invoiceStatus: "validated", lineItems: [{ id: "l", description: "", quantity: 1, unitPrice: 9999 }] }), // template → ignored
     ];
     const m = computeCockpitMetrics(quotes, now);
     expect(m.caYtd).toBe(1000);
     expect(m.receivables).toBe(500);
+    expect(m.toBill).toBe(700);
     expect(m.pipeline).toBe(300);
   });
 

@@ -14,11 +14,13 @@ export interface ClientCA {
 }
 
 export interface CockpitMetrics {
-  /** Paid-invoice revenue for the current calendar year. */
+  /** Paid revenue for the current calendar year (money in). */
   caYtd: number;
-  /** Validated invoices awaiting payment (créances). */
+  /** Validated invoices, billed and awaiting payment (créances). */
   receivables: number;
-  /** To-validate invoices (potential revenue / pipeline). */
+  /** Validated devis, accepted but not yet invoiced (à facturer). */
+  toBill: number;
+  /** To-validate documents (potential revenue / pipeline). */
   pipeline: number;
   /** Validated invoices past their validity date. */
   overdueCount: number;
@@ -46,29 +48,38 @@ function monthKey(d: Date): string {
  * proxy the Accounting monthly chart already uses.
  */
 export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetrics {
-  const invoices = quotes.filter((q) => q.docType === "invoice");
-  const paid = invoices.filter((q) => q.invoiceStatus === "paid");
+  // invoice_status is the money-state regardless of doc type. A *validated
+  // invoice* is a billed créance (à recevoir); a *validated devis* is accepted
+  // but not yet billed (à facturer) — the same split the rest of the app uses.
+  // Templates never represent real money, so exclude them throughout.
+  const active = quotes.filter((q) => !q.isTemplate);
+  const isInvoice = (q: Quote) => q.docType === "invoice";
+  const paid = active.filter((q) => q.invoiceStatus === "paid");
   const year = now.getFullYear();
 
   const caYtd = paid
     .filter((q) => new Date(q.createdAt).getFullYear() === year)
     .reduce((s, q) => s + totalQuote(q), 0);
 
-  const receivables = invoices
-    .filter((q) => q.invoiceStatus === "validated")
+  const receivables = active
+    .filter((q) => isInvoice(q) && q.invoiceStatus === "validated")
     .reduce((s, q) => s + totalQuote(q), 0);
 
-  const pipeline = invoices
+  const toBill = active
+    .filter((q) => !isInvoice(q) && q.invoiceStatus === "validated")
+    .reduce((s, q) => s + totalQuote(q), 0);
+
+  const pipeline = active
     .filter((q) => q.invoiceStatus === "to-validate")
     .reduce((s, q) => s + totalQuote(q), 0);
 
-  const overdueCount = invoices.filter((q) => {
-    if (q.invoiceStatus !== "validated" || !q.validityDate) return false;
+  const overdueCount = active.filter((q) => {
+    if (!isInvoice(q) || q.invoiceStatus !== "validated" || !q.validityDate) return false;
     return new Date(q.validityDate).getTime() < now.getTime();
   }).length;
 
-  const invoiceCount = invoices.length;
-  const quoteCount = quotes.filter((q) => q.docType !== "invoice" && !q.isTemplate).length;
+  const invoiceCount = active.filter(isInvoice).length;
+  const quoteCount = active.filter((q) => !isInvoice(q)).length;
   const conversionPct = quoteCount > 0 ? Math.round((invoiceCount / quoteCount) * 100) : 0;
   const paidTotal = paid.reduce((s, q) => s + totalQuote(q), 0);
   const avgInvoice = invoiceCount > 0 ? Math.round(paidTotal / invoiceCount) : 0;
@@ -95,5 +106,5 @@ export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetric
     .sort((a, b) => b.ca - a.ca)
     .slice(0, 5);
 
-  return { caYtd, receivables, pipeline, overdueCount, invoiceCount, quoteCount, conversionPct, avgInvoice, monthly, topClients };
+  return { caYtd, receivables, toBill, pipeline, overdueCount, invoiceCount, quoteCount, conversionPct, avgInvoice, monthly, topClients };
 }
