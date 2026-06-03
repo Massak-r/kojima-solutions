@@ -7,6 +7,7 @@ import {
   FileText,
   FolderOpen,
   Target,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
@@ -14,6 +15,7 @@ import { useAdminDocs } from "@/hooks/useAdminDocs";
 
 const BOTTOM_NAV = [
   { to: "/home",       label: "Accueil",    icon: LayoutDashboard },
+  { to: "/cockpit",    label: "Pilotage",   icon: Gauge           },
   { to: "/sprint",     label: "Sprint",     icon: Target          },
   { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
@@ -22,7 +24,7 @@ const BOTTOM_NAV = [
 ];
 
 const ADMIN_PREFIXES = [
-  "/home", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
+  "/home", "/cockpit", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
   "/clients", "/accounting", "/tresorerie", "/documents", "/settings",
   "/objective/",
 ];
