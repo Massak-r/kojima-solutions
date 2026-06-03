@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -17,10 +17,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, User2, Users, Share2, Unlink, Plus } from "lucide-react";
+import { Copy, Check, User2, Users, Share2, Unlink, Plus, ScrollText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { shareProject, unshareProject } from "@/api/stakeholder";
+import { getFunnelByProject, shareFunnel, unshareFunnel, type ProjectFunnel } from "@/api/funnels";
 import type { StoredProject } from "@/contexts/ProjectsContext";
 
 interface ProjectShareDialogProps {
@@ -39,12 +40,26 @@ export function ProjectShareDialog({
   const { toast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [funnel, setFunnel] = useState<ProjectFunnel | null>(null);
+  const [revokeProposalOpen, setRevokeProposalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getFunnelByProject(project.id)
+      .then((f) => { if (!cancelled) setFunnel(f); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, project.id]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const clientSlug = project.clientSlug || project.id;
   const clientUrl = `${origin}/client/${clientSlug}`;
   const stakeholderUrl = project.shareToken
     ? `${origin}/project/s/${project.shareToken}`
+    : null;
+  const proposalUrl = funnel?.shareToken
+    ? `${origin}/funnel/s/${funnel.shareToken}`
     : null;
 
   function markCopied(key: string) {
@@ -94,9 +109,42 @@ export function ProjectShareDialog({
     }
   }
 
+  async function createProposalLink() {
+    if (!funnel) return;
+    setBusy(true);
+    try {
+      const updated = await shareFunnel(funnel.id);
+      setFunnel(updated);
+      const url = `${origin}/funnel/s/${updated.shareToken}`;
+      await navigator.clipboard.writeText(url);
+      markCopied("proposal");
+      toast({ title: "Lien proposition créé et copié" });
+    } catch {
+      toast({ title: "Erreur", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function performRevokeProposalLink() {
+    if (!funnel) return;
+    setRevokeProposalOpen(false);
+    setBusy(true);
+    try {
+      const updated = await unshareFunnel(funnel.id);
+      setFunnel(updated);
+      toast({ title: "Lien proposition révoqué" });
+    } catch {
+      toast({ title: "Erreur", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function copyAll() {
     const urls = [
       `Portail client : ${clientUrl}`,
+      proposalUrl ? `Proposition : ${proposalUrl}` : null,
       stakeholderUrl ? `Vue stakeholder : ${stakeholderUrl}` : null,
     ]
       .filter(Boolean)
@@ -172,6 +220,49 @@ export function ProjectShareDialog({
               )
             }
           />
+
+          <ShareRow
+            icon={<ScrollText size={14} />}
+            title="Proposition commerciale"
+            subtitle="Lien public de la proposition (funnel) — sans email à saisir"
+            url={proposalUrl}
+            active={!!proposalUrl}
+            onCopy={
+              proposalUrl
+                ? () => copy(proposalUrl, "Lien proposition", "proposal")
+                : undefined
+            }
+            copied={copiedKey === "proposal"}
+            action={
+              !funnel ? (
+                <span className="text-[10px] text-muted-foreground/50 font-body">
+                  Aucune proposition
+                </span>
+              ) : proposalUrl ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setRevokeProposalOpen(true)}
+                  disabled={busy}
+                  className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10"
+                >
+                  <Unlink size={11} />
+                  Révoquer
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={createProposalLink}
+                  disabled={busy}
+                  className="h-7 px-2 text-[10px] gap-1"
+                >
+                  <Plus size={11} />
+                  Créer
+                </Button>
+              )
+            }
+          />
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-border/40">
@@ -208,6 +299,26 @@ export function ProjectShareDialog({
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={performRevokeStakeholderLink}
+            >
+              Révoquer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={revokeProposalOpen} onOpenChange={setRevokeProposalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Révoquer le lien de proposition ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le lien public actuel cessera de fonctionner. Vous pourrez en générer un nouveau à tout moment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={performRevokeProposalLink}
             >
               Révoquer
             </AlertDialogAction>
