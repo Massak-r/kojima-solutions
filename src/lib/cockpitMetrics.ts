@@ -16,10 +16,8 @@ export interface ClientCA {
 export interface CockpitMetrics {
   /** Paid revenue for the current calendar year (money in). */
   caYtd: number;
-  /** Validated invoices, billed and awaiting payment (créances). */
+  /** Validated devis + invoices awaiting payment (créances) — matches Accounting. */
   receivables: number;
-  /** Validated devis, accepted but not yet invoiced (à facturer). */
-  toBill: number;
   /** To-validate documents (potential revenue / pipeline). */
   pipeline: number;
   /** Validated invoices past their validity date. */
@@ -48,10 +46,10 @@ function monthKey(d: Date): string {
  * proxy the Accounting monthly chart already uses.
  */
 export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetrics {
-  // invoice_status is the money-state regardless of doc type. A *validated
-  // invoice* is a billed créance (à recevoir); a *validated devis* is accepted
-  // but not yet billed (à facturer) — the same split the rest of the app uses.
-  // Templates never represent real money, so exclude them throughout.
+  // Money-state is driven by invoice_status, not doc type, and templates are
+  // excluded. "À recevoir" = everything validated/accepted (a validated devis is
+  // already a créance), to match the Accounting page's "Encaissements à venir";
+  // "Pipeline" = still-to-validate. (The "à facturer" nuance lives on the Home.)
   const active = quotes.filter((q) => !q.isTemplate);
   const isInvoice = (q: Quote) => q.docType === "invoice";
   const paid = active.filter((q) => q.invoiceStatus === "paid");
@@ -62,11 +60,7 @@ export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetric
     .reduce((s, q) => s + totalQuote(q), 0);
 
   const receivables = active
-    .filter((q) => isInvoice(q) && q.invoiceStatus === "validated")
-    .reduce((s, q) => s + totalQuote(q), 0);
-
-  const toBill = active
-    .filter((q) => !isInvoice(q) && q.invoiceStatus === "validated")
+    .filter((q) => q.invoiceStatus === "validated")
     .reduce((s, q) => s + totalQuote(q), 0);
 
   const pipeline = active
@@ -74,7 +68,7 @@ export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetric
     .reduce((s, q) => s + totalQuote(q), 0);
 
   const overdueCount = active.filter((q) => {
-    if (!isInvoice(q) || q.invoiceStatus !== "validated" || !q.validityDate) return false;
+    if (q.invoiceStatus !== "validated" || !q.validityDate) return false;
     return new Date(q.validityDate).getTime() < now.getTime();
   }).length;
 
@@ -106,5 +100,5 @@ export function computeCockpitMetrics(quotes: Quote[], now: Date): CockpitMetric
     .sort((a, b) => b.ca - a.ca)
     .slice(0, 5);
 
-  return { caYtd, receivables, toBill, pipeline, overdueCount, invoiceCount, quoteCount, conversionPct, avgInvoice, monthly, topClients };
+  return { caYtd, receivables, pipeline, overdueCount, invoiceCount, quoteCount, conversionPct, avgInvoice, monthly, topClients };
 }

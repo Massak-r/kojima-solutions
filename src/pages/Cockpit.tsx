@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { Gauge, TrendingUp, Receipt, Clock, AlertTriangle, Percent, Users, ArrowRight, FileText } from "lucide-react";
+import { Gauge, TrendingUp, Receipt, Clock, AlertTriangle, Percent, Users, ArrowRight } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
 import { computeCockpitMetrics } from "@/lib/cockpitMetrics";
 import { formatCHF } from "@/components/kojimaSpace/helpers";
@@ -64,9 +64,8 @@ export default function Cockpit() {
         {/* Vital signs */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <KpiCard icon={<TrendingUp size={14} className="text-palette-sage" />} label="CA encaissé (année)" value={formatCHF(m.caYtd)} to="/accounting" />
-          <KpiCard icon={<Receipt size={14} className="text-primary" />} label="À recevoir" value={formatCHF(m.receivables)} hint="Factures émises, en attente" to="/accounting" />
-          <KpiCard icon={<FileText size={14} className="text-palette-amber" />} label="À facturer" value={formatCHF(m.toBill)} hint="Devis validés à convertir" to="/quotes" />
-          <KpiCard icon={<Clock size={14} className="text-muted-foreground" />} label="Pipeline" value={formatCHF(m.pipeline)} hint="Revenu potentiel (à valider)" to="/accounting" />
+          <KpiCard icon={<Receipt size={14} className="text-primary" />} label="À recevoir" value={formatCHF(m.receivables)} hint="Validé — encaissement à venir" to="/accounting" />
+          <KpiCard icon={<Clock size={14} className="text-palette-amber" />} label="Pipeline" value={formatCHF(m.pipeline)} hint="Revenu potentiel (à valider)" to="/accounting" />
           <KpiCard icon={<AlertTriangle size={14} className="text-destructive" />} label="Factures en retard" value={String(m.overdueCount)} tone={m.overdueCount > 0 ? "warn" : "default"} to="/quotes" />
           <KpiCard icon={<Percent size={14} className="text-accent" />} label="Conversion devis→facture" value={`${m.conversionPct}%`} hint={`${m.invoiceCount} fact. / ${m.quoteCount} devis`} />
           <KpiCard icon={<Receipt size={14} className="text-muted-foreground" />} label="Facture moyenne" value={formatCHF(m.avgInvoice)} />
