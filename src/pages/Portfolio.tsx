@@ -4,33 +4,13 @@ import { apiFetch } from "@/api/client";
 import Footer from "@/components/Footer";
 import { ExternalLink, Calendar, CheckCircle2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface PortfolioProject {
-  id: string;
-  title: string;
-  client: string;
-  description: string;
-  status: string;
-  kind?: "client" | "internal" | "personal";
-  startDate: string;
-  endDate: string;
-  deliveries?: Array<{
-    id: string;
-    title: string;
-    type: string;
-    content: string;
-    images?: string[];
-  }>;
-}
-
-/** Year a project belongs to in the portfolio — its delivery (end) year, or the
- *  start year as a fallback. Null when neither date parses. */
-function projectYear(p: PortfolioProject): number | null {
-  const src = p.endDate || p.startDate;
-  if (!src) return null;
-  const d = new Date(src);
-  return Number.isNaN(d.getTime()) ? null : d.getFullYear();
-}
+import {
+  type PortfolioProject,
+  isPortfolioProject,
+  projectYear,
+  getPreviewImage,
+  getLiveLink,
+} from "@/lib/portfolioProjects";
 
 export default function Portfolio() {
   const { t } = useLanguage();
@@ -41,10 +21,7 @@ export default function Portfolio() {
 
   useEffect(() => {
     apiFetch<PortfolioProject[]>("projects.php")
-      .then((all) => {
-        const completed = all.filter((p) => p.status === "completed" && (p.kind ?? "client") === "client");
-        setProjects(completed);
-      })
+      .then((all) => setProjects(all.filter(isPortfolioProject)))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -69,26 +46,6 @@ export default function Portfolio() {
       );
     });
   }, [projects, query, year]);
-
-  // Extract a preview image from project deliveries
-  function getPreviewImage(p: PortfolioProject): string | null {
-    if (!p.deliveries) return null;
-    for (const d of p.deliveries) {
-      if (d.type === "image") {
-        if (d.images?.length) return d.images[0];
-        if (d.content) return d.content;
-      }
-    }
-    // Fallback: any delivery with a link
-    return null;
-  }
-
-  // Extract a live link from project deliveries
-  function getLiveLink(p: PortfolioProject): string | null {
-    if (!p.deliveries) return null;
-    const linkDelivery = p.deliveries.find((d) => d.type === "link");
-    return linkDelivery?.content || null;
-  }
 
   function formatDate(dateStr: string): string {
     if (!dateStr) return "";

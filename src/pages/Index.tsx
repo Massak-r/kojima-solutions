@@ -1,6 +1,7 @@
 import HeroSectionV3 from "@/components/v3/HeroSectionV3";
 import MethodologySection from "@/components/MethodologySection";
 import ServicesSectionV3 from "@/components/v3/ServicesSectionV3";
+import RealisationsSection from "@/components/RealisationsSection";
 import CreditsSectionV3 from "@/components/v3/CreditsSectionV3";
 import FAQSection from "@/components/FAQSection";
 import ContactSectionV3 from "@/components/v3/ContactSectionV3";
@@ -16,6 +17,7 @@ const Index = () => (
       <MethodologySection />
       <SectionDivider />
       <ServicesSectionV3 />
+      <RealisationsSection />
       <SectionDivider />
       <CreditsSectionV3 />
       <SectionDivider />
