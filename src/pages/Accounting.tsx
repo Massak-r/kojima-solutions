@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download, CheckCircle2, Paperclip, Loader2, X } from "lucide-react";
 import { downloadCSV } from "@/lib/csvExport";
 import {
   BarChart,
@@ -43,6 +43,8 @@ import {
   deleteExpense as apiDeleteExpense,
   batchImportExpenses,
 } from "@/api/expenses";
+import { uploadImage } from "@/api/projects";
+import { bufferFile } from "@/lib/fileBuffer";
 
 
 import { formatCHF, todayISO, MONTHS_FR, TVA_RATE } from "@/components/accounting/utils";
@@ -157,6 +159,8 @@ export default function Accounting() {
   const [newDescription, setNewDescription] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [newReceiptUrl, setNewReceiptUrl] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [expenseSearch, setExpenseSearch] = useState("");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -325,6 +329,20 @@ export default function Accounting() {
     return Array.from(ys).sort((a, b) => b - a);
   }, [quotes, expenses, currentYear]);
 
+  async function handleReceiptPick(file: File | undefined) {
+    if (!file) return;
+    setUploadingReceipt(true);
+    try {
+      // Buffer first — Android revokes the picked file's URI across the upload await.
+      const url = await uploadImage(await bufferFile(file));
+      setNewReceiptUrl(url);
+    } catch (err) {
+      console.error("Receipt upload failed", err);
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
+
   // ── Add expense ──
   async function handleAddExpense(e: React.FormEvent) {
     e.preventDefault();
@@ -338,6 +356,7 @@ export default function Accounting() {
       description: newDescription.trim(),
       category: newCategory,
       notes: newNotes.trim() || undefined,
+      receiptUrl: newReceiptUrl || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -348,11 +367,12 @@ export default function Accounting() {
     setNewDescription("");
     setNewAmount("");
     setNewNotes("");
+    setNewReceiptUrl(null);
 
     // Persist to API
     if (expenseApiReady) {
       try {
-        await apiCreateExpense({ date: newExpense.date, amount: newExpense.amount, description: newExpense.description, category: newExpense.category, notes: newExpense.notes });
+        await apiCreateExpense({ date: newExpense.date, amount: newExpense.amount, description: newExpense.description, category: newExpense.category, notes: newExpense.notes, receiptUrl: newExpense.receiptUrl });
       } catch { /* localStorage fallback already saved */ }
     }
   }
@@ -688,6 +708,31 @@ export default function Accounting() {
                     className="font-body text-sm h-9 min-h-0 resize-none flex-1 min-w-0"
                     rows={1}
                   />
+                  {/* Receipt photo */}
+                  {newReceiptUrl ? (
+                    <div className="relative h-9 w-9 shrink-0">
+                      <img src={newReceiptUrl} alt="reçu" className="h-9 w-9 object-cover rounded-md border border-border" />
+                      <button
+                        type="button"
+                        onClick={() => setNewReceiptUrl(null)}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center"
+                        aria-label="Retirer le reçu"
+                      >
+                        <X size={9} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="h-9 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border text-xs font-body text-muted-foreground hover:text-foreground hover:border-primary/40 cursor-pointer transition-colors shrink-0" title="Joindre un reçu (photo)">
+                      {uploadingReceipt ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+                      <span className="hidden sm:inline">Reçu</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => { handleReceiptPick(e.target.files?.[0]); e.currentTarget.value = ""; }}
+                      />
+                    </label>
+                  )}
                   <Button type="submit" className="gap-1.5 shrink-0 w-full sm:w-auto">
                     <Plus size={15} />
                     Ajouter
@@ -796,6 +841,16 @@ export default function Accounting() {
                         <td className="px-4 py-3">
                           <span className="font-medium">{exp.description}</span>
                           {exp.notes && <span className="block text-xs text-muted-foreground">{exp.notes}</span>}
+                          {exp.receiptUrl && (
+                            <a
+                              href={exp.receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline mt-0.5"
+                            >
+                              <Paperclip size={10} /> Reçu
+                            </a>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-destructive">{formatCHF(exp.amount)}</td>
                         <td className="px-4 py-3 text-center">

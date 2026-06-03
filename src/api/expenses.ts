@@ -8,6 +8,7 @@ export interface ExpenseItem {
   category:    string;
   notes?:      string | null;
   accountId?:  string | null;
+  receiptUrl?: string | null;
   createdAt:   string;
 }
 

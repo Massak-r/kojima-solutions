@@ -2,6 +2,14 @@
 require_once __DIR__ . '/_bootstrap.php';
 requireAdminSession();
 
+// Auto-migrate: receipt photo URL (idempotent, self-applies on first request).
+try {
+    $cols = array_column($pdo->query('SHOW COLUMNS FROM expenses')->fetchAll(), 'Field');
+    if (!in_array('receipt_url', $cols)) {
+        $pdo->exec('ALTER TABLE expenses ADD COLUMN receipt_url VARCHAR(512) DEFAULT NULL');
+    }
+} catch (Throwable $e) {}
+
 function mapExpense(array $row): array {
     return [
         'id'          => $row['id'],
@@ -11,6 +19,7 @@ function mapExpense(array $row): array {
         'category'    => $row['category'],
         'notes'       => $row['notes'] ?? null,
         'accountId'   => $row['account_id'] ?? null,
+        'receiptUrl'  => $row['receipt_url'] ?? null,
         'createdAt'   => $row['created_at'],
     ];
 }
@@ -39,7 +48,7 @@ if ($method === 'POST') {
         $items = body();
         if (!is_array($items)) fail('Expected array');
 
-        $stmt = $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt = $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id, receipt_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         $imported = 0;
         foreach ($items as $data) {
             $expId = $data['id'] ?? uuid();
@@ -51,6 +60,7 @@ if ($method === 'POST') {
                 $data['category']    ?? 'other',
                 $data['notes']       ?? null,
                 $data['accountId']   ?? null,
+                $data['receiptUrl']  ?? null,
             ]);
             $imported++;
         }
@@ -60,7 +70,7 @@ if ($method === 'POST') {
     $data  = body();
     $newId = uuid();
 
-    $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    $pdo->prepare('INSERT INTO expenses (id, date, amount, description, category, notes, account_id, receipt_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         ->execute([
             $newId,
             $data['date']        ?? date('Y-m-d'),
@@ -69,6 +79,7 @@ if ($method === 'POST') {
             $data['category']    ?? 'other',
             $data['notes']       ?? null,
             $data['accountId']   ?? null,
+            $data['receiptUrl']  ?? null,
         ]);
 
     $stmt = $pdo->prepare('SELECT * FROM expenses WHERE id = ?');
@@ -89,6 +100,7 @@ if ($method === 'PUT') {
     if (array_key_exists('category',    $data)) { $fields[] = 'category = ?';    $values[] = $data['category']; }
     if (array_key_exists('notes',       $data)) { $fields[] = 'notes = ?';       $values[] = $data['notes']; }
     if (array_key_exists('accountId',   $data)) { $fields[] = 'account_id = ?';  $values[] = $data['accountId']; }
+    if (array_key_exists('receiptUrl',  $data)) { $fields[] = 'receipt_url = ?'; $values[] = $data['receiptUrl']; }
 
     if (!empty($fields)) {
         $values[] = $id;

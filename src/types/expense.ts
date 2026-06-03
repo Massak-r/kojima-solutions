@@ -38,5 +38,6 @@ export interface Expense {
   category: ExpenseCategory;
   notes?: string;
   accountId?: string | null;
+  receiptUrl?: string | null;  // attached receipt photo (uploaded)
   createdAt: string;     // ISO timestamp
 }
