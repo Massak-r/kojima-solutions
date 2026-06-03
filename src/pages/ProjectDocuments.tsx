@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { totalQuote, createEmptyQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import {
-  Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft, ListTodo,
+  Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft, ListTodo, AlertTriangle,
 } from "lucide-react";
 import { getProjectModules } from "@/api/modules";
 import { ModuleResolver, generateQuoteLinesFromSteps } from "@/lib/moduleResolver";
@@ -63,6 +63,20 @@ export default function ProjectDocuments() {
   const [mode, setMode] = useState<string | null>(null);
   const [importOverwriteOpen, setImportOverwriteOpen] = useState(false);
   const [pendingConvert, setPendingConvert] = useState<Quote | null>(null);
+  // Current module selection signature, to flag devis generated from an older one.
+  const [moduleSig, setModuleSig] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    getProjectModules(id)
+      .then((d) => {
+        if (cancelled) return;
+        setModuleSig(new Set((d?.modules ?? []).map((m) => `${m.moduleId}:${m.complexity}`)));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [id]);
 
   const { deleteWithUndo } = useUndoableDelete<Quote>({
     hardDelete: (qid) => deleteQuote(qid),
@@ -90,6 +104,22 @@ export default function ProjectDocuments() {
     : typeFilter === "invoice"
       ? projectQuotes.filter((q) => q.docType === "invoice")
       : projectQuotes.filter((q) => q.docType !== "invoice");
+
+  // A devis is "stale" when the project's current module selection no longer
+  // matches the modules its lines were generated from (module added/removed or
+  // complexity changed). Derived from per-line sourceModuleId — no extra storage.
+  function isDevisStale(q: Quote): boolean {
+    if (moduleSig === null || q.docType === "invoice") return false;
+    const lineSet = new Set(
+      q.lineItems
+        .filter((l) => l.sourceModuleId)
+        .map((l) => `${l.sourceModuleId}:${l.sourceComplexity ?? ""}`),
+    );
+    if (lineSet.size === 0) return false; // not module-derived → nothing to compare
+    if (lineSet.size !== moduleSig.size) return true;
+    for (const s of lineSet) if (!moduleSig.has(s)) return true;
+    return false;
+  }
 
   function handleImportFromModules() {
     if (!id || !project) return;
@@ -293,6 +323,15 @@ export default function ProjectDocuments() {
                           <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 shrink-0", st.cls)}>
                             {st.label}
                           </Badge>
+                          {isDevisStale(q) && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[9px] px-1.5 py-0 shrink-0 bg-amber-100 text-amber-700 inline-flex items-center gap-1"
+                              title="Les modules du projet ont changé depuis ce devis — régénère-le via « Depuis les modules »"
+                            >
+                              <AlertTriangle size={9} /> Modules modifiés
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm font-body font-medium text-foreground/80">{q.clientName || "-"}</p>
                       </div>
