@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { apiFetch } from "@/api/client";
 import Footer from "@/components/Footer";
-import { ExternalLink, Calendar, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Calendar, CheckCircle2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PortfolioProject {
@@ -23,10 +23,21 @@ interface PortfolioProject {
   }>;
 }
 
+/** Year a project belongs to in the portfolio — its delivery (end) year, or the
+ *  start year as a fallback. Null when neither date parses. */
+function projectYear(p: PortfolioProject): number | null {
+  const src = p.endDate || p.startDate;
+  if (!src) return null;
+  const d = new Date(src);
+  return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
 export default function Portfolio() {
   const { t } = useLanguage();
   const [projects, setProjects] = useState<PortfolioProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [year, setYear] = useState<number | "all">("all");
 
   useEffect(() => {
     apiFetch<PortfolioProject[]>("projects.php")
@@ -37,6 +48,27 @@ export default function Portfolio() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Years present in the portfolio, newest first — drives the filter chips.
+  const years = useMemo(() => {
+    const set = new Set<number>();
+    projects.forEach((p) => { const y = projectYear(p); if (y) set.add(y); });
+    return [...set].sort((a, b) => b - a);
+  }, [projects]);
+
+  // Apply the year chip + free-text search (title / client / description).
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return projects.filter((p) => {
+      if (year !== "all" && projectYear(p) !== year) return false;
+      if (!q) return true;
+      return (
+        (p.title || "").toLowerCase().includes(q) ||
+        (p.client || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q)
+      );
+    });
+  }, [projects, query, year]);
 
   // Extract a preview image from project deliveries
   function getPreviewImage(p: PortfolioProject): string | null {
@@ -68,6 +100,8 @@ export default function Portfolio() {
       return dateStr;
     }
   }
+
+  const hasFilter = query.trim() !== "" || year !== "all";
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,64 +137,134 @@ export default function Portfolio() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p) => {
-              const img = getPreviewImage(p);
-              const link = getLiveLink(p);
-              return (
-                <article
-                  key={p.id}
-                  className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-card-hover transition-all duration-300"
-                >
-                  <PortfolioImage src={img} title={p.title} />
+          <>
+            {/* Filter bar — search + year chips */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">
+              <div className="relative flex-1 sm:max-w-xs">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+                <input
+                  type="search"
+                  inputMode="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("Rechercher un projet, un client…", "Search a project, a client…")}
+                  aria-label={t("Rechercher", "Search")}
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-card text-sm font-body outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-colors"
+                />
+              </div>
+              {years.length > 1 && (
+                <div className="flex items-center gap-1.5 flex-wrap sm:ml-auto">
+                  <YearChip active={year === "all"} onClick={() => setYear("all")}>
+                    {t("Tous", "All")}
+                  </YearChip>
+                  {years.map((y) => (
+                    <YearChip key={y} active={year === y} onClick={() => setYear(y)}>
+                      {y}
+                    </YearChip>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                  {/* Content */}
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-display text-base font-semibold text-foreground leading-tight">
-                        {p.title}
-                      </h3>
-                      {link && (
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="shrink-0 p-1.5 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors"
-                          title={t("Voir le site", "Visit site")}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink size={14} />
-                        </a>
-                      )}
-                    </div>
+            {filtered.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-sm text-muted-foreground/60 font-body">
+                  {t("Aucun projet ne correspond à votre recherche.", "No projects match your search.")}
+                </p>
+                {hasFilter && (
+                  <button
+                    onClick={() => { setQuery(""); setYear("all"); }}
+                    className="mt-3 text-xs font-body text-primary hover:underline"
+                  >
+                    {t("Réinitialiser les filtres", "Reset filters")}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((p) => {
+                  const img = getPreviewImage(p);
+                  const link = getLiveLink(p);
+                  return (
+                    <article
+                      key={p.id}
+                      className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-card-hover transition-all duration-300"
+                    >
+                      <PortfolioImage src={img} title={p.title} />
 
-                    {p.client && (
-                      <p className="text-xs font-body text-muted-foreground/60 mb-2">
-                        {p.client}
-                      </p>
-                    )}
+                      {/* Content */}
+                      <div className="p-5">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="font-display text-base font-semibold text-foreground leading-tight">
+                            {p.title}
+                          </h3>
+                          {link && (
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 p-1.5 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors"
+                              title={t("Voir le site", "Visit site")}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </div>
 
-                    {p.description && (
-                      <p className="text-xs font-body text-foreground/60 line-clamp-3 mb-3">
-                        {p.description}
-                      </p>
-                    )}
+                        {p.client && (
+                          <p className="text-xs font-body text-muted-foreground/60 mb-2">
+                            {p.client}
+                          </p>
+                        )}
 
-                    <div className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground/50 whitespace-nowrap">
-                      <Calendar size={10} />
-                      {formatDate(p.startDate)}
-                      {p.endDate && ` – ${formatDate(p.endDate)}`}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                        {p.description && (
+                          <p className="text-xs font-body text-foreground/60 line-clamp-3 mb-3">
+                            {p.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground/50 whitespace-nowrap">
+                          <Calendar size={10} />
+                          {formatDate(p.startDate)}
+                          {p.endDate && ` – ${formatDate(p.endDate)}`}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </section>
 
       <Footer />
     </div>
+  );
+}
+
+function YearChip({
+  active, onClick, children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "px-3 py-1.5 rounded-full text-xs font-body font-medium tabular-nums transition-colors",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
