@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Receipt, Info, Clock, Search, Download, CheckCircle2, Paperclip, Loader2, X } from "lucide-react";
 import { downloadCSV } from "@/lib/csvExport";
+import { buildClotureRows, CLOTURE_COLUMNS } from "@/lib/clotureExport";
 import {
   BarChart,
   Bar,
@@ -969,6 +970,20 @@ export default function Accounting() {
                   </div>
                 ))}
               </dl>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => downloadCSV(buildClotureRows(year, quotes, expenses), CLOTURE_COLUMNS, `cloture-${year}.csv`)}
+              >
+                <Download size={14} /> Export clôture {year} (CSV)
+              </Button>
+              <span className="text-xs font-body text-muted-foreground">
+                Résumé + détail revenus/dépenses (avec liens des reçus) — prêt pour la fiduciaire.
+              </span>
             </div>
 
             <TaxSetAside
