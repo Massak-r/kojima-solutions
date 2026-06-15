@@ -19,12 +19,42 @@ if (defined('CRON_KEY') && CRON_KEY !== '' && $key !== CRON_KEY) {
     exit;
 }
 
+// ── Scheduled push reminders due now ─────────────────────────
+// Fires any reminder whose scheduled_at has passed, reusing the web-push path.
+// Runs before the notifications early-return so reminders go out even when
+// there's no client feedback pending.
+$reminderResults = ['sent' => 0];
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS push_reminders (
+            id            VARCHAR(36) PRIMARY KEY,
+            title         VARCHAR(255) NOT NULL,
+            body          TEXT NULL,
+            url           VARCHAR(512) NOT NULL DEFAULT '/home',
+            scheduled_at  DATETIME NOT NULL,
+            sent_at       DATETIME NULL,
+            created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_due (sent_at, scheduled_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    $due = $pdo->query("SELECT * FROM push_reminders WHERE sent_at IS NULL AND scheduled_at <= UTC_TIMESTAMP() ORDER BY scheduled_at ASC LIMIT 50")->fetchAll();
+    if ($due && file_exists(__DIR__ . '/push_send.php')) {
+        require_once __DIR__ . '/push_send.php';
+        $mark = $pdo->prepare("UPDATE push_reminders SET sent_at = NOW() WHERE id = ?");
+        foreach ($due as $r) {
+            sendPushNotifications($pdo, $r['title'], (string)($r['body'] ?? ''), $r['url'] ?: '/home');
+            $mark->execute([$r['id']]);
+            $reminderResults['sent']++;
+        }
+    }
+} catch (Throwable $e) { /* reminders are best-effort; never break the digest */ }
+
 // ── Fetch all unsent notifications ──────────────────────────
 $stmt    = $pdo->query('SELECT * FROM notifications WHERE sent = 0 ORDER BY created_at ASC');
 $pending = $stmt->fetchAll();
 
 if (empty($pending)) {
-    ok(['sent' => false, 'reason' => 'No pending notifications']);
+    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults]);
 }
 
 $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'chraiti.massaki@gmail.com';
@@ -94,8 +124,9 @@ $pdo->prepare("UPDATE notifications SET sent = 1, sent_at = NOW() WHERE id IN ({
     ->execute($ids);
 
 ok([
-    'sent'  => true,
-    'count' => $count,
-    'email' => null,
-    'push'  => $pushResults,
+    'sent'      => true,
+    'count'     => $count,
+    'email'     => null,
+    'push'      => $pushResults,
+    'reminders' => $reminderResults,
 ]);
