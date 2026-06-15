@@ -1,4 +1,4 @@
-export type RegistryEntryType = 'bank' | 'insurance' | 'subscription' | 'tax';
+export type RegistryEntryType = 'bank' | 'insurance' | 'subscription' | 'tax' | 'custom';
 export type RegistryScope    = 'personal' | 'business' | 'both';
 export type RegistryStatus   = 'active' | 'inactive' | 'expiring' | 'expired';
 
@@ -53,7 +53,19 @@ export interface TaxMeta extends CommonMeta {
   checklist?:  TaxChecklistItem[];
 }
 
-export type RegistryMeta = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta;
+/** A user-defined label/value pair on a custom registry entry. */
+export interface CustomField {
+  id:    string;
+  label: string;
+  value: string;
+}
+
+/** Freeform category: the user adds their own copyable label/value fields. */
+export interface CustomMeta extends CommonMeta {
+  fields?: CustomField[];
+}
+
+export type RegistryMeta = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta | CustomMeta;
 
 export interface RegistryEntry {
   id:              string;
@@ -76,6 +88,7 @@ export const TYPE_LABELS: Record<RegistryEntryType, string> = {
   insurance:    'Assurances',
   subscription: 'Abonnements',
   tax:          'Fiscalité',
+  custom:       'Personnalisé',
 };
 
 export const SCOPE_LABELS: Record<RegistryScope, string> = {
@@ -99,6 +112,7 @@ export function defaultMeta(type: RegistryEntryType): RegistryMeta {
     case 'insurance':    return {};
     case 'subscription': return {};
     case 'tax':          return { checklist: [] };
+    case 'custom':       return { fields: [] };
   }
 }
 

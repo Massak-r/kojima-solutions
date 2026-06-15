@@ -26,13 +26,14 @@ import type { DocFolder } from "@/api/adminDocs";
 import type {
   RegistryEntry, RegistryEntryType, RegistryScope, RegistryStatus,
   BankMeta, InsuranceMeta, SubscriptionMeta, TaxMeta, TaxChecklistItem, CommonMeta,
+  CustomMeta, CustomField,
 } from "@/types/adminRegistry";
 import {
   TYPE_LABELS, SCOPE_LABELS, STATUS_LABELS, REMIND_OPTIONS,
   defaultMeta, daysUntilAction, isExpiringSoon, pickCommonMeta,
 } from "@/types/adminRegistry";
 
-const TYPE_ORDER: RegistryEntryType[] = ['bank', 'insurance', 'subscription', 'tax'];
+const TYPE_ORDER: RegistryEntryType[] = ['bank', 'insurance', 'subscription', 'tax', 'custom'];
 
 const ADMIN_OBJECTIVE_ID = 'bbab3b83-e0e1-4dad-b5b2-e0160cb40c59';
 
@@ -159,6 +160,63 @@ function TaxMetaFields({ meta, onChange }: { meta: TaxMeta; onChange: (m: TaxMet
   );
 }
 
+function CustomMetaFields({ meta, onChange }: { meta: CustomMeta; onChange: (m: CustomMeta) => void }) {
+  const fields = meta.fields ?? [];
+  const [newLabel, setNewLabel] = useState('');
+  const [newValue, setNewValue] = useState('');
+
+  function addField() {
+    const label = newLabel.trim();
+    const value = newValue.trim();
+    if (!label || !value) return;
+    const item: CustomField = { id: crypto.randomUUID(), label, value };
+    onChange({ ...meta, fields: [...fields, item] });
+    setNewLabel('');
+    setNewValue('');
+  }
+  function updateField(id: string, patch: Partial<CustomField>) {
+    onChange({ ...meta, fields: fields.map(f => f.id === id ? { ...f, ...patch } : f) });
+  }
+  function removeField(id: string) {
+    onChange({ ...meta, fields: fields.filter(f => f.id !== id) });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground font-body">
+        Ajoute tes propres champs — chacun devient une puce copiable sur la fiche.
+      </p>
+      <div className="space-y-1.5">
+        {fields.length === 0 && (
+          <p className="text-xs text-muted-foreground/60 italic font-body">Aucun champ pour l'instant.</p>
+        )}
+        {fields.map(f => (
+          <div key={f.id} className="flex items-center gap-2">
+            <Input value={f.label} onChange={e => updateField(f.id, { label: e.target.value })} placeholder="Libellé" className="h-8 text-sm font-body w-1/3" />
+            <Input value={f.value} onChange={e => updateField(f.id, { value: e.target.value })} placeholder="Valeur" className="h-8 text-sm font-body flex-1" />
+            <button type="button" onClick={() => removeField(f.id)} className="p-0.5 text-muted-foreground hover:text-destructive shrink-0">
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Libellé..." className="h-7 text-xs font-body w-1/3" />
+        <Input
+          value={newValue}
+          onChange={e => setNewValue(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addField())}
+          placeholder="Valeur..."
+          className="h-7 text-xs font-body flex-1"
+        />
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={addField}>
+          <Plus size={11} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
@@ -250,7 +308,7 @@ interface RegistreTabProps {
   onOpenFolder: (folderId: string) => void;
 }
 
-type MetaState = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta;
+type MetaState = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta | CustomMeta;
 
 export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
   const { toast } = useToast();
@@ -462,6 +520,11 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
       if (checklist.length) {
         const done = checklist.filter(c => c.done).length;
         add('Documents', `${done} / ${checklist.length}`, false);
+      }
+    } else if (entry.type === 'custom') {
+      const fields = (m.fields as CustomField[] | undefined) ?? [];
+      for (const f of fields) {
+        if (f?.label && f?.value) add(String(f.label), String(f.value));
       }
     }
 
@@ -725,6 +788,7 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
               {formType === 'insurance'    && <InsuranceMetaFields    meta={formMeta as InsuranceMeta}    onChange={m => setFormMeta(m)} />}
               {formType === 'subscription' && <SubscriptionMetaFields meta={formMeta as SubscriptionMeta} onChange={m => setFormMeta(m)} />}
               {formType === 'tax'          && <TaxMetaFields          meta={formMeta as TaxMeta}          onChange={m => setFormMeta(m)} />}
+              {formType === 'custom'       && <CustomMetaFields       meta={formMeta as CustomMeta}       onChange={m => setFormMeta(m)} />}
             </div>
 
             {/* Identifiers — generic, shown as copyable chips on the card */}
