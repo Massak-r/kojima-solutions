@@ -1,9 +1,13 @@
 import { apiFetch } from "./client";
 
+/** Optional 1-tap capture type, set at capture time to pre-seed triage. */
+export type CaptureKind = "idea" | "todo" | "note" | "urgent";
+
 export interface InboxCapture {
   id: string;
   source: "admin" | "personal";
   text: string;
+  kind: CaptureKind | null;
   project_hint: string | null;
   created_at: string;
   triaged_at: string | null;
@@ -27,14 +31,16 @@ export function listInboxCaptures(opts?: { status?: InboxStatus; source?: "admin
   return apiFetch<InboxList>(`inbox.php?${params}`);
 }
 
-/** Add a quick capture. project_hint is a freeform tag, not a strict reference. */
-export function addInboxCapture(text: string, opts?: { projectHint?: string; source?: "admin" | "personal" }): Promise<InboxCapture> {
+/** Add a quick capture. project_hint is a freeform tag, not a strict reference.
+ *  kind is an optional capture type used to pre-seed triage. */
+export function addInboxCapture(text: string, opts?: { projectHint?: string; source?: "admin" | "personal"; kind?: CaptureKind }): Promise<InboxCapture> {
   return apiFetch<InboxCapture>("inbox.php", {
     method: "POST",
     body: JSON.stringify({
       text,
       projectHint: opts?.projectHint,
       source: opts?.source ?? "admin",
+      kind: opts?.kind,
     }),
   });
 }

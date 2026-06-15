@@ -17,6 +17,7 @@ import { createSubtask } from "@/api/todoSubtasks";
 import { createDecision } from "@/api/objectiveDecisions";
 import { createNote as createObjectiveNote } from "@/api/objectiveNotes";
 import { createMeetingNote } from "@/api/meetingNotes";
+import { CAPTURE_KIND_MAP } from "@/lib/captureKinds";
 import { useObjectives } from "@/hooks/useObjectives";
 import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { subtasksQueryKey } from "@/hooks/useSubtasks";
@@ -507,6 +508,15 @@ function CaptureRow({
           )}
           <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-muted-foreground/60">
             <span className="tabular-nums">{created}</span>
+            {capture.kind && CAPTURE_KIND_MAP[capture.kind] && (
+              <span className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full normal-case font-body",
+                CAPTURE_KIND_MAP[capture.kind].badge,
+              )}>
+                <span aria-hidden>{CAPTURE_KIND_MAP[capture.kind].emoji}</span>
+                {CAPTURE_KIND_MAP[capture.kind].label}
+              </span>
+            )}
             {capture.project_hint && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100/60 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 normal-case">
                 <FolderOpen size={9} />
