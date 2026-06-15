@@ -47,9 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Auto-subscribe on mount if already authenticated
+  // Refresh the push subscription on mount, but ONLY if permission was already
+  // granted — never call subscribeToPush() (which prompts) from here. A stale
+  // localStorage admin flag can momentarily set isAdmin=true on a PUBLIC page
+  // before the server probe clears it; prompting here leaked the notification
+  // request onto the landing/intake pages. Prompting now happens only on an
+  // explicit login (loginAdmin) or the Settings "Activer" button.
   useEffect(() => {
-    if (isAdmin && isPushSupported()) {
+    if (
+      isAdmin &&
+      isPushSupported() &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    ) {
       subscribeToPush().catch(() => {});
     }
   }, [isAdmin]);

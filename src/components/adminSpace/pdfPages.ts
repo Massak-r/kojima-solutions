@@ -50,7 +50,10 @@ async function getPdfjs(): Promise<PdfjsModule> {
  *  intact for pdf-lib assembly afterwards. */
 export async function openForRender(bytes: ArrayBuffer): Promise<RenderDoc> {
   const pdfjs = await getPdfjs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
+  // `bytes.slice(0)` is a real copy — `new Uint8Array(bytes)` would only be a
+  // view, so pdfjs would neuter the caller's buffer when it transfers it to the
+  // worker and the later pdf-lib assembly would fail on a detached ArrayBuffer.
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
   return doc as unknown as RenderDoc;
 }
 

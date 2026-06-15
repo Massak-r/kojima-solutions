@@ -231,8 +231,8 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Une idée, une tâche, une liste… (une ligne = une capture)"
-                    rows={4}
-                    className="w-full text-sm font-body bg-transparent border border-border/50 rounded-lg p-2.5 pr-10 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 resize-none placeholder:text-muted-foreground/40"
+                    rows={7}
+                    className="w-full text-sm font-body bg-transparent border border-border/50 rounded-lg p-2.5 pr-10 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 resize-y min-h-[120px] max-h-[60vh] leading-relaxed placeholder:text-muted-foreground/40"
                   />
                   {srSupported && (
                     <button

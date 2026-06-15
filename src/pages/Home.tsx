@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,25 +24,23 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { open: openQuickCreate } = useQuickCreate();
 
-  const tabFromUrl = searchParams.get("tab");
-  const initialTab: Tab =
-    tabFromUrl === "kanban" ? "kanban" :
-    tabFromUrl === "overview" ? "overview" :
-    tabFromUrl === "objectives" ? "objectives" :
+  // Tab is URL-driven (single source of truth) so a deep link — e.g. the
+  // notification dropdown navigating to ?tab=overview — switches the tab even
+  // when we're already mounted on /home, with no effect ping-pong.
+  const tabParam = searchParams.get("tab");
+  const tab: Tab =
+    tabParam === "kanban" ? "kanban" :
+    tabParam === "overview" ? "overview" :
+    tabParam === "objectives" ? "objectives" :
     "streams";
-  const [tab, setTab] = useState<Tab>(initialTab);
-
-  // Keep URL in sync with tab
-  useEffect(() => {
-    const current = searchParams.get("tab");
-    const target = tab === "streams" ? null : tab;
-    if (current !== target) {
-      const next = new URLSearchParams(searchParams);
-      if (target) next.set("tab", target);
-      else next.delete("tab");
-      setSearchParams(next, { replace: true });
-    }
-  }, [tab, searchParams, setSearchParams]);
+  const setTab = useCallback((t: Tab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (t === "streams") next.delete("tab");
+      else next.set("tab", t);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // ?focus=new-objective: switch to the Objectifs tab, scroll the inline
   // AddObjectiveForm input into view and focus it. This is what the FAB +
@@ -50,7 +48,13 @@ export default function Home() {
   // objective creation from anywhere in the app.
   useEffect(() => {
     if (searchParams.get("focus") !== "new-objective") return;
-    setTab("objectives");
+    // Switch to Objectifs and clear the focus flag in one URL update.
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", "objectives");
+      next.delete("focus");
+      return next;
+    }, { replace: true });
     const t = setTimeout(() => {
       const input = document.getElementById("new-objective-input");
       if (input) {
@@ -58,9 +62,6 @@ export default function Home() {
         setTimeout(() => (input as HTMLElement).focus(), 350);
       }
     }, 500);
-    const next = new URLSearchParams(searchParams);
-    next.delete("focus");
-    setSearchParams(next, { replace: true });
     return () => clearTimeout(t);
   }, [searchParams, setSearchParams]);
 

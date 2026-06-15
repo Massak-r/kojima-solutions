@@ -217,7 +217,7 @@ const Header = () => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -4 }}
                         transition={{ duration: 0.12 }}
-                        className="absolute right-0 top-full mt-1 w-44 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+                        className="absolute right-0 top-full mt-1 w-44 glass-card bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50"
                       >
                         <Link
                           to="/clients"
@@ -333,7 +333,7 @@ const Header = () => {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -4 }}
                       transition={{ duration: 0.12 }}
-                      className="absolute right-0 top-full mt-1 w-44 glass-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+                      className="absolute right-0 top-full mt-1 w-44 glass-card bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50"
                     >
                       <Link
                         to="/clients"
