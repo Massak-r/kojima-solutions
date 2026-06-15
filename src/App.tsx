@@ -47,6 +47,7 @@ const ClientsManager        = lazy(() => import("./pages/ClientsManager"));
 const ClientDetail          = lazy(() => import("./pages/ClientDetail"));
 const Accounting            = lazy(() => import("./pages/Accounting"));
 const Cockpit               = lazy(() => import("./pages/Cockpit"));
+const Relances              = lazy(() => import("./pages/Relances"));
 const Tresorerie            = lazy(() => import("./pages/Tresorerie"));
 const AdminSpace            = lazy(() => import("./pages/AdminSpace"));
 const SettingsPage          = lazy(() => import("./pages/SettingsPage"));
@@ -147,6 +148,7 @@ const App = () => (
                       {/* Protected admin routes */}
                       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
                       <Route path="/cockpit" element={<ProtectedRoute><Cockpit /></ProtectedRoute>} />
+                      <Route path="/relances" element={<ProtectedRoute><Relances /></ProtectedRoute>} />
                       <Route path="/space" element={<Navigate to="/home" replace />} />
                       <Route path="/space-full" element={<Navigate to="/home?tab=objectives" replace />} />
                       <Route path="/quotes" element={<ProtectedRoute><QuotesList /></ProtectedRoute>} />

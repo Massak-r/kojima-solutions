@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { Gauge, TrendingUp, Receipt, Clock, AlertTriangle, Percent, Users, ArrowRight } from "lucide-react";
+import { Gauge, TrendingUp, Receipt, Clock, AlertTriangle, Percent, Users, ArrowRight, BellRing } from "lucide-react";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useClients } from "@/contexts/ClientsContext";
+import { useProjects } from "@/contexts/ProjectsContext";
 import { computeCockpitMetrics } from "@/lib/cockpitMetrics";
+import { computeRelances } from "@/lib/relances";
 import { formatCHF } from "@/components/kojimaSpace/helpers";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +43,10 @@ function KpiCard({ icon, label, value, hint, tone = "default", to }: {
 
 export default function Cockpit() {
   const { quotes } = useQuotes();
+  const { clients } = useClients();
+  const { projects } = useProjects();
   const m = useMemo(() => computeCockpitMetrics(quotes, new Date()), [quotes]);
+  const rel = useMemo(() => computeRelances(quotes, clients, projects, new Date()), [quotes, clients, projects]);
   const topMax = m.topClients[0]?.ca ?? 0;
   const caTotal = m.topClients.reduce((s, c) => s + c.ca, 0);
   const noData = m.monthly.every((p) => p.ca === 0);
@@ -61,6 +67,27 @@ export default function Cockpit() {
       </header>
 
       <div className="max-w-5xl mx-auto px-6 md:px-12 py-8 space-y-6">
+        {/* Relances — what needs a nudge today */}
+        {rel.count > 0 && (
+          <Link
+            to="/relances"
+            className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/40 transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+              <BellRing size={17} className="text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-sm font-bold text-foreground">
+                {rel.count} relance{rel.count > 1 ? "s" : ""} en attente
+              </div>
+              <div className="text-[12px] font-body text-muted-foreground">
+                {formatCHF(rel.atStake)} à encaisser · devis & clients à suivre
+              </div>
+            </div>
+            <ArrowRight size={16} className="text-muted-foreground/40 group-hover:text-foreground transition-colors shrink-0" />
+          </Link>
+        )}
+
         {/* Vital signs */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <KpiCard icon={<TrendingUp size={14} className="text-palette-sage" />} label="CA encaissé (année)" value={formatCHF(m.caYtd)} to="/accounting" />
