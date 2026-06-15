@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
   Sparkles, ChevronDown, ChevronUp, FolderOpen, StickyNote, FolderKanban,
-  Archive,
+  Archive, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,7 @@ import { createDecision } from "@/api/objectiveDecisions";
 import { createNote as createObjectiveNote } from "@/api/objectiveNotes";
 import { createMeetingNote } from "@/api/meetingNotes";
 import { CAPTURE_KIND_MAP } from "@/lib/captureKinds";
+import { suggestTriage } from "@/lib/triageSuggest";
 import { useObjectives } from "@/hooks/useObjectives";
 import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { subtasksQueryKey } from "@/hooks/useSubtasks";
@@ -424,6 +425,28 @@ function CaptureRow({
 
   const noteTargetTotal = projectsForNote.length + objectivesOnly.length;
 
+  // One-tap suggested destination: rank the best target from type + tag +
+  // keywords so the common case skips the picker entirely. null = no confident
+  // suggestion → fall back to the manual pills.
+  const suggestion = useMemo(
+    () => suggestTriage(capture, objectivesOnly, projectsForNote),
+    [capture, objectivesOnly, projectsForNote],
+  );
+
+  function acceptSuggestion() {
+    if (!suggestion) return;
+    if (suggestion.action === "subtask") {
+      const obj = objectivesOnly.find((o) => o.id === suggestion.targetId);
+      if (obj) onConvertSubtask(obj);
+    } else if (suggestion.targetKind === "project") {
+      const p = projectsForNote.find((p) => p.id === suggestion.targetId);
+      if (p) onConvertNote({ kind: "project", project: p });
+    } else {
+      const o = objectivesOnly.find((o) => o.id === suggestion.targetId);
+      if (o) onConvertNote({ kind: "objective", objective: o });
+    }
+  }
+
   const created = useMemo(() => {
     const d = new Date(capture.created_at);
     const diffMs = Date.now() - d.getTime();
@@ -530,6 +553,20 @@ function CaptureRow({
       {/* Row 2 — actions */}
       {!editing && (
         <div className="flex items-center gap-1 mt-2 pl-[18px] flex-wrap">
+          {suggestion && (
+            <button
+              onClick={acceptSuggestion}
+              disabled={busy}
+              title="Routage suggéré — un tap pour classer"
+              className={cn(
+                "inline-flex items-center gap-1 text-[11px] font-body font-semibold rounded-full px-2 py-0.5 transition-colors max-w-full",
+                "bg-violet-600 text-white hover:bg-violet-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed",
+              )}
+            >
+              <Zap size={11} className="shrink-0" />
+              <span className="truncate">{suggestion.label}</span>
+            </button>
+          )}
           <ActionPill
             onClick={() => setPicker(p => p === "note" ? null : "note")}
             disabled={busy || noteTargetTotal === 0}
