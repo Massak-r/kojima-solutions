@@ -65,15 +65,6 @@ export default function Pipeline() {
     return map;
   }, [leads]);
 
-  // Active pipeline value = everything not yet won/lost. Conversion = won / (won+lost).
-  const activeValue = useMemo(
-    () => leads.filter((l) => l.status === "new" || l.status === "contacted" || l.status === "proposal").reduce((s, l) => s + l.value, 0),
-    [leads],
-  );
-  const wonCount = byStatus.won.length;
-  const closedCount = byStatus.won.length + byStatus.lost.length;
-  const conversion = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : null;
-
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
       {/* Header */}
@@ -82,10 +73,8 @@ export default function Pipeline() {
           <div>
             <p className="text-eyebrow flex items-center gap-1.5"><Handshake size={13} className="text-primary" /> Pipeline</p>
             <h1 className="mt-1.5 font-display text-2xl font-bold text-foreground leading-none">Pipeline commercial</h1>
-            <p className="mt-2 text-sm font-body text-muted-foreground tabular-nums">
-              <span className="font-semibold text-foreground">{chf(activeValue)}</span> en cours
-              {conversion !== null && <> · conversion {conversion}%</>}
-              {" · "}{leads.length} lead{leads.length > 1 ? "s" : ""}
+            <p className="mt-1.5 text-sm font-body text-muted-foreground">
+              {leads.length} lead{leads.length > 1 ? "s" : ""} dans le tunnel
             </p>
           </div>
           <Button onClick={() => setAdding(true)} size="sm" className="gap-1.5">
@@ -93,6 +82,8 @@ export default function Pipeline() {
           </Button>
         </div>
       </header>
+
+      {!isLoading && leads.length > 0 && <PipelineAnalytics leads={leads} />}
 
       {isLoading ? (
         <p className="text-sm font-body text-muted-foreground py-12 text-center">Chargement…</p>
@@ -317,5 +308,83 @@ function AddLeadDialog({
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
+  );
+}
+
+// ── Analytics ───────────────────────────────────────────────────────────────
+
+function PipelineAnalytics({ leads }: { leads: Lead[] }) {
+  const stats = useMemo(() => {
+    const isActive = (s: LeadStatus) => s === "new" || s === "contacted" || s === "proposal";
+    const won = leads.filter((l) => l.status === "won");
+    const lost = leads.filter((l) => l.status === "lost");
+    const active = leads.filter((l) => isActive(l.status));
+    const wonValue = won.reduce((s, l) => s + l.value, 0);
+    const activeValue = active.reduce((s, l) => s + l.value, 0);
+    const closedCount = won.length + lost.length;
+    const conversion = closedCount > 0 ? Math.round((won.length / closedCount) * 100) : null;
+    const avgWon = won.length ? Math.round(wonValue / won.length) : 0;
+
+    const map = new Map<string, { count: number; value: number; won: number; lost: number }>();
+    for (const l of leads) {
+      const key = (l.source || "").trim() || "Sans source";
+      const e = map.get(key) ?? { count: 0, value: 0, won: 0, lost: 0 };
+      e.count += 1;
+      e.value += l.value;
+      if (l.status === "won") e.won += 1;
+      if (l.status === "lost") e.lost += 1;
+      map.set(key, e);
+    }
+    const bySource = [...map.entries()]
+      .map(([source, e]) => ({
+        source,
+        ...e,
+        winRate: e.won + e.lost > 0 ? Math.round((e.won / (e.won + e.lost)) * 100) : null,
+      }))
+      .sort((a, b) => b.value - a.value);
+    const maxValue = Math.max(1, ...bySource.map((s) => s.value));
+
+    return { wonValue, activeValue, conversion, avgWon, wonCount: won.length, closedCount, activeCount: active.length, bySource, maxValue };
+  }, [leads]);
+
+  return (
+    <section className="mb-6 space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Tile label="En cours" value={chf(stats.activeValue)} hint={`${stats.activeCount} lead${stats.activeCount > 1 ? "s" : ""}`} />
+        <Tile label="Gagné" value={chf(stats.wonValue)} hint={`${stats.wonCount} signé${stats.wonCount > 1 ? "s" : ""}`} tone="emerald" />
+        <Tile label="Conversion" value={stats.conversion != null ? `${stats.conversion}%` : "—"} hint={`${stats.wonCount}/${stats.closedCount} clos`} />
+        <Tile label="Panier moyen" value={stats.wonCount ? chf(stats.avgWon) : "—"} hint="par deal gagné" />
+      </div>
+
+      {stats.bySource.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card shadow-card p-4">
+          <p className="text-eyebrow mb-3">Par source</p>
+          <div className="space-y-2.5">
+            {stats.bySource.map((s) => (
+              <div key={s.source} className="flex items-center gap-3">
+                <span className="w-24 sm:w-28 shrink-0 text-xs font-body text-foreground truncate">{s.source}</span>
+                <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                  <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.round((s.value / stats.maxValue) * 100)}%` }} />
+                </div>
+                <span className="w-16 sm:w-20 shrink-0 text-right text-[11px] font-mono tabular-nums text-muted-foreground">{chf(s.value)}</span>
+                <span className="w-20 shrink-0 text-right text-[11px] font-body text-muted-foreground">
+                  {s.winRate != null ? `${s.winRate}% gagné` : `${s.count} lead${s.count > 1 ? "s" : ""}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Tile({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "emerald" }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-card p-3.5">
+      <p className="text-eyebrow text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 font-display text-lg font-bold tabular-nums leading-none", tone === "emerald" ? "text-emerald-600" : "text-foreground")}>{value}</p>
+      {hint && <p className="mt-1 text-[11px] font-body text-muted-foreground">{hint}</p>}
+    </div>
   );
 }
