@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target, Compass } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target, Compass, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuickCreate } from "@/contexts/QuickCreateContext";
 import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
@@ -13,11 +13,12 @@ import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
 import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
+import { AujourdhuiTab } from "@/components/home/AujourdhuiTab";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
 import { formatDateWithWeekday } from "@/lib/dateFormat";
 
-type Tab = "streams" | "kanban" | "overview" | "objectives";
+type Tab = "today" | "streams" | "kanban" | "overview" | "objectives";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -29,14 +30,15 @@ export default function Home() {
   // when we're already mounted on /home, with no effect ping-pong.
   const tabParam = searchParams.get("tab");
   const tab: Tab =
+    tabParam === "streams" ? "streams" :
     tabParam === "kanban" ? "kanban" :
     tabParam === "overview" ? "overview" :
     tabParam === "objectives" ? "objectives" :
-    "streams";
+    "today";
   const setTab = useCallback((t: Tab) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (t === "streams") next.delete("tab");
+      if (t === "today") next.delete("tab");
       else next.set("tab", t);
       return next;
     }, { replace: true });
@@ -79,13 +81,13 @@ export default function Home() {
       if (!localStorage.getItem(key)) {
         setMondayBriefOpen(true);
       }
-    } catch {}
+    } catch { /* localStorage unavailable — skip the brief */ }
   }, []);
   function handleMondayBriefChange(next: boolean) {
     setMondayBriefOpen(next);
     if (!next) {
       const { year, week } = isoWeekOf(new Date());
-      try { localStorage.setItem(`monday-brief-${year}-${week}`, "1"); } catch {}
+      try { localStorage.setItem(`monday-brief-${year}-${week}`, "1"); } catch { /* ignore */ }
     }
   }
 
@@ -145,6 +147,12 @@ export default function Home() {
         {/* Tabs */}
         <div className="flex gap-1 p-0.5 bg-muted/40 rounded-full w-fit mb-6">
           <TabButton
+            label="Aujourd'hui"
+            icon={Sun}
+            active={tab === "today"}
+            onClick={() => setTab("today")}
+          />
+          <TabButton
             label="Streams"
             icon={LayoutDashboard}
             active={tab === "streams"}
@@ -170,6 +178,7 @@ export default function Home() {
           />
         </div>
 
+        {tab === "today" && <AujourdhuiTab />}
         {tab === "streams" && (
           <div className="space-y-5">
             <AlertsZone />
