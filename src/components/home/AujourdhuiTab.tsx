@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -16,6 +17,8 @@ import { DayBlocks } from "@/components/home/DayBlocks";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
+import { toISODate } from "@/lib/weekDates";
+import { Celebration } from "@/components/ui/celebration";
 
 function itemTitle(item: TodayItem): string {
   return item.kind === "subtask" ? item.subtask.text : item.task.title;
@@ -42,6 +45,25 @@ export function AujourdhuiTab() {
   const { updateProjectTask } = useProjects();
   const { flag: flagSubtask } = useFlagSubtask();
   const isMobile = useIsMobile();
+
+  // Celebrate clearing the day's sprint — fires once per day the moment the
+  // last pending item is completed (not on a fresh load that's already empty).
+  const [celebrate, setCelebrate] = useState(false);
+  const prevPendingRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevPendingRef.current;
+    if (prev !== undefined && prev > 0 && counts.pending === 0 && counts.done > 0) {
+      const key = `koji-day-celebrated-${toISODate(new Date())}`;
+      try {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, "1");
+          setCelebrate(true);
+          haptic("success");
+        }
+      } catch { /* ignore */ }
+    }
+    prevPendingRef.current = counts.pending;
+  }, [counts.pending, counts.done]);
 
   const total = counts.pending + counts.done;
   const progress = total === 0 ? 0 : Math.round((counts.done / total) * 100);
@@ -227,6 +249,13 @@ export function AujourdhuiTab() {
           )}
         </section>
       )}
+
+      <Celebration
+        show={celebrate}
+        title="Journée bouclée"
+        subtitle={`${counts.done} tâche${counts.done > 1 ? "s" : ""} terminée${counts.done > 1 ? "s" : ""} aujourd'hui — bravo.`}
+        onDone={() => setCelebrate(false)}
+      />
     </div>
   );
 }
