@@ -14,6 +14,7 @@ import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { AujourdhuiTab } from "@/components/home/AujourdhuiTab";
+import { HomeSearch } from "@/components/home/HomeSearch";
 import { haptic } from "@/lib/haptics";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
@@ -143,6 +144,7 @@ export default function Home() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+        <HomeSearch />
         <PendingDocsBanner className="mb-5" />
 
         {/* Tabs */}
