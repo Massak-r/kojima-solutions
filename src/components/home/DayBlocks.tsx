@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Clock, Plus, Trash2 } from "lucide-react";
 import { toISODate } from "@/lib/weekDates";
 import { useTimeBlocks, useCreateTimeBlock, useDeleteTimeBlock } from "@/hooks/useTimeBlocks";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
+  ResponsiveDialogTitle, ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import { haptic } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +48,7 @@ export function DayBlocks() {
     if (!valid) return;
     createBlock.mutate(
       { day, startMin, endMin, title: title.trim() },
-      { onSuccess: () => { setOpen(false); setTitle(""); } },
+      { onSuccess: () => { haptic("success"); setOpen(false); setTitle(""); } },
     );
   }
 
@@ -95,7 +99,7 @@ export function DayBlocks() {
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60">{durationLabel(b.startMin, b.endMin)}</span>
                     <button
-                      onClick={() => deleteBlock.mutate(b.id)}
+                      onClick={() => { haptic("tap"); deleteBlock.mutate(b.id); }}
                       aria-label="Supprimer le bloc"
                       className="p-1 rounded-md text-muted-foreground/40 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
                     >
@@ -109,11 +113,11 @@ export function DayBlocks() {
         )}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Nouveau bloc</DialogTitle>
-          </DialogHeader>
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent className="sm:max-w-sm">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Nouveau bloc</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
           <div className="space-y-3">
             <div className="flex gap-3">
               <div className="flex-1 space-y-1">
@@ -138,12 +142,12 @@ export function DayBlocks() {
             </div>
             {!valid && <p className="text-[11px] text-destructive font-body">La fin doit être après le début.</p>}
           </div>
-          <DialogFooter>
+          <ResponsiveDialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
             <Button onClick={submit} disabled={!valid || createBlock.isPending}>Ajouter</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </section>
   );
 }

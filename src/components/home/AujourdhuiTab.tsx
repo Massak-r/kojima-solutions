@@ -13,6 +13,9 @@ import {
   useTodaysSprint, type TodayItem, type TodaySuggestion, type SuggestionReason,
 } from "@/hooks/useTodaysSprint";
 import { DayBlocks } from "@/components/home/DayBlocks";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { haptic } from "@/lib/haptics";
 
 function itemTitle(item: TodayItem): string {
   return item.kind === "subtask" ? item.subtask.text : item.task.title;
@@ -38,6 +41,7 @@ export function AujourdhuiTab() {
   const updateSubtask = useUpdateSubtask();
   const { updateProjectTask } = useProjects();
   const { flag: flagSubtask } = useFlagSubtask();
+  const isMobile = useIsMobile();
 
   const total = counts.pending + counts.done;
   const progress = total === 0 ? 0 : Math.round((counts.done / total) * 100);
@@ -52,6 +56,7 @@ export function AujourdhuiTab() {
   }
 
   function completeItem(item: TodayItem) {
+    haptic("success");
     if (item.kind === "subtask") {
       updateSubtask.mutate({ id: item.subtask.id, patch: { completed: true } });
     } else {
@@ -65,6 +70,7 @@ export function AujourdhuiTab() {
    *  tomorrow starts clean (mirrors the daily sprint-cleanup). */
   function closeDay() {
     if (done.length === 0) return;
+    haptic("success");
     done.forEach((item) => {
       if (item.kind === "subtask") updateSubtask.mutate({ id: item.subtask.id, patch: { flaggedToday: false } });
       else updateProjectTask(item.project.id, item.task.id, { flaggedToday: false });
@@ -145,7 +151,17 @@ export function AujourdhuiTab() {
           </header>
           <ul className="divide-y divide-border/50">
             {flagged.map((item) => (
-              <PlanRow key={`${item.kind}:${item.id}`} item={item} onComplete={() => completeItem(item)} onOpen={() => openItem(item)} />
+              <li key={`${item.kind}:${item.id}`}>
+                <SwipeableRow
+                  enabled={isMobile}
+                  onSwipe={() => completeItem(item)}
+                  actionLabel="Terminé"
+                  actionIcon={<CheckCircle2 size={16} />}
+                  contentClassName="bg-card"
+                >
+                  <PlanRow item={item} onComplete={() => completeItem(item)} onOpen={() => openItem(item)} />
+                </SwipeableRow>
+              </li>
             ))}
           </ul>
         </section>
@@ -196,7 +212,7 @@ export function AujourdhuiTab() {
           </div>
           <ul className="space-y-1.5">
             {suggestions.slice(0, 8).map((s) => (
-              <SuggestionRow key={s.id} suggestion={s} disabled={counts.capReached} onAdd={() => flagSubtask(s.subtask)} />
+              <SuggestionRow key={s.id} suggestion={s} disabled={counts.capReached} onAdd={() => { haptic("tap"); flagSubtask(s.subtask); }} />
             ))}
           </ul>
           {suggestions.length > 8 && (
@@ -214,7 +230,7 @@ function PlanRow({ item, onComplete, onOpen }: { item: TodayItem; onComplete: ()
   const { label, Icon } = itemSource(item);
   const must = itemIsMust(item);
   return (
-    <li className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors group">
+    <div className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors group">
       <button
         onClick={onComplete}
         aria-label="Marquer comme terminé"
@@ -236,7 +252,7 @@ function PlanRow({ item, onComplete, onOpen }: { item: TodayItem; onComplete: ()
         </div>
       </button>
       <ArrowRight size={14} className="shrink-0 text-muted-foreground/30 group-hover:text-foreground transition-colors" />
-    </li>
+    </div>
   );
 }
 

@@ -23,6 +23,8 @@ import { suggestTriage } from "@/lib/triageSuggest";
 import { useObjectives } from "@/hooks/useObjectives";
 import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
 import { subtasksQueryKey } from "@/hooks/useSubtasks";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { UnifiedObjective } from "@/api/objectiveSource";
 
 const PENDING_KEY = ["inbox-captures", "admin", "pending"] as const;
@@ -455,6 +457,7 @@ function CaptureRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(capture.text);
   const [picker, setPicker] = useState<PickerMode>(null);
+  const isMobile = useIsMobile();
 
   const objectivesOnly = useMemo(
     () => objectives.filter(o => o.isObjective && !o.completed),
@@ -528,7 +531,8 @@ function CaptureRow({
     setEditing(false);
   }
 
-  return (
+  const swipeEnabled = isMobile && !!suggestion && !editing;
+  const row = (
     <div className={cn(
       "rounded-xl border border-border/50 bg-card/70 px-3 py-2.5 group transition-colors",
       "hover:border-violet-300/60 dark:hover:border-violet-500/30",
@@ -719,6 +723,24 @@ function CaptureRow({
       </AnimatePresence>
     </div>
   );
+
+  // Mobile swipe-to-triage: drag right to accept the suggested destination.
+  if (swipeEnabled) {
+    return (
+      <SwipeableRow
+        direction="right"
+        onSwipe={acceptSuggestion}
+        actionLabel="Classer"
+        actionIcon={<Zap size={14} />}
+        actionClassName="bg-violet-600 text-white"
+        contentClassName="bg-card"
+        className="rounded-xl"
+      >
+        {row}
+      </SwipeableRow>
+    );
+  }
+  return row;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

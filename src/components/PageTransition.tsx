@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { ReactNode, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 /**
  * Wraps route content with a simple fade-in on navigation.
@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function PageTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const regionRef = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     // Defer to next frame so the transition has started before we move focus.
@@ -29,9 +30,9 @@ export default function PageTransition({ children }: { children: ReactNode }) {
         id="page-main"
         role="main"
         tabIndex={-1}
-        initial={{ opacity: 0, y: 6 }}
+        initial={reduce ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: reduce ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
         className="outline-none"
       >
         {children}

@@ -14,6 +14,7 @@ import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { AujourdhuiTab } from "@/components/home/AujourdhuiTab";
+import { haptic } from "@/lib/haptics";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { isoWeekOf } from "@/lib/recurrencePeriod";
 import { formatDateWithWeekday } from "@/lib/dateFormat";
@@ -208,7 +209,7 @@ function TabButton({
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => { haptic("tap"); onClick(); }}
       className={`px-3 py-1.5 text-xs font-body font-semibold rounded-full transition-colors flex items-center gap-1.5 ${
         active
           ? "bg-background text-foreground shadow-sm"
