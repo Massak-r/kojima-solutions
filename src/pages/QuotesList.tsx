@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus, Users, Wallet } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
-import { totalQuote, netSubtotalQuote, nextQuoteNumber } from "@/types/quote";
+import { totalQuote, netSubtotalQuote, nextQuoteNumber, invoiceNumberFromQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { QuoteStatsPanel } from "@/components/quotes/QuoteStatsPanel";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
@@ -233,23 +234,31 @@ export default function QuotesList() {
   function billPctOfQuote(original: Quote, pct: number, kind: "acompte" | "solde"): string {
     const base = netSubtotalQuote(original);
     const newId = crypto.randomUUID?.() ?? `q-${Date.now()}`;
-    const label = kind === "acompte" ? "Acompte" : "Solde";
+    const meta = kind === "acompte"
+      ? { label: "Acompte", mention: t("à la signature", "on signing") }
+      : { label: "Solde", mention: t("à la réalisation", "on delivery") };
+    const heading = `${meta.label} ${meta.mention} (${pct}%)`;
+    // The acompte is the primary invoice for this devis, so mirror the devis
+    // number (2c); the solde takes the next sequential number.
+    const number = kind === "acompte"
+      ? (invoiceNumberFromQuote(original.quoteNumber, quotes) ?? nextInvoiceNumber())
+      : nextInvoiceNumber();
     const clone: any = {
       ...original,
       id: newId,
-      quoteNumber: nextInvoiceNumber(),
+      quoteNumber: number,
       docType: "invoice",
       invoiceStatus: "draft",
       isTemplate: false,
       templateName: null,
       discountEnabled: false,
-      projectTitle: `${label} ${pct}% — ${original.projectTitle || original.quoteNumber}`,
+      projectTitle: `${heading} — ${original.projectTitle || original.quoteNumber}`,
       sourceQuoteId: original.id,
       billingKind: kind,
       billedPct: pct,
       lineItems: [{
         id: crypto.randomUUID?.() ?? `line-${Date.now()}`,
-        description: `${label} ${pct}% sur ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
+        description: `${heading} ${t("sur", "on")} ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
         quantity: 1,
         unitPrice: Math.round(base * (pct / 100) * 100) / 100,
       }],
@@ -259,11 +268,33 @@ export default function QuotesList() {
     return newId;
   }
 
-  // Acompte: 50% deposit invoice from a devis.
-  function acompteFromQuote(original: Quote) {
-    const id = billPctOfQuote(original, 50, "acompte");
-    toast({ title: t("Acompte 50% créé", "50% deposit created"), description: t("Brouillon de facture — ajuste si besoin.", "Draft invoice — adjust if needed.") });
+  // Acompte (à la signature): deposit invoice for `pct`% of a devis. The solde
+  // (à la réalisation) is billed later for the rest via soldeFromQuote.
+  function acompteFromQuote(original: Quote, pct: number) {
+    const id = billPctOfQuote(original, pct, "acompte");
+    toast({ title: t(`Acompte ${pct}% créé`, `${pct}% deposit created`), description: t("Brouillon — à la signature. Ajuste si besoin.", "Draft — on signing. Adjust if needed.") });
     navigate(`/quotes/${id}`);
+  }
+
+  // Facturer en totalité: one invoice for the whole devis, sharing its number (2c).
+  function billFullFromQuote(original: Quote) {
+    const newId = crypto.randomUUID?.() ?? `q-${Date.now()}`;
+    const clone: any = {
+      ...original,
+      id: newId,
+      quoteNumber: invoiceNumberFromQuote(original.quoteNumber, quotes) ?? nextInvoiceNumber(),
+      docType: "invoice",
+      invoiceStatus: "draft",
+      isTemplate: false,
+      templateName: null,
+      sourceQuoteId: original.id,
+      billingKind: null,
+      billedPct: 100,
+    };
+    delete clone.createdAt; delete clone.updatedAt;
+    addQuote(clone);
+    toast({ title: t("Facture créée", "Invoice created"), description: t("Brouillon — n° aligné sur le devis.", "Draft — number aligned with the quote.") });
+    navigate(`/quotes/${newId}`);
   }
 
   // Solde: bill whatever percentage of the devis isn't yet invoiced.
@@ -282,15 +313,34 @@ export default function QuotesList() {
     const billed = billedPctFor(q.id);
     if (billed <= 0) {
       return (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-accent"
-          title={t("Générer un acompte 50%", "Generate 50% deposit")}
-          onClick={() => acompteFromQuote(q)}
-        >
-          <Coins size={14} />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-accent"
+              title={t("Facturer ce devis", "Bill this quote")}
+            >
+              <Coins size={14} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{t("Facturer ce devis", "Bill this quote")}</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => billFullFromQuote(q)}>
+              {t("En totalité (100%)", "In full (100%)")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] font-normal text-muted-foreground">
+              {t("Diviser — signature + réalisation", "Split — signing + delivery")}
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => acompteFromQuote(q, 50)}>
+              {t("Acompte 50% · solde 50%", "50% deposit · 50% balance")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => acompteFromQuote(q, 30)}>
+              {t("Acompte 30% · solde 70%", "30% deposit · 70% balance")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       );
     }
     if (billed < 100) {

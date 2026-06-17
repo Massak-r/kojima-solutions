@@ -6,6 +6,7 @@ import {
   tvaAmountQuote,
   totalQuote,
   nextQuoteNumber,
+  invoiceNumberFromQuote,
   type Quote,
 } from "./quote";
 
@@ -89,5 +90,22 @@ describe("nextQuoteNumber", () => {
 
   it("starts at 001 for an empty list", () => {
     expect(nextQuoteNumber([], "quote", 2026, 3)).toBe("DEV-2026-03-001");
+  });
+});
+
+describe("invoiceNumberFromQuote", () => {
+  it("mirrors a devis number into the matching FAC number", () => {
+    expect(invoiceNumberFromQuote("DEV-2026-06-003", [])).toBe("FAC-2026-06-003");
+    expect(invoiceNumberFromQuote("DEV-2026-007", [])).toBe("FAC-2026-007"); // legacy
+  });
+
+  it("returns null for a non-devis source", () => {
+    expect(invoiceNumberFromQuote("FAC-2026-06-003", [])).toBeNull();
+    expect(invoiceNumberFromQuote("", [])).toBeNull();
+  });
+
+  it("returns null (caller falls back) when the mirrored number is already taken", () => {
+    const existing = [{ id: "x", quoteNumber: "FAC-2026-06-003" }];
+    expect(invoiceNumberFromQuote("DEV-2026-06-003", existing)).toBeNull();
   });
 });

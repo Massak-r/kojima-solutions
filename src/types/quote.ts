@@ -155,6 +155,23 @@ export function quoteNumberConflicts(
   return existing.some((q) => q.quoteNumber === number && q.id !== currentId);
 }
 
+/**
+ * The invoice number that mirrors a devis number — DEV-YYYY[-MM]-NNN becomes
+ * FAC-YYYY[-MM]-NNN — so a quote and the invoice raised from it share one
+ * sequence (easy to reconcile). Returns null when the source isn't a DEV
+ * number or the mirrored number is already taken, so the caller falls back to
+ * a fresh sequential number.
+ */
+export function invoiceNumberFromQuote(
+  quoteNumber: string,
+  existing: Pick<Quote, "id" | "quoteNumber">[],
+): string | null {
+  const m = (quoteNumber ?? "").match(/^DEV-(.+)$/);
+  if (!m) return null;
+  const candidate = `FAC-${m[1]}`;
+  return quoteNumberConflicts(existing, candidate, null) ? null : candidate;
+}
+
 export function subtotalQuote(quote: Pick<Quote, "lineItems">): number {
   return quote.lineItems.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
 }
