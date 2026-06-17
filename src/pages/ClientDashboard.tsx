@@ -277,18 +277,37 @@ export default function ClientDashboard() {
         />
       )}
 
-      {/* ── Top bar + progress strip ── */}
-      <div className="bg-primary text-primary-foreground">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <span className="font-display font-bold text-lg tracking-tight">
-            Kojima<span className="opacity-50">.</span>Solutions
-          </span>
-          <span className="font-body text-xs text-primary-foreground/50 uppercase tracking-widest">Espace client</span>
+      {/* ── Branded masthead + progress strip ── */}
+      <header className="bg-primary text-primary-foreground">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center font-display font-bold text-lg shrink-0">
+              K
+            </div>
+            <div className="min-w-0">
+              <p className="font-display font-bold text-base leading-none tracking-tight truncate">
+                Kojima<span className="opacity-50">.</span>Solutions
+              </p>
+              <p className="font-body text-[10px] text-primary-foreground/55 uppercase tracking-widest mt-1">
+                Espace client
+              </p>
+            </div>
+          </div>
+          {sorted.length > 0 && (
+            <div className="text-right shrink-0">
+              <p className="font-display text-2xl font-bold leading-none tabular-nums">
+                {overallProgress}<span className="text-sm font-medium text-primary-foreground/50">%</span>
+              </p>
+              <p className="font-body text-[10px] text-primary-foreground/55 uppercase tracking-widest mt-1">
+                {statusBadge.label}
+              </p>
+            </div>
+          )}
         </div>
         <div className="h-1 bg-primary-foreground/10">
-          <div className="h-full bg-primary-foreground/60 transition-all duration-700" style={{ width: `${overallProgress}%` }} />
+          <div className="h-full bg-primary-foreground/70 transition-all duration-700" style={{ width: `${overallProgress}%` }} />
         </div>
-      </div>
+      </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
 
@@ -432,14 +451,6 @@ export default function ClientDashboard() {
                 )}
               </div>
             </div>
-            {sorted.length > 0 && (
-              <div className="text-right shrink-0">
-                <p className="font-display text-4xl font-bold text-primary leading-none">
-                  {overallProgress}<span className="text-lg text-muted-foreground">%</span>
-                </p>
-                <p className="font-body text-xs text-muted-foreground mt-1">terminé</p>
-              </div>
-            )}
           </div>
 
           {/* Project description */}
