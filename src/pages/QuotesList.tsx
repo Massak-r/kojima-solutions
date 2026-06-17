@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Trash2, Receipt, Search, Copy, ArrowUpDown, Bell, Check, Loader2, RefreshCw, BookmarkCheck, Coins, CalendarPlus, Users, Wallet } from "lucide-react";
 import { formatDateSwiss } from "@/lib/dateFormat";
-import { totalQuote, netSubtotalQuote } from "@/types/quote";
+import { totalQuote, netSubtotalQuote, nextQuoteNumber } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { QuoteStatsPanel } from "@/components/quotes/QuoteStatsPanel";
@@ -166,16 +166,7 @@ export default function QuotesList() {
   }, [quotes, statusFilter, typeFilter, clientMatch, searchQuery, sortBy, dateFrom, dateTo, showTemplates]);
 
   function renewInvoice(original: Quote) {
-    const year = new Date().getFullYear();
-    const prefix = "FAC";
-    const existing = quotes
-      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`${prefix}-${year}`))
-      .map((q) => {
-        const parts = q.quoteNumber?.split("-");
-        return parts && parts.length === 3 ? parseInt(parts[2], 10) : 0;
-      });
-    const nextNum = Math.max(0, ...existing) + 1;
-    const newNumber = `${prefix}-${year}-${String(nextNum).padStart(3, "0")}`;
+    const newNumber = nextInvoiceNumber();
 
     // Set validity to 30 days from now
     const validity = new Date();
@@ -200,17 +191,7 @@ export default function QuotesList() {
   }
 
   function duplicateQuote(original: Quote) {
-    const year = new Date().getFullYear();
-    const prefix = original.docType === "invoice" ? "FAC" : "DEV";
-    // Find next number
-    const existing = quotes
-      .filter((q) => q.docType === original.docType && q.quoteNumber?.startsWith(`${prefix}-${year}`))
-      .map((q) => {
-        const parts = q.quoteNumber?.split("-");
-        return parts && parts.length === 3 ? parseInt(parts[2], 10) : 0;
-      });
-    const nextNum = Math.max(0, ...existing) + 1;
-    const newNumber = `${prefix}-${year}-${String(nextNum).padStart(3, "0")}`;
+    const newNumber = nextQuoteNumber(quotes.filter((q) => !q.isTemplate), original.docType);
 
     const clone: Omit<Quote, "id" | "createdAt" | "updatedAt"> = {
       ...original,
@@ -244,11 +225,7 @@ export default function QuotesList() {
   }
 
   function nextInvoiceNumber(): string {
-    const year = new Date().getFullYear();
-    const existing = quotes
-      .filter((q) => q.docType === "invoice" && q.quoteNumber?.startsWith(`FAC-${year}`))
-      .map((q) => { const p = q.quoteNumber?.split("-"); return p && p.length === 3 ? parseInt(p[2], 10) : 0; });
-    return `FAC-${year}-${String(Math.max(0, ...existing) + 1).padStart(3, "0")}`;
+    return nextQuoteNumber(quotes.filter((q) => !q.isTemplate), "invoice");
   }
 
   // Bill a percentage of a devis as a draft invoice, linked back to the source

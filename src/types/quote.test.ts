@@ -77,17 +77,17 @@ describe("quote math", () => {
 });
 
 describe("nextQuoteNumber", () => {
-  it("increments within the year and doc type", () => {
+  it("increments within the year and doc type, reading legacy + month formats", () => {
     const existing = [
-      { quoteNumber: "DEV-2026-001", docType: "quote" as const },
-      { quoteNumber: "DEV-2026-002", docType: "quote" as const },
+      { quoteNumber: "DEV-2026-001", docType: "quote" as const },    // legacy 3-part
+      { quoteNumber: "DEV-2026-05-002", docType: "quote" as const }, // current month format
       { quoteNumber: "FAC-2026-005", docType: "invoice" as const },
     ];
-    expect(nextQuoteNumber(existing, "quote", 2026)).toBe("DEV-2026-003");
-    expect(nextQuoteNumber(existing, "invoice", 2026)).toBe("FAC-2026-006");
+    expect(nextQuoteNumber(existing, "quote", 2026, 6)).toBe("DEV-2026-06-003");
+    expect(nextQuoteNumber(existing, "invoice", 2026, 6)).toBe("FAC-2026-06-006");
   });
 
   it("starts at 001 for an empty list", () => {
-    expect(nextQuoteNumber([], "quote", 2026)).toBe("DEV-2026-001");
+    expect(nextQuoteNumber([], "quote", 2026, 3)).toBe("DEV-2026-03-001");
   });
 });

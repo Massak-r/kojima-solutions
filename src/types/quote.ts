@@ -126,9 +126,13 @@ export function nextQuoteNumber(
   existing: Pick<Quote, "quoteNumber" | "docType">[],
   docType: "quote" | "invoice",
   year: number = new Date().getFullYear(),
+  month: number = new Date().getMonth() + 1,
 ): string {
   const prefix = quoteNumberPrefix(docType);
-  const re = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+  // Robust: read the trailing sequence whether the number is legacy
+  // PREFIX-YYYY-NNN or the current PREFIX-YYYY-MM-NNN. Annual sequence (max+1)
+  // so a mixed history can't collide; the month is added for readability.
+  const re = new RegExp(`^${prefix}-${year}-(?:\\d{2}-)?(\\d+)$`);
   const max = existing
     .filter((q) => (q.docType ?? "quote") === docType)
     .map((q) => {
@@ -136,7 +140,8 @@ export function nextQuoteNumber(
       return m ? parseInt(m[1], 10) : 0;
     })
     .reduce((a, b) => Math.max(a, b), 0);
-  return `${prefix}-${year}-${String(max + 1).padStart(3, "0")}`;
+  const mm = String(month).padStart(2, "0");
+  return `${prefix}-${year}-${mm}-${String(max + 1).padStart(3, "0")}`;
 }
 
 /** Return true if `number` is already used by a different quote. */
