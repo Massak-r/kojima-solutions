@@ -1,12 +1,13 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, Banknote, CalendarClock, History, BellRing } from "lucide-react";
+import { Wallet, Banknote, CalendarClock, History, BellRing, Landmark } from "lucide-react";
 import { TresorerieTab } from "@/components/personal/TresorerieTab";
 import { BudgetTab } from "@/components/tresorerie/BudgetTab";
 import { AccountsManager } from "@/components/tresorerie/AccountsManager";
 import { PayablesManager } from "@/components/tresorerie/PayablesManager";
 import { LedgerView } from "@/components/tresorerie/LedgerView";
 import { RenewalsTab } from "@/components/tresorerie/RenewalsTab";
+import { CamtReconcile } from "@/components/tresorerie/CamtReconcile";
 
 export default function Tresorerie() {
   const [params] = useSearchParams();
@@ -40,6 +41,9 @@ export default function Tresorerie() {
               <TabsTrigger value="renewals" className="text-xs sm:text-sm flex items-center gap-1.5">
                 <BellRing size={13} /> Échéances
               </TabsTrigger>
+              <TabsTrigger value="reconcile" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <Landmark size={13} /> Rapprochement
+              </TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="accounts"><AccountsManager /></TabsContent>
@@ -48,6 +52,7 @@ export default function Tresorerie() {
           <TabsContent value="budget"><BudgetTab /></TabsContent>
           <TabsContent value="tresorerie"><TresorerieTab /></TabsContent>
           <TabsContent value="renewals"><RenewalsTab /></TabsContent>
+          <TabsContent value="reconcile"><CamtReconcile /></TabsContent>
         </Tabs>
       </div>
     </div>
