@@ -22,6 +22,7 @@ export interface Quote {
   clientEmail: string;
   clientCompany?: string;
   clientAddress?: string;
+  clientRef?: string; // client's own reference / PO number, shown on the invoice
 
   // Quote meta
   quoteNumber: string;

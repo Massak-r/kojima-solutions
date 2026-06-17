@@ -402,6 +402,14 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
                 placeholder={siteT("Optionnel", "Optional")}
               />
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{isFr ? "Référence client" : "Client reference"}</Label>
+              <Input
+                value={data.clientRef ?? ""}
+                onChange={(e) => set("clientRef", e.target.value)}
+                placeholder={siteT("Bon de commande, n° dossier… (optionnel)", "PO, file number… (optional)")}
+              />
+            </div>
           </div>
         </div>
 

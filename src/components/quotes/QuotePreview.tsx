@@ -123,6 +123,11 @@ export function QuotePreview({ quote, className = "" }: QuotePreviewProps) {
                   ? (isFr ? "N° de facture" : "Invoice number")
                   : (isFr ? "N° de devis" : "Quote number")}: {quote.quoteNumber || "-"}
               </div>
+              {quote.clientRef && (
+                <div className="text-xs text-gray-600 mb-1">
+                  {isFr ? "Référence client" : "Client reference"}: {quote.clientRef}
+                </div>
+              )}
               <div className="text-xs text-gray-600 mb-4">
                 {isInvoice
                   ? (isFr ? "Date" : "Date")

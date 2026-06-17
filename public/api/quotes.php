@@ -23,6 +23,9 @@ try {
     if (!in_array('billed_pct', $cols)) {
         $pdo->exec('ALTER TABLE quotes ADD COLUMN billed_pct DECIMAL(6,2) DEFAULT NULL');
     }
+    if (!in_array('client_ref', $cols)) {
+        $pdo->exec('ALTER TABLE quotes ADD COLUMN client_ref VARCHAR(128) DEFAULT NULL');
+    }
 } catch (Throwable $e) {}
 
 // ── Helper ──────────────────────────────────────────────────
@@ -41,6 +44,7 @@ function mapQuote(array $row): array {
         'clientEmail'        => $row['client_email'] ?? '',
         'clientCompany'      => $row['client_company'] ?? '',
         'clientAddress'      => $row['client_address'] ?? '',
+        'clientRef'          => $row['client_ref'] ?? '',
         'paymentTerms'       => $row['payment_terms'] ?? '',
         'lineItems'          => $row['line_items'] ? json_decode($row['line_items'], true) : [],
         'applyTva'           => (bool)$row['apply_tva'],
@@ -91,8 +95,8 @@ if ($method === 'POST') {
         INSERT INTO quotes (id, project_id, lang, doc_type, invoice_status, quote_number, validity_date, project_title,
             project_desc, conditions, client_name, client_email, client_company, client_address, payment_terms,
             line_items, apply_tva, discount_enabled, discount_type, discount_value, discount_label,
-            is_template, template_name, source_quote_id, billing_kind, billed_pct)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            is_template, template_name, source_quote_id, billing_kind, billed_pct, client_ref)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['projectId']          ?? null,
@@ -120,6 +124,7 @@ if ($method === 'POST') {
         $data['sourceQuoteId']      ?? null,
         $data['billingKind']        ?? null,
         isset($data['billedPct']) && $data['billedPct'] !== null ? (float)$data['billedPct'] : null,
+        $data['clientRef']          ?? null,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');
     $stmt->execute([$newId]);
@@ -139,7 +144,7 @@ if ($method === 'PUT') {
             line_items = ?, apply_tva = ?, discount_enabled = ?,
             discount_type = ?, discount_value = ?, discount_label = ?,
             is_template = ?, template_name = ?,
-            source_quote_id = ?, billing_kind = ?, billed_pct = ?
+            source_quote_id = ?, billing_kind = ?, billed_pct = ?, client_ref = ?
         WHERE id = ?
     ')->execute([
         $data['projectId']          ?? null,
@@ -167,6 +172,7 @@ if ($method === 'PUT') {
         $data['sourceQuoteId']      ?? null,
         $data['billingKind']        ?? null,
         isset($data['billedPct']) && $data['billedPct'] !== null ? (float)$data['billedPct'] : null,
+        $data['clientRef']          ?? null,
         $id,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');
