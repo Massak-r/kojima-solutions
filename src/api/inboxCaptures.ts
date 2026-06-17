@@ -54,6 +54,15 @@ export function markCaptureTriaged(id: string, destination: string): Promise<{ i
   });
 }
 
+/** Revert a triage: set the capture back to pending (triaged_at → NULL).
+ *  Backs the inbox undo toast so a mis-routed capture returns immediately. */
+export function untriageCapture(id: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ triaged: false }),
+  });
+}
+
 /** Edit the capture text in place (rare — usually only to clean up a typo). */
 export function updateCaptureText(id: string, text: string): Promise<{ id: string }> {
   return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {

@@ -6,17 +6,18 @@ import {
   Sparkles, ChevronDown, ChevronUp, FolderOpen, StickyNote, FolderKanban,
   Archive, Zap,
 } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateShort } from "@/lib/dateFormat";
 import {
-  listInboxCaptures, markCaptureTriaged, deleteInboxCapture, updateCaptureText,
+  listInboxCaptures, markCaptureTriaged, untriageCapture, deleteInboxCapture, updateCaptureText,
   type InboxCapture, type InboxList,
 } from "@/api/inboxCaptures";
-import { createSubtask } from "@/api/todoSubtasks";
-import { createDecision } from "@/api/objectiveDecisions";
-import { createNote as createObjectiveNote } from "@/api/objectiveNotes";
-import { createMeetingNote } from "@/api/meetingNotes";
+import { createSubtask, deleteSubtask } from "@/api/todoSubtasks";
+import { createDecision, deleteDecision } from "@/api/objectiveDecisions";
+import { createNote as createObjectiveNote, deleteNote as deleteObjectiveNote } from "@/api/objectiveNotes";
+import { createMeetingNote, deleteMeetingNote } from "@/api/meetingNotes";
 import { CAPTURE_KIND_MAP } from "@/lib/captureKinds";
 import { suggestTriage } from "@/lib/triageSuggest";
 import { useObjectives } from "@/hooks/useObjectives";
@@ -149,9 +150,42 @@ export function InboxPanel() {
     },
   });
 
+  /** Success toast for a triage with a 15s "Annuler" action. Reverses the
+   *  triage by deleting the entity we just created and bringing the capture
+   *  back to the pending list. Uses Sonner (not the local useToast) because
+   *  it's the app's canonical undo-toast surface — see useUndoableDelete. */
+  function triagedToastWithUndo(opts: {
+    title: string;
+    description: string;
+    captureId: string;
+    undoDelete: () => Promise<unknown>;
+  }) {
+    sonnerToast.success(opts.title, {
+      description: opts.description,
+      duration: 15_000,
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          try {
+            await opts.undoDelete();
+            await untriageCapture(opts.captureId);
+          } catch (e) {
+            sonnerToast.error("Annulation échouée", {
+              description: e instanceof Error ? e.message : "Réessaye ?",
+            });
+          } finally {
+            qc.invalidateQueries({ queryKey: PENDING_KEY });
+            qc.invalidateQueries({ queryKey: KEPT_KEY });
+            qc.invalidateQueries({ queryKey: subtasksQueryKey });
+          }
+        },
+      },
+    });
+  }
+
   async function convertToSubtask(capture: InboxCapture, objective: UnifiedObjective) {
     try {
-      await createSubtask({
+      const created = await createSubtask({
         parentId: objective.id,
         source: objective.source,
         text: capture.text,
@@ -160,7 +194,12 @@ export function InboxPanel() {
       qc.invalidateQueries({ queryKey: subtasksQueryKey });
       qc.invalidateQueries({ queryKey: PENDING_KEY });
       qc.invalidateQueries({ queryKey: KEPT_KEY });
-      toast({ title: "Convertie en étape", description: `Ajoutée à « ${objective.text} »` });
+      triagedToastWithUndo({
+        title: "Convertie en étape",
+        description: `Ajoutée à « ${objective.text} »`,
+        captureId: capture.id,
+        undoDelete: () => deleteSubtask(created.id),
+      });
     } catch (e) {
       toast({
         title: "Conversion échouée",
@@ -172,7 +211,7 @@ export function InboxPanel() {
 
   async function convertToDecision(capture: InboxCapture, objective: UnifiedObjective) {
     try {
-      await createDecision({
+      const created = await createDecision({
         source: objective.source,
         objectiveId: objective.id,
         title: capture.text,
@@ -180,7 +219,12 @@ export function InboxPanel() {
       await markCaptureTriaged(capture.id, `decision:${objective.text.slice(0, 80)}`);
       qc.invalidateQueries({ queryKey: PENDING_KEY });
       qc.invalidateQueries({ queryKey: KEPT_KEY });
-      toast({ title: "Décision archivée", description: `Sous « ${objective.text} »` });
+      triagedToastWithUndo({
+        title: "Décision archivée",
+        description: `Sous « ${objective.text} »`,
+        captureId: capture.id,
+        undoDelete: () => deleteDecision(created.id),
+      });
     } catch (e) {
       toast({
         title: "Conversion échouée",
@@ -199,27 +243,40 @@ export function InboxPanel() {
       const titleLine = capture.text.split("\n")[0]?.trim() ?? "";
       const title = titleLine.length > 60 ? titleLine.slice(0, 57) + "…"
         : titleLine || "Note";
+      let undoDelete: () => Promise<unknown>;
+      let okTitle: string;
+      let okDescription: string;
       if (target.kind === "project") {
-        await createMeetingNote({
+        const created = await createMeetingNote({
           projectId: target.project.id,
           title,
           content: capture.text,
           meetingDate: new Date().toISOString().slice(0, 10),
         });
         await markCaptureTriaged(capture.id, `note:project:${target.project.title.slice(0, 80)}`);
-        toast({ title: "Note ajoutée au projet", description: `« ${target.project.title} »` });
+        undoDelete = () => deleteMeetingNote(created.id);
+        okTitle = "Note ajoutée au projet";
+        okDescription = `« ${target.project.title} »`;
       } else {
-        await createObjectiveNote({
+        const created = await createObjectiveNote({
           source: target.objective.source,
           objectiveId: target.objective.id,
           title,
           content: capture.text,
         });
         await markCaptureTriaged(capture.id, `note:objective:${target.objective.text.slice(0, 80)}`);
-        toast({ title: "Note ajoutée à l'objectif", description: `« ${target.objective.text} »` });
+        undoDelete = () => deleteObjectiveNote(created.id);
+        okTitle = "Note ajoutée à l'objectif";
+        okDescription = `« ${target.objective.text} »`;
       }
       qc.invalidateQueries({ queryKey: PENDING_KEY });
       qc.invalidateQueries({ queryKey: KEPT_KEY });
+      triagedToastWithUndo({
+        title: okTitle,
+        description: okDescription,
+        captureId: capture.id,
+        undoDelete,
+      });
     } catch (e) {
       toast({
         title: "Conversion échouée",
