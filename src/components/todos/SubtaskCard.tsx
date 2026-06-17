@@ -1,10 +1,11 @@
 import { useState } from "react";
 import {
-  Circle, CheckCircle2, Trash2, ChevronRight, ChevronUp, ChevronDown,
+  Trash2, ChevronRight, ChevronUp, ChevronDown,
   Pencil, AlertTriangle, Star, Zap, GripVertical, CornerDownRight, Clock, Repeat,
 } from "lucide-react";
 import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmartFields } from "./SmartFields";
@@ -161,17 +162,18 @@ export function SubtaskCard({
         {isChild && <CornerDownRight size={10} className="text-muted-foreground/30 shrink-0" />}
 
         {/* Checkbox */}
-        <button
-          onClick={e => { e.stopPropagation(); onToggle(sub.id); }}
-          className={cn(
-            "shrink-0 transition-all",
-            sub.completed ? "text-emerald-500" : "text-muted-foreground/60 hover:text-primary hover:scale-110",
-          )}
-        >
-          {sub.completed
-            ? <CheckCircle2 size={isChild ? 15 : 18} />
-            : <Circle size={isChild ? 15 : 18} />}
-        </button>
+        <div onClick={e => e.stopPropagation()} className="shrink-0 flex items-center">
+          <Checkbox
+            checked={sub.completed}
+            onCheckedChange={() => onToggle(sub.id)}
+            aria-label={sub.completed ? "Marquer comme non terminé" : "Marquer comme terminé"}
+            className={cn(
+              "rounded-md border-muted-foreground/40 transition-colors",
+              "data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 data-[state=checked]:text-white",
+              isChild ? "h-4 w-4" : "h-[18px] w-[18px]",
+            )}
+          />
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Compass, CalendarRange, CheckCircle2, Circle, Star, Target, FolderKanban,
+  Compass, CalendarRange, CheckCircle2, Star, Target, FolderKanban,
   ArrowRight, Plus, Repeat, CalendarClock, Flame, Sparkles, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
 import { useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useProjects } from "@/contexts/ProjectsContext";
@@ -19,6 +20,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
 import { toISODate } from "@/lib/weekDates";
 import { Celebration } from "@/components/ui/celebration";
+import { StreakBadge } from "@/components/todos/StreakBadge";
 
 function itemTitle(item: TodayItem): string {
   return item.kind === "subtask" ? item.subtask.text : item.task.title;
@@ -155,7 +157,7 @@ export function AujourdhuiTab() {
 
       {/* Sprint du jour */}
       {flagged.length === 0 ? (
-        <EmptyDay onPlan={() => navigate("/sprint")} />
+        <EmptyDay done={counts.done} onPlan={() => navigate("/sprint")} />
       ) : (
         <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
           <header className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border">
@@ -265,13 +267,12 @@ function PlanRow({ item, onComplete, onOpen }: { item: TodayItem; onComplete: ()
   const must = itemIsMust(item);
   return (
     <div className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors group">
-      <button
-        onClick={onComplete}
+      <Checkbox
+        checked={false}
+        onCheckedChange={onComplete}
         aria-label="Marquer comme terminé"
-        className="shrink-0 text-muted-foreground/40 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-      >
-        <Circle size={18} />
-      </button>
+        className="shrink-0 h-[18px] w-[18px] rounded-md border-muted-foreground/40 transition-colors data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+      />
       <button onClick={onOpen} className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2">
           {must && (
@@ -280,6 +281,7 @@ function PlanRow({ item, onComplete, onOpen }: { item: TodayItem; onComplete: ()
             </span>
           )}
           <span className="text-sm font-body font-medium text-foreground truncate">{itemTitle(item)}</span>
+          {item.kind === "subtask" && item.subtask.recurrence && <StreakBadge subtask={item.subtask} />}
         </div>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] font-body text-muted-foreground/70 truncate">
           <Icon size={11} className="shrink-0" /> <span className="truncate">{label}</span>
@@ -298,6 +300,7 @@ function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySugge
         <meta.Icon size={9} /> {meta.label}
       </span>
       <span className="flex-1 min-w-0 text-[13px] font-body text-foreground/90 truncate">{suggestion.subtask.text}</span>
+      <StreakBadge subtask={suggestion.subtask} />
       <button
         onClick={onAdd}
         title={disabled ? "Sprint plein — termine ou retire une tâche d'abord" : "Ajouter au sprint du jour"}
@@ -309,7 +312,28 @@ function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySugge
   );
 }
 
-function EmptyDay({ onPlan }: { onPlan: () => void }) {
+function EmptyDay({ done, onPlan }: { done: number; onPlan: () => void }) {
+  // Finished everything that was flagged today → celebrate, don't nag.
+  if (done > 0) {
+    return (
+      <section className="rounded-2xl border border-emerald-200/60 dark:border-emerald-500/25 bg-emerald-50/50 dark:bg-emerald-500/8 shadow-card p-8 text-center">
+        <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+          <CheckCircle2 size={22} className="text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <p className="font-display text-base font-bold text-foreground mb-1">Sprint bouclé 🎉</p>
+        <p className="text-sm font-body text-muted-foreground mb-4 max-w-sm mx-auto">
+          Tu as terminé toutes tes tâches du jour. Profite — ou prends un peu d'avance.
+        </p>
+        <button
+          onClick={onPlan}
+          className="inline-flex items-center gap-1.5 text-xs font-body font-medium rounded-full px-4 py-2 border border-border hover:bg-secondary transition-colors"
+        >
+          <CalendarRange size={14} />
+          Planifier la suite
+        </button>
+      </section>
+    );
+  }
   return (
     <section className="rounded-2xl border border-border bg-card shadow-card p-8 text-center">
       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">

@@ -25,6 +25,7 @@ import {
   useBatchCompleteSubtasks,
 } from "@/hooks/useSubtasks";
 import { ObjectiveHeader } from "@/components/objective/ObjectiveHeader";
+import { Celebration } from "@/components/ui/celebration";
 import { ObjectiveSmartPanel } from "@/components/objective/ObjectiveSmartPanel";
 import { LinkedItemsPanel } from "@/components/objective/LinkedItemsPanel";
 import { NextUpQueue } from "@/components/objective/NextUpQueue";
@@ -62,6 +63,7 @@ export default function ObjectiveWorkspace() {
   const updateSubtaskMut   = useUpdateSubtask();
   const deleteSubtaskMut   = useDeleteSubtask();
   const batchCompleteMut   = useBatchCompleteSubtasks();
+  const [celebrate, setCelebrate] = useState(false);
 
   const [sessions, setSessions] = useState<ObjectiveSession[]>([]);
   const [showPicker, setShowPicker] = useState(false);
@@ -161,6 +163,7 @@ export default function ObjectiveWorkspace() {
       status: willComplete ? "done" : "in_progress",
     });
     if (willComplete) {
+      setCelebrate(true);
       const open = subtasks.filter(s => !s.completed);
       if (open.length > 0) batchCompleteMut.mutate({ parentId: objective.id, subtasks: open });
     }
@@ -403,6 +406,13 @@ export default function ObjectiveWorkspace() {
         linkedProjectName={objective.linkedProjectId ? projects.find(p => p.id === objective.linkedProjectId)?.title ?? null : null}
         linkedClientName={objective.linkedClientId ? clients.find(c => c.id === objective.linkedClientId)?.name ?? null : null}
         onImport={handleAIImport}
+      />
+
+      <Celebration
+        show={celebrate}
+        title="Objectif accompli !"
+        subtitle={objective.text}
+        onDone={() => setCelebrate(false)}
       />
     </div>
   );
