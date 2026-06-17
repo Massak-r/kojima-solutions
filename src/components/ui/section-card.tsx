@@ -26,7 +26,7 @@ export function SectionCard({ icon: Icon, iconClassName, title, subtitle, action
       <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon size={15} className={cn("shrink-0", iconClassName ?? "text-primary")} />}
-          <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">{title}</h2>
+          <h2 className="text-eyebrow truncate">{title}</h2>
           {subtitle && <span className="font-body text-xs text-muted-foreground/70 shrink-0">{subtitle}</span>}
         </div>
         {action}

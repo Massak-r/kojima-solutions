@@ -290,7 +290,7 @@ export function InboxPanel() {
   if (!isLoading && items.length === 0 && keptItems.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-violet-200/50 dark:border-violet-500/20 bg-gradient-to-br from-violet-50/40 via-card/40 to-card/30 dark:from-violet-500/8 backdrop-blur-sm p-4 sm:p-5">
+    <section className="rounded-2xl border border-violet-200/60 dark:border-violet-500/25 bg-card shadow-card p-4 sm:p-5">
       <header className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Inbox size={14} className="text-violet-600 dark:text-violet-400" />

@@ -99,13 +99,29 @@
   }
 
   /* Display sizes read tighter — Sora opens up at large sizes, so pull the
-     tracking in slightly on the biggest headings for a more deliberate set. */
+     tracking in slightly and tighten the leading on the biggest headings. */
   h1, h2 {
     letter-spacing: -0.015em;
+    line-height: 1.12;
+  }
+
+  /* Keyboard focus — one ink-indigo outline for any interactive element that
+     doesn't manage its own ring. shadcn components set outline-none + a ring
+     (higher specificity), so they win there and we never double up. */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
 @layer components {
+  /* The app's recurring micro-label motif: tiny uppercase Sora "printed"
+     headers (SectionCard, panel headers, eyebrows). Codified so every label
+     pulls from one place. */
+  .text-eyebrow {
+    @apply font-display text-xs font-bold uppercase tracking-widest text-muted-foreground;
+  }
+
   .glass-card {
     @apply bg-glass/80 backdrop-blur-xl border border-glass-border rounded-2xl;
     box-shadow: var(--shadow-1);
