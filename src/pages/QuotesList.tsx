@@ -620,13 +620,23 @@ export default function QuotesList() {
                               En retard
                             </Badge>
                           )}
-                          {q.docType !== "invoice" && !q.isTemplate && billedPctFor(q.id) > 0 && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-accent/10 text-accent">
-                              {billedPctFor(q.id) >= 100
-                                ? t("Soldé", "Settled")
-                                : t(`Acompte ${billedPctFor(q.id)}% facturé`, `${billedPctFor(q.id)}% invoiced`)}
-                            </Badge>
-                          )}
+                          {q.docType !== "invoice" && !q.isTemplate && billedPctFor(q.id) > 0 && (() => {
+                            const billed = billedPctFor(q.id);
+                            const settled = billed >= 100;
+                            const remaining = Math.round((100 - billed) * 100) / 100;
+                            return (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", settled ? "bg-emerald-100 text-emerald-800" : "bg-accent/10 text-accent")}>
+                                  {settled
+                                    ? t("Soldé", "Settled")
+                                    : t(`Acompte ${billed}% · solde ${remaining}% à venir`, `${billed}% billed · ${remaining}% to go`)}
+                                </Badge>
+                                <span className="hidden sm:block w-10 h-1 rounded-full bg-secondary overflow-hidden" title={`${billed}% facturé`}>
+                                  <span className={cn("block h-full rounded-full", settled ? "bg-emerald-500" : "bg-accent")} style={{ width: `${Math.min(100, billed)}%` }} />
+                                </span>
+                              </span>
+                            );
+                          })()}
                           {q.docType === "invoice" && q.billingKind && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-accent/40 text-accent">
                               {q.billingKind === "acompte" ? t("Acompte", "Deposit") : t("Solde", "Balance")}
