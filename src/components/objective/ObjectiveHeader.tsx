@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pencil, ArrowLeft, Calendar, AlertTriangle, Target } from "lucide-react";
+import { Pencil, ArrowLeft, Calendar, AlertTriangle, Target, CheckCircle2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ObjectiveProgress } from "@/components/todos/ObjectiveProgress";
@@ -16,6 +16,8 @@ interface ObjectiveHeaderProps {
   onStatusChange: (s: TodoStatus) => void;
   onPriorityChange: (p: TodoPriority) => void;
   onDueDateChange: (d: string) => void;
+  /** Toggle the objective's `completed` flag (finish ⇄ reopen). Persists. */
+  onToggleComplete: () => void;
 }
 
 export function ObjectiveHeader({
@@ -27,6 +29,7 @@ export function ObjectiveHeader({
   onStatusChange,
   onPriorityChange,
   onDueDateChange,
+  onToggleComplete,
 }: ObjectiveHeaderProps) {
   const [editTitle, setEditTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(objective.text);
@@ -50,6 +53,31 @@ export function ObjectiveHeader({
           <span className="text-[10px] bg-primary/10 text-primary font-semibold rounded-full px-2.5 py-0.5 font-body">
             {objective.category}
           </span>
+        )}
+        {objective.completed && (
+          <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold rounded-full px-2.5 py-0.5 font-body">
+            <CheckCircle2 size={11} /> Terminé
+          </span>
+        )}
+
+        <div className="flex-1" />
+
+        {objective.completed ? (
+          <button
+            onClick={onToggleComplete}
+            className="inline-flex items-center gap-1.5 text-xs font-body font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-full border border-border/60 hover:bg-secondary transition-colors"
+          >
+            <RotateCcw size={13} />
+            Rouvrir
+          </button>
+        ) : (
+          <button
+            onClick={onToggleComplete}
+            className="inline-flex items-center gap-1.5 text-xs font-body font-semibold text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full border border-emerald-300/70 dark:border-emerald-500/40 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-colors"
+          >
+            <CheckCircle2 size={14} />
+            Terminer l'objectif
+          </button>
         )}
       </div>
 

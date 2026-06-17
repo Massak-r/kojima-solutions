@@ -22,6 +22,7 @@ import {
   useCreateSubtask,
   useUpdateSubtask,
   useDeleteSubtask,
+  useBatchCompleteSubtasks,
 } from "@/hooks/useSubtasks";
 import { ObjectiveHeader } from "@/components/objective/ObjectiveHeader";
 import { ObjectiveSmartPanel } from "@/components/objective/ObjectiveSmartPanel";
@@ -60,6 +61,7 @@ export default function ObjectiveWorkspace() {
   const createSubtaskMut   = useCreateSubtask();
   const updateSubtaskMut   = useUpdateSubtask();
   const deleteSubtaskMut   = useDeleteSubtask();
+  const batchCompleteMut   = useBatchCompleteSubtasks();
 
   const [sessions, setSessions] = useState<ObjectiveSession[]>([]);
   const [showPicker, setShowPicker] = useState(false);
@@ -147,6 +149,22 @@ export default function ObjectiveWorkspace() {
     },
     [objective, src, updateObjectiveMut],
   );
+
+  // Finish ⇄ reopen the objective. `completed` (not status) is the flag every
+  // list filters on, so we set both together to keep them in sync. Mirrors the
+  // /home list toggle: finishing also closes out remaining open steps.
+  const handleToggleComplete = useCallback(() => {
+    if (!objective) return;
+    const willComplete = !objective.completed;
+    applyObjectiveUpdate({
+      completed: willComplete,
+      status: willComplete ? "done" : "in_progress",
+    });
+    if (willComplete) {
+      const open = subtasks.filter(s => !s.completed);
+      if (open.length > 0) batchCompleteMut.mutate({ parentId: objective.id, subtasks: open });
+    }
+  }, [objective, subtasks, applyObjectiveUpdate, batchCompleteMut]);
 
   // Add subtask (top-level if parentSubtaskId is null, sub-subtask otherwise)
   const handleSubtaskAdd = useCallback((text: string, dueDate: string | undefined, parentSubtaskId: string | null) => {
@@ -243,6 +261,7 @@ export default function ObjectiveWorkspace() {
         onStatusChange={(s: TodoStatus) => applyObjectiveUpdate({ status: s })}
         onPriorityChange={(p: TodoPriority) => applyObjectiveUpdate({ priority: p })}
         onDueDateChange={d => applyObjectiveUpdate({ dueDate: d || null })}
+        onToggleComplete={handleToggleComplete}
       />
 
       <FocusStrip
