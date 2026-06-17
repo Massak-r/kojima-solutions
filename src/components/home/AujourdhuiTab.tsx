@@ -149,6 +149,11 @@ export function AujourdhuiTab() {
               {counts.pending}/{counts.cap}
             </span>
           </header>
+          {isMobile && (
+            <p className="px-5 pt-2 text-[11px] font-body text-muted-foreground/55 italic">
+              Astuce : glisse une tâche vers la gauche pour la terminer.
+            </p>
+          )}
           <ul className="divide-y divide-border/50">
             {flagged.map((item) => (
               <li key={`${item.kind}:${item.id}`}>

@@ -5,6 +5,7 @@ import {
   CalendarDays, User, FileText, Upload, Vote, Package,
   FileDown, Loader2, MessageSquare, ArrowRight, Sparkles,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useClients } from "@/contexts/ClientsContext";
 import { getClientAuth, setClientAuth } from "@/lib/auth";
@@ -405,28 +406,42 @@ export default function ClientDashboard() {
 
         {/* ── Nouveautés depuis la dernière visite (informational) ── */}
         {whatsNew.length > 0 && (
-          <section className="bg-card border border-border rounded-2xl shadow-card p-5">
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-card border border-border rounded-2xl shadow-card p-5"
+          >
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={15} className="text-primary" />
               <h2 className="font-display text-sm font-semibold text-foreground">Depuis votre dernière visite</h2>
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {whatsNew.length}</span>
             </div>
-            <ul className="space-y-2.5">
-              {whatsNew.map((item) => (
-                <li key={item.id} className="flex items-start gap-2.5">
+            <ul className="space-y-2">
+              {whatsNew.map((item, i) => (
+                <motion.li
+                  key={item.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.28, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex items-start gap-2.5 rounded-xl bg-secondary/30 px-3 py-2.5"
+                >
                   <span className={cn(
-                    "mt-0.5 shrink-0",
-                    item.kind === "step" ? "text-emerald-500" : item.kind === "delivery" ? "text-primary" : "text-muted-foreground",
+                    "mt-0.5 shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
+                    item.kind === "step" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
+                    : item.kind === "delivery" ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground",
                   )}>
-                    {item.kind === "step" ? <CheckCircle2 size={14} /> : item.kind === "delivery" ? <Package size={14} /> : <MessageSquare size={14} />}
+                    {item.kind === "step" ? <CheckCircle2 size={13} /> : item.kind === "delivery" ? <Package size={13} /> : <MessageSquare size={13} />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-body text-sm text-foreground/85 leading-snug">{item.text}</p>
-                    <p className="font-body text-[11px] text-muted-foreground/60">{formatDateSwiss(item.date)}</p>
+                    <p className="font-body text-[11px] text-muted-foreground/60 mt-0.5">{formatDateSwiss(item.date)}</p>
                   </div>
-                </li>
+                </motion.li>
               ))}
             </ul>
-          </section>
+          </motion.section>
         )}
 
         {/* ── Section B: Project Overview ── */}
@@ -811,7 +826,11 @@ export default function ClientDashboard() {
               <Package size={14} /> Livrables finaux
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              {finalDeliveries.map((d: Delivery) => <DeliveryCard key={d.id} d={d} onLightbox={(i) => setLightbox({ delivery: d, index: i })} isFinal />)}
+              {finalDeliveries.map((d: Delivery, i: number) => (
+                <div key={d.id} className={cn(i === 0 && finalDeliveries.length > 1 && "sm:col-span-2")}>
+                  <DeliveryCard d={d} onLightbox={(idx) => setLightbox({ delivery: d, index: idx })} isFinal />
+                </div>
+              ))}
             </div>
           </section>
         )}
