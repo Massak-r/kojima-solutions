@@ -12,6 +12,7 @@ import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import {
   useTodaysSprint, type TodayItem, type TodaySuggestion, type SuggestionReason,
 } from "@/hooks/useTodaysSprint";
+import { DayBlocks } from "@/components/home/DayBlocks";
 
 function itemTitle(item: TodayItem): string {
   return item.kind === "subtask" ? item.subtask.text : item.task.title;
@@ -120,6 +121,9 @@ export function AujourdhuiTab() {
           </div>
         )}
       </section>
+
+      {/* Programme du jour — manual time-blocks */}
+      <DayBlocks />
 
       {/* Sprint du jour */}
       {flagged.length === 0 ? (
