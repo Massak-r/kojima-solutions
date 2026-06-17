@@ -122,6 +122,17 @@
     @apply font-display text-xs font-bold uppercase tracking-widest text-muted-foreground;
   }
 
+  /* Clickable cards lift from L1 (resting) to L2 on hover — pairs with the
+     elevation ladder. Use only on genuinely interactive surfaces. */
+  .card-interactive {
+    @apply transition-[transform,box-shadow,border-color] duration-200 ease-out;
+    box-shadow: var(--shadow-1);
+  }
+  .card-interactive:hover {
+    box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
+  }
+
   .glass-card {
     @apply bg-glass/80 backdrop-blur-xl border border-glass-border rounded-2xl;
     box-shadow: var(--shadow-1);

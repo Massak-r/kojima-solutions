@@ -17,6 +17,17 @@ export default {
         sans: ["Inter", "sans-serif"],
         display: ["Sora", "sans-serif"],
       },
+      // Display type scale — same sizes as Tailwind's defaults (no layout
+      // resize), but with tightened leading + optical negative tracking so
+      // headings across the app read as a deliberate set. Body sizes (xs–lg)
+      // keep Tailwind defaults so dense rows aren't disturbed.
+      fontSize: {
+        "2xl": ["1.5rem", { lineHeight: "1.9rem", letterSpacing: "-0.012em" }],
+        "3xl": ["1.875rem", { lineHeight: "2.2rem", letterSpacing: "-0.016em" }],
+        "4xl": ["2.25rem", { lineHeight: "2.5rem", letterSpacing: "-0.02em" }],
+        "5xl": ["3rem", { lineHeight: "1.05", letterSpacing: "-0.022em" }],
+        "6xl": ["3.75rem", { lineHeight: "1.02", letterSpacing: "-0.025em" }],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -85,6 +96,10 @@ export default {
         card: "var(--shadow-1)",
         raised: "var(--shadow-2)",
         overlay: "var(--shadow-3)",
+        // Alias for the hover state of a resting card. Several cards already
+        // referenced `shadow-card-hover` before any shadow tokens existed, so
+        // their intended hover-lift was dead until now.
+        "card-hover": "var(--shadow-2)",
       },
       keyframes: {
         "accordion-down": {

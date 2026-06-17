@@ -54,7 +54,7 @@ function InsightCard({ icon: Icon, tone, title, metric, hint, onClick }: Insight
       animate={{ opacity: 1, y: 0 }}
       onClick={onClick}
       className={cn(
-        "rounded-2xl border p-4 text-left transition-all hover:shadow-card hover:-translate-y-0.5 group",
+        "rounded-2xl border p-4 text-left transition-all hover:shadow-raised hover:-translate-y-0.5 group",
         toneClasses[tone],
       )}
     >

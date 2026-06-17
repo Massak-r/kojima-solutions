@@ -237,7 +237,7 @@ export function ProjectStatusKanban() {
     <div className="space-y-6">
       {/* À facturer banner */}
       {toInvoice.length > 0 && (
-        <section className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/5 via-card/40 to-card/30 p-4 sm:p-5">
+        <section className="rounded-2xl border border-accent/30 bg-card shadow-card p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-3">
             <ArrowRightLeft size={14} className="text-accent" />
             <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">

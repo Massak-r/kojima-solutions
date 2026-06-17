@@ -27,7 +27,7 @@ export function LatestProjects({ onNewProject }: LatestProjectsProps) {
     (p.clientId ? getClient(p.clientId)?.name : null) || p.client;
 
   return (
-    <section className="bg-card border border-border rounded-2xl overflow-hidden">
+    <section className="bg-card border border-border rounded-2xl overflow-hidden shadow-card">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
         <h2 className="font-display text-xs font-bold text-muted-foreground uppercase tracking-widest">
           Derniers projets
