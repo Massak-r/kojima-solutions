@@ -69,7 +69,7 @@ export default function BottomNav() {
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden glass-card border-b-0 border-x-0 rounded-none no-print"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-around h-16">
+        <div className="flex items-center h-16 overflow-x-auto scrollbar-hide px-1">
           {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
             const active =
               pathname === to ||
@@ -87,7 +87,7 @@ export default function BottomNav() {
                   : docCount > 0 ? `${label} · ${docCount} à trier`
                   : label
                 }
-                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-colors ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 shrink-0 min-w-[4rem] py-2 transition-colors ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
               >

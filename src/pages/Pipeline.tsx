@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast as sonnerToast } from "sonner";
 import {
   Plus, MoreVertical, Building2, CalendarClock, Trash2, ArrowRightLeft, Handshake, Mail,
+  UserPlus, UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useClients } from "@/contexts/ClientsContext";
 import { useLeads, useCreateLead, useUpdateLead, useDeleteLead } from "@/hooks/useLeads";
 import type { Lead, LeadStatus } from "@/api/leads";
 import { Button } from "@/components/ui/button";
@@ -37,7 +41,23 @@ export default function Pipeline() {
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
+  const { addClient } = useClients();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
+
+  // Close the loop: a won lead becomes a client (and we keep the link so we
+  // never re-convert or lose the trail). Drops you on the new client's fiche.
+  function convertToClient(lead: Lead) {
+    const client = addClient({
+      name: lead.name,
+      email: lead.email ?? undefined,
+      organization: lead.company ?? undefined,
+    });
+    updateLead.mutate({ id: lead.id, patch: { status: "won", convertedClientId: client.id } });
+    haptic("success");
+    sonnerToast.success("Lead converti en client", { description: lead.name });
+    navigate(`/clients/${client.id}`);
+  }
 
   const byStatus = useMemo(() => {
     const map: Record<LeadStatus, Lead[]> = { new: [], contacted: [], proposal: [], won: [], lost: [] };
@@ -118,6 +138,8 @@ export default function Pipeline() {
                         lead={lead}
                         onMove={(status) => { haptic("tap"); updateLead.mutate({ id: lead.id, patch: { status } }); }}
                         onDelete={() => deleteLead.mutate(lead.id)}
+                        onConvert={() => convertToClient(lead)}
+                        onViewClient={() => lead.convertedClientId && navigate(`/clients/${lead.convertedClientId}`)}
                       />
                     ))
                   )}
@@ -138,7 +160,13 @@ export default function Pipeline() {
   );
 }
 
-function LeadCard({ lead, onMove, onDelete }: { lead: Lead; onMove: (s: LeadStatus) => void; onDelete: () => void }) {
+function LeadCard({ lead, onMove, onDelete, onConvert, onViewClient }: {
+  lead: Lead;
+  onMove: (s: LeadStatus) => void;
+  onDelete: () => void;
+  onConvert: () => void;
+  onViewClient: () => void;
+}) {
   const today = new Date().toISOString().slice(0, 10);
   const overdue = !!lead.nextFollowUp && lead.nextFollowUp < today && lead.status !== "won" && lead.status !== "lost";
   const others = STATUSES.filter((s) => s.key !== lead.status);
@@ -165,6 +193,15 @@ function LeadCard({ lead, onMove, onDelete }: { lead: Lead; onMove: (s: LeadStat
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
+            {lead.convertedClientId ? (
+              <DropdownMenuItem onClick={onViewClient}>
+                <UserCheck size={13} className="mr-2 text-emerald-600" /> Voir la fiche client
+              </DropdownMenuItem>
+            ) : lead.status !== "lost" ? (
+              <DropdownMenuItem onClick={onConvert}>
+                <UserPlus size={13} className="mr-2 text-primary" /> Convertir en client
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash2 size={13} className="mr-2" /> Supprimer
             </DropdownMenuItem>
