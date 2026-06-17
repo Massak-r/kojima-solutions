@@ -9,6 +9,7 @@ import {
   Target,
   Gauge,
   BellRing,
+  Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
@@ -19,6 +20,7 @@ const BOTTOM_NAV = [
   { to: "/cockpit",    label: "Pilotage",   icon: Gauge           },
   { to: "/relances",   label: "Relances",   icon: BellRing        },
   { to: "/sprint",     label: "Sprint",     icon: Target          },
+  { to: "/pipeline",   label: "Leads",      icon: Handshake       },
   { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
   { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
@@ -26,7 +28,7 @@ const BOTTOM_NAV = [
 ];
 
 const ADMIN_PREFIXES = [
-  "/home", "/cockpit", "/relances", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
+  "/home", "/cockpit", "/relances", "/pipeline", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
   "/clients", "/accounting", "/tresorerie", "/documents", "/settings",
   "/objective/",
 ];

@@ -48,6 +48,7 @@ const ClientDetail          = lazy(() => import("./pages/ClientDetail"));
 const Accounting            = lazy(() => import("./pages/Accounting"));
 const Cockpit               = lazy(() => import("./pages/Cockpit"));
 const Relances              = lazy(() => import("./pages/Relances"));
+const Pipeline              = lazy(() => import("./pages/Pipeline"));
 const Tresorerie            = lazy(() => import("./pages/Tresorerie"));
 const AdminSpace            = lazy(() => import("./pages/AdminSpace"));
 const SettingsPage          = lazy(() => import("./pages/SettingsPage"));
@@ -149,6 +150,7 @@ const App = () => (
                       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
                       <Route path="/cockpit" element={<ProtectedRoute><Cockpit /></ProtectedRoute>} />
                       <Route path="/relances" element={<ProtectedRoute><Relances /></ProtectedRoute>} />
+                      <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
                       <Route path="/space" element={<Navigate to="/home" replace />} />
                       <Route path="/space-full" element={<Navigate to="/home?tab=objectives" replace />} />
                       <Route path="/quotes" element={<ProtectedRoute><QuotesList /></ProtectedRoute>} />
