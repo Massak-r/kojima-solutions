@@ -4,59 +4,68 @@
 
 @layer base {
   :root {
-    /* Zen japonais — washi clair, encre, indigo doux */
-    --background: 40 25% 96%;
-    --foreground: 220 30% 12%;
+    /* Sumi & Ai on washi — encre (sumi) + indigo (ai) sur papier washi.
+       Surfaces lighten as they lift: canvas (deeper washi) → card → popover,
+       so a card reads as a sheet of paper resting on the desk. */
+    --background: 38 33% 92%;
+    --foreground: 222 28% 12%;
 
-    --card: 38 20% 92%;
-    --card-foreground: 220 30% 12%;
+    --card: 40 42% 97%;
+    --card-foreground: 222 28% 12%;
 
-    --popover: 38 20% 92%;
-    --popover-foreground: 220 30% 12%;
+    --popover: 42 46% 98%;
+    --popover-foreground: 222 28% 12%;
 
-    --primary: 215 45% 30%;
-    --primary-foreground: 40 25% 96%;
+    --primary: 218 50% 31%;
+    --primary-foreground: 40 42% 97%;
 
-    --secondary: 35 12% 88%;
-    --secondary-foreground: 220 20% 25%;
+    --secondary: 36 18% 86%;
+    --secondary-foreground: 222 20% 24%;
 
-    --muted: 35 10% 85%;
-    --muted-foreground: 220 12% 48%;
+    --muted: 36 16% 87%;
+    --muted-foreground: 220 13% 40%;
 
-    --accent: 215 25% 55%;
-    --accent-foreground: 40 25% 96%;
+    --accent: 216 34% 50%;
+    --accent-foreground: 40 42% 97%;
 
-    --destructive: 0 55% 45%;
-    --destructive-foreground: 40 25% 96%;
+    --destructive: 0 58% 46%;
+    --destructive-foreground: 40 42% 97%;
 
-    --border: 35 12% 80%;
-    --input: 35 12% 80%;
-    --ring: 215 45% 30%;
+    --border: 36 18% 82%;
+    --input: 36 18% 82%;
+    --ring: 218 50% 31%;
 
     --radius: 0.75rem;
 
-    --silver: 215 15% 55%;
-    --silver-glow: 215 30% 45%;
-    --glass: 38 18% 94%;
-    --glass-border: 35 14% 78%;
+    /* Elevation — ink-wash shadows. Tints do most of the lifting; shadows stay
+       soft and low-contrast. L1 resting (barely there) · L2 raised (hover /
+       popover / dropdown) · L3 overlay (dialog / sheet / command palette). */
+    --shadow-1: 0 1px 2px 0 hsl(222 28% 12% / 0.04);
+    --shadow-2: 0 6px 20px -8px hsl(222 28% 12% / 0.12);
+    --shadow-3: 0 24px 48px -16px hsl(222 28% 12% / 0.20);
 
-    --sidebar-background: 40 25% 96%;
-    --sidebar-foreground: 220 30% 12%;
-    --sidebar-primary: 215 45% 30%;
-    --sidebar-primary-foreground: 40 25% 96%;
-    --sidebar-accent: 35 12% 88%;
-    --sidebar-accent-foreground: 220 30% 12%;
-    --sidebar-border: 35 12% 80%;
-    --sidebar-ring: 215 45% 30%;
+    --silver: 215 15% 50%;
+    --silver-glow: 215 30% 42%;
+    --glass: 42 46% 98%;
+    --glass-border: 36 20% 84%;
 
-    /* Extended palette for timeline cards */
-    --palette-rose: 348 30% 52%;
+    --sidebar-background: 38 33% 92%;
+    --sidebar-foreground: 222 28% 12%;
+    --sidebar-primary: 218 50% 31%;
+    --sidebar-primary-foreground: 40 42% 97%;
+    --sidebar-accent: 36 18% 86%;
+    --sidebar-accent-foreground: 222 28% 12%;
+    --sidebar-border: 36 18% 82%;
+    --sidebar-ring: 218 50% 31%;
+
+    /* Extended palette for timeline / status cards */
+    --palette-rose: 348 33% 50%;
     --palette-rose-foreground: 0 0% 100%;
-    --palette-sage: 145 20% 44%;
+    --palette-sage: 145 22% 42%;
     --palette-sage-foreground: 0 0% 100%;
-    --palette-amber: 36 42% 48%;
+    --palette-amber: 34 44% 46%;
     --palette-amber-foreground: 0 0% 100%;
-    --palette-violet: 258 28% 48%;
+    --palette-violet: 258 30% 48%;
     --palette-violet-foreground: 0 0% 100%;
   }
 
@@ -88,22 +97,27 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Sora', sans-serif;
   }
+
+  /* Display sizes read tighter — Sora opens up at large sizes, so pull the
+     tracking in slightly on the biggest headings for a more deliberate set. */
+  h1, h2 {
+    letter-spacing: -0.015em;
+  }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-glass/70 backdrop-blur-xl border border-glass-border rounded-xl;
-    box-shadow: 0 2px 16px -4px hsl(215 45% 30% / 0.06);
+    @apply bg-glass/80 backdrop-blur-xl border border-glass-border rounded-2xl;
+    box-shadow: var(--shadow-1);
   }
 
   .glass-card-hover {
-    @apply glass-card transition-all duration-500 ease-out;
+    @apply glass-card transition-all duration-300 ease-out;
   }
 
   .glass-card-hover:hover {
-    box-shadow: 0 8px 32px -8px hsl(var(--primary) / 0.18),
-                0 0 0 1px hsl(var(--primary) / 0.12);
-    transform: translateY(-4px);
+    box-shadow: var(--shadow-2);
+    transform: translateY(-2px);
   }
 
   .text-gradient-silver {

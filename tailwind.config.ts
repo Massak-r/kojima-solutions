@@ -79,6 +79,13 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        // Elevation ladder — see --shadow-* tokens in index.css.
+        // card = resting (L1) · raised = hover/popover (L2) · overlay = dialog (L3).
+        card: "var(--shadow-1)",
+        raised: "var(--shadow-2)",
+        overlay: "var(--shadow-3)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },

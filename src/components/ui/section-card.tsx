@@ -22,7 +22,7 @@ interface SectionCardProps {
  */
 export function SectionCard({ icon: Icon, iconClassName, title, subtitle, action, className, bodyClassName, children }: SectionCardProps) {
   return (
-    <section className={cn("bg-card border border-border rounded-2xl overflow-hidden", className)}>
+    <section className={cn("bg-card border border-border rounded-2xl overflow-hidden shadow-card", className)}>
       <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon size={15} className={cn("shrink-0", iconClassName ?? "text-primary")} />}
