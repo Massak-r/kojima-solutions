@@ -141,7 +141,7 @@ export function DeliveryCard({ d, onLightbox, isFinal = false }: {
                :            <Download size={15} className="text-palette-amber" />;
 
   const inner = (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-2xl shadow-card overflow-hidden">
       {/* Multi-image grid */}
       {isImage && imgs.length > 0 && (
         <div className={cn("grid gap-0.5 bg-secondary/20", imgs.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2")}>

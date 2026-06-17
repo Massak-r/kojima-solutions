@@ -405,7 +405,7 @@ export default function ClientDashboard() {
 
         {/* ── Nouveautés depuis la dernière visite (informational) ── */}
         {whatsNew.length > 0 && (
-          <section className="bg-card border border-border rounded-xl p-5">
+          <section className="bg-card border border-border rounded-2xl shadow-card p-5">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={15} className="text-primary" />
               <h2 className="font-display text-sm font-semibold text-foreground">Depuis votre dernière visite</h2>
@@ -430,7 +430,7 @@ export default function ClientDashboard() {
         )}
 
         {/* ── Section B: Project Overview ── */}
-        <section className="bg-card border border-border rounded-xl p-6">
+        <section className="bg-card border border-border rounded-2xl shadow-card p-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1 min-w-0">
               <h1 className="font-display text-2xl font-bold text-foreground mb-1">{project.title}</h1>
@@ -491,7 +491,7 @@ export default function ClientDashboard() {
               )} />
             </button>
             {ficheOpen && (
-              <div className="bg-card border border-border rounded-xl p-4 space-y-4 mt-1">
+              <div className="bg-card border border-border rounded-2xl shadow-card p-4 space-y-4 mt-1">
                 {project.description && (
                   <div>
                     <p className="font-display text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Description</p>
@@ -570,7 +570,7 @@ export default function ClientDashboard() {
                     : "text-palette-amber bg-palette-amber/10 border-palette-amber/30";
 
                   return (
-                    <div key={request.id} className="bg-card border border-border rounded-xl p-4">
+                    <div key={request.id} className="bg-card border border-border rounded-2xl shadow-card p-4">
                       <div className="flex items-start gap-3">
                         <div className={cn(
                           "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
@@ -832,7 +832,7 @@ export default function ClientDashboard() {
             )}
             <div className="space-y-2">
               {projectQuotes.map((q) => (
-                <div key={q.id} className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <div key={q.id} className="bg-card border border-border rounded-2xl shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   {/* Info row */}
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
