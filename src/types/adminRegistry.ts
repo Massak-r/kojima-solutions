@@ -14,6 +14,8 @@ export interface CommonMeta {
   id1Value?:  string;
   id2Label?:  string;
   id2Value?:  string;
+  /** Freeform extra copyable label/value pairs — available on every entry type. */
+  fields?:    CustomField[];
 }
 
 export interface BankMeta extends CommonMeta {
@@ -60,10 +62,9 @@ export interface CustomField {
   value: string;
 }
 
-/** Freeform category: the user adds their own copyable label/value fields. */
-export interface CustomMeta extends CommonMeta {
-  fields?: CustomField[];
-}
+/** Custom category: just the shared fields. The freeform `fields` now live on
+ *  CommonMeta, so every entry type can carry extra copyable fields. */
+export type CustomMeta = CommonMeta;
 
 export type RegistryMeta = BankMeta | InsuranceMeta | SubscriptionMeta | TaxMeta | CustomMeta;
 

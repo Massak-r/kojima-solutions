@@ -521,11 +521,12 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
         const done = checklist.filter(c => c.done).length;
         add('Documents', `${done} / ${checklist.length}`, false);
       }
-    } else if (entry.type === 'custom') {
-      const fields = (m.fields as CustomField[] | undefined) ?? [];
-      for (const f of fields) {
-        if (f?.label && f?.value) add(String(f.label), String(f.value));
-      }
+    }
+
+    // Freeform extra fields — available on every entry type.
+    const extraFields = (m.fields as CustomField[] | undefined) ?? [];
+    for (const f of extraFields) {
+      if (f?.label && f?.value) add(String(f.label), String(f.value));
     }
 
     // Custom identifiers — available on every entry type.
@@ -788,7 +789,8 @@ export function RegistreTab({ onOpenFolder }: RegistreTabProps) {
               {formType === 'insurance'    && <InsuranceMetaFields    meta={formMeta as InsuranceMeta}    onChange={m => setFormMeta(m)} />}
               {formType === 'subscription' && <SubscriptionMetaFields meta={formMeta as SubscriptionMeta} onChange={m => setFormMeta(m)} />}
               {formType === 'tax'          && <TaxMetaFields          meta={formMeta as TaxMeta}          onChange={m => setFormMeta(m)} />}
-              {formType === 'custom'       && <CustomMetaFields       meta={formMeta as CustomMeta}       onChange={m => setFormMeta(m)} />}
+              {/* Freeform extra fields — every type can carry its own copyable label/value pairs. */}
+              <CustomMetaFields meta={formMeta as CustomMeta} onChange={m => setFormMeta(m)} />
             </div>
 
             {/* Identifiers — generic, shown as copyable chips on the card */}
