@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
   Sparkles, ChevronDown, ChevronUp, FolderOpen, StickyNote, FolderKanban,
-  Archive, Zap, MapPin,
+  Archive, Zap, MapPin, Clock, Undo2,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateShort } from "@/lib/dateFormat";
 import {
   listInboxCaptures, markCaptureTriaged, untriageCapture, deleteInboxCapture, updateCaptureText,
+  snoozeCapture, unsnoozeCapture,
   type InboxCapture, type InboxList,
 } from "@/api/inboxCaptures";
 import { createSubtask, deleteSubtask } from "@/api/todoSubtasks";
@@ -32,13 +33,14 @@ import { INBOX_PENDING_KEY } from "@/hooks/useInboxCount";
  *  dedupe one fetch and react to the same invalidations. */
 const PENDING_KEY = INBOX_PENDING_KEY;
 const KEPT_KEY    = ["inbox-captures", "admin", "kept"] as const;
+const SNOOZED_KEY = ["inbox-captures", "admin", "snoozed"] as const;
 
 /** Destination label used by the pre-2026-05-26 "Garder" button. Captures
  *  matching this prefix get surfaced in the recovery section so the operator
  *  can route them into a real destination now that the button is gone. */
 const LEGACY_KEPT_DESTINATION = "kept-as-note";
 
-type PickerMode = "subtask" | "decision" | "note" | null;
+type PickerMode = "subtask" | "decision" | "note" | "snooze" | null;
 
 /** Polymorphic destination — note can land on a project or an objective. */
 type NoteTarget =
@@ -66,7 +68,17 @@ export function InboxPanel() {
     staleTime: 60_000,
   });
 
+  // Snoozed captures — hidden from the pending list until their time passes.
+  // Kept in a dedicated, collapsed section so they stay reachable (and
+  // cancellable) instead of vanishing into a black hole.
+  const { data: snoozedData } = useQuery<InboxList>({
+    queryKey: SNOOZED_KEY,
+    queryFn: () => listInboxCaptures({ status: "snoozed", source: "admin", limit: 100 }),
+    staleTime: 30_000,
+  });
+
   const items = data?.items ?? [];
+  const snoozedItems = snoozedData?.items ?? [];
   const keptItems = useMemo(
     () => (triagedData?.items ?? []).filter(
       (c) => c.triaged_destination === LEGACY_KEPT_DESTINATION,
@@ -114,20 +126,25 @@ export function InboxPanel() {
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: PENDING_KEY });
       await qc.cancelQueries({ queryKey: KEPT_KEY });
+      await qc.cancelQueries({ queryKey: SNOOZED_KEY });
       const prevPending = qc.getQueryData<InboxList>(PENDING_KEY);
       const prevKept    = qc.getQueryData<InboxList>(KEPT_KEY);
+      const prevSnoozed = qc.getQueryData<InboxList>(SNOOZED_KEY);
       dropFromList(PENDING_KEY, id);
       dropFromList(KEPT_KEY, id);
-      return { prevPending, prevKept };
+      dropFromList(SNOOZED_KEY, id);
+      return { prevPending, prevKept, prevSnoozed };
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prevPending) qc.setQueryData(PENDING_KEY, ctx.prevPending);
       if (ctx?.prevKept)    qc.setQueryData(KEPT_KEY, ctx.prevKept);
+      if (ctx?.prevSnoozed) qc.setQueryData(SNOOZED_KEY, ctx.prevSnoozed);
       toast({ title: "Suppression échouée", variant: "destructive" });
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: PENDING_KEY });
       qc.invalidateQueries({ queryKey: KEPT_KEY });
+      qc.invalidateQueries({ queryKey: SNOOZED_KEY });
     },
   });
 
@@ -152,6 +169,48 @@ export function InboxPanel() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: PENDING_KEY });
       qc.invalidateQueries({ queryKey: KEPT_KEY });
+    },
+  });
+
+  const snooze = useMutation({
+    mutationFn: ({ id, until }: { id: string; until: string }) => snoozeCapture(id, until),
+    onMutate: async ({ id }) => {
+      await qc.cancelQueries({ queryKey: PENDING_KEY });
+      const prevPending = qc.getQueryData<InboxList>(PENDING_KEY);
+      dropFromList(PENDING_KEY, id);
+      return { prevPending };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prevPending) qc.setQueryData(PENDING_KEY, ctx.prevPending);
+      toast({ title: "Snooze échoué", description: "Réessaye ?", variant: "destructive" });
+    },
+    onSuccess: (_d, { until }) => {
+      const d = new Date(until);
+      const label = isNaN(d.getTime()) ? "plus tard"
+        : d.toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      toast({ title: "Capture reportée", description: `Elle revient ${label}.` });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: SNOOZED_KEY });
+    },
+  });
+
+  const unsnooze = useMutation({
+    mutationFn: (id: string) => unsnoozeCapture(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: SNOOZED_KEY });
+      const prevSnoozed = qc.getQueryData<InboxList>(SNOOZED_KEY);
+      dropFromList(SNOOZED_KEY, id);
+      return { prevSnoozed };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prevSnoozed) qc.setQueryData(SNOOZED_KEY, ctx.prevSnoozed);
+      toast({ title: "Annulation échouée", variant: "destructive" });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PENDING_KEY });
+      qc.invalidateQueries({ queryKey: SNOOZED_KEY });
     },
   });
 
@@ -291,8 +350,8 @@ export function InboxPanel() {
     }
   }
 
-  // Hide entirely when there's nothing pending AND nothing legacy to recover.
-  if (!isLoading && items.length === 0 && keptItems.length === 0) return null;
+  // Hide entirely when there's nothing pending, snoozed or legacy to recover.
+  if (!isLoading && items.length === 0 && keptItems.length === 0 && snoozedItems.length === 0) return null;
 
   return (
     <section className="rounded-2xl border border-violet-200/60 dark:border-violet-500/25 bg-card shadow-card p-4 sm:p-5">
@@ -333,12 +392,13 @@ export function InboxPanel() {
                       capture={item}
                       objectives={objectives}
                       projects={projects}
-                      busy={triage.isPending || remove.isPending || editText.isPending}
+                      busy={triage.isPending || remove.isPending || editText.isPending || snooze.isPending}
                       onDelete={() => remove.mutate(item.id)}
                       onEdit={(text) => editText.mutate({ id: item.id, text })}
                       onConvertSubtask={(obj) => convertToSubtask(item, obj)}
                       onConvertDecision={(obj) => convertToDecision(item, obj)}
                       onConvertNote={(target) => convertToNote(item, target)}
+                      onSnooze={(until) => snooze.mutate({ id: item.id, until })}
                     />
                   </motion.li>
                 ))}
@@ -356,6 +416,14 @@ export function InboxPanel() {
               onConvertSubtask={(c, o) => convertToSubtask(c, o)}
               onConvertDecision={(c, o) => convertToDecision(c, o)}
               onConvertNote={(c, t) => convertToNote(c, t)}
+            />
+          )}
+          {snoozedItems.length > 0 && (
+            <SnoozedCapturesSection
+              captures={snoozedItems}
+              busy={snooze.isPending || unsnooze.isPending || remove.isPending}
+              onUnsnooze={(id) => unsnooze.mutate(id)}
+              onDelete={(id) => remove.mutate(id)}
             />
           )}
         </>
@@ -445,7 +513,7 @@ function KeptCapturesSection({
 
 function CaptureRow({
   capture, objectives, projects, busy,
-  onDelete, onEdit, onConvertSubtask, onConvertDecision, onConvertNote,
+  onDelete, onEdit, onConvertSubtask, onConvertDecision, onConvertNote, onSnooze,
 }: {
   capture: InboxCapture;
   objectives: UnifiedObjective[];
@@ -456,6 +524,7 @@ function CaptureRow({
   onConvertSubtask: (obj: UnifiedObjective) => void;
   onConvertDecision: (obj: UnifiedObjective) => void;
   onConvertNote: (target: NoteTarget) => void;
+  onSnooze?: (untilISO: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(capture.text);
@@ -667,6 +736,18 @@ function CaptureRow({
             chevron
             tooltip={objectivesOnly.length === 0 ? "Aucun objectif actif" : "Archiver comme décision sur un objectif"}
           />
+          {onSnooze && (
+            <ActionPill
+              onClick={() => setPicker(p => p === "snooze" ? null : "snooze")}
+              disabled={busy}
+              tone="indigo"
+              active={picker === "snooze"}
+              icon={<Clock size={11} />}
+              label="Snooze"
+              chevron
+              tooltip="Reporter — masquer la capture jusqu'à plus tard"
+            />
+          )}
           <div className="flex-1" />
           <button
             onClick={() => setEditing(true)}
@@ -728,6 +809,19 @@ function CaptureRow({
               onCancel={() => setPicker(null)}
             />
           </motion.div>
+        ) : picker === "snooze" && onSnooze ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            <SnoozePicker
+              onPick={(iso) => { onSnooze(iso); setPicker(null); }}
+              onCancel={() => setPicker(null)}
+            />
+          </motion.div>
         ) : null}
       </AnimatePresence>
     </div>
@@ -759,7 +853,7 @@ function ActionPill({
 }: {
   onClick: () => void;
   disabled?: boolean;
-  tone: "emerald" | "amber" | "sky";
+  tone: "emerald" | "amber" | "sky" | "indigo";
   active?: boolean;
   icon: React.ReactNode;
   label: string;
@@ -778,6 +872,10 @@ function ActionPill({
     sky: {
       active: "bg-sky-600 text-white",
       idle:   "text-sky-700 bg-sky-50 hover:bg-sky-100 dark:text-sky-300 dark:bg-sky-500/10 dark:hover:bg-sky-500/20",
+    },
+    indigo: {
+      active: "bg-indigo-600 text-white",
+      idle:   "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-300 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20",
     },
   };
   return (
@@ -1012,6 +1110,144 @@ function NoteTargetPicker({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Snooze presets — absolute wake times relative to now. Past options are
+ *  dropped so the picker only ever offers a future moment. */
+function snoozePresets(): Array<{ label: string; date: Date }> {
+  const now = new Date();
+  const out: Array<{ label: string; date: Date }> = [];
+  out.push({ label: "+3 h", date: new Date(now.getTime() + 3 * 3_600_000) });
+  const ceSoir = new Date(now); ceSoir.setHours(18, 0, 0, 0);
+  if (ceSoir.getTime() > now.getTime() + 30 * 60_000) out.push({ label: "Ce soir", date: ceSoir });
+  const demain = new Date(now); demain.setDate(demain.getDate() + 1); demain.setHours(9, 0, 0, 0);
+  out.push({ label: "Demain 9 h", date: demain });
+  const lundi = new Date(now);
+  const daysUntilMon = ((8 - lundi.getDay()) % 7) || 7; // strictly the next Monday
+  lundi.setDate(lundi.getDate() + daysUntilMon); lundi.setHours(9, 0, 0, 0);
+  out.push({ label: "Lundi 9 h", date: lundi });
+  return out;
+}
+
+/** Friendly local label of a stored UTC wake time (e.g. "lun. 19/06 09:00").
+ *  The server stores snoozed_until in UTC (space-separated), so normalise to
+ *  an ISO-Z string before parsing. */
+function formatWake(snoozedUtc: string): string {
+  const d = new Date(snoozedUtc.replace(" ", "T") + "Z");
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/** Inline picker offering a few "remind me later" presets. */
+function SnoozePicker({ onPick, onCancel }: { onPick: (iso: string) => void; onCancel: () => void }) {
+  const presets = useMemo(() => snoozePresets(), []);
+  return (
+    <div className="mt-2.5 ml-[18px] rounded-lg border border-border/60 bg-background/60 p-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground">
+          → Reporter à…
+        </span>
+        <button
+          onClick={onCancel}
+          className="text-muted-foreground/50 hover:text-foreground transition-colors p-0.5"
+          aria-label="Annuler"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => onPick(p.date.toISOString())}
+            className="inline-flex items-center gap-1 text-[11px] font-body font-medium rounded-full px-2.5 py-1 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-300 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 transition-colors"
+          >
+            <Clock size={11} />
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Collapsed list of snoozed captures — kept reachable so the operator can
+ *  bring one back early or drop it. Lighter than CaptureRow: text + wake time
+ *  + un-snooze + delete (triage happens once it's brought back). */
+function SnoozedCapturesSection({
+  captures, busy, onUnsnooze, onDelete,
+}: {
+  captures: InboxCapture[];
+  busy: boolean;
+  onUnsnooze: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl border border-indigo-200/60 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/8 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-indigo-100/40 dark:hover:bg-indigo-500/15 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Clock size={13} className="text-indigo-700 dark:text-indigo-300" />
+          <span className="text-xs font-display font-bold text-indigo-800 dark:text-indigo-200 uppercase tracking-wider">
+            Reportées · {captures.length}
+          </span>
+        </div>
+        {open ? <ChevronUp size={14} className="text-indigo-700 dark:text-indigo-300" /> : <ChevronDown size={14} className="text-indigo-700 dark:text-indigo-300" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <ul className="space-y-1.5 px-3 pb-3 pt-1">
+              {captures.map((c) => (
+                <li
+                  key={c.id}
+                  className="rounded-xl border border-border/50 bg-card/70 px-3 py-2 flex items-start gap-2.5"
+                >
+                  <Clock size={11} className="text-indigo-500 mt-1 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-body text-foreground/90 leading-snug line-clamp-2">{c.text}</p>
+                    {c.snoozed_until && (
+                      <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">
+                        revient {formatWake(c.snoozed_until)}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onUnsnooze(c.id)}
+                    disabled={busy}
+                    title="Ramener maintenant"
+                    className="inline-flex items-center gap-1 text-[11px] font-body font-medium rounded-full px-2 py-0.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-300 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 transition-colors disabled:opacity-40 shrink-0"
+                  >
+                    <Undo2 size={11} />
+                    Ramener
+                  </button>
+                  <button
+                    onClick={() => onDelete(c.id)}
+                    disabled={busy}
+                    className="p-1.5 rounded-md text-muted-foreground/50 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors disabled:opacity-30 shrink-0"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

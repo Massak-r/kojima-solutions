@@ -13,6 +13,9 @@ export interface InboxCapture {
    *  latter carries project_hint instead). */
   context: string | null;
   project_hint: string | null;
+  /** UTC datetime until which the capture is hidden from the pending list, or
+   *  null. While set in the future the capture appears only in the snoozed view. */
+  snoozed_until: string | null;
   created_at: string;
   triaged_at: string | null;
   triaged_destination: string | null;
@@ -23,7 +26,7 @@ export interface InboxList {
   items: InboxCapture[];
 }
 
-export type InboxStatus = "pending" | "triaged" | "all";
+export type InboxStatus = "pending" | "triaged" | "snoozed" | "all";
 
 /** Fetch captures plus the live pending count. Default = admin / pending. */
 export function listInboxCaptures(opts?: { status?: InboxStatus; source?: "admin" | "personal"; limit?: number }): Promise<InboxList> {
@@ -73,6 +76,23 @@ export function updateCaptureText(id: string, text: string): Promise<{ id: strin
   return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {
     method: "PATCH",
     body: JSON.stringify({ text }),
+  });
+}
+
+/** Snooze a capture: hide it from the pending list until `untilISO` (an ISO
+ *  datetime). digest.php fires a push and brings it back when the time passes. */
+export function snoozeCapture(id: string, untilISO: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ snoozedUntil: untilISO }),
+  });
+}
+
+/** Cancel a snooze — bring the capture straight back to the pending list. */
+export function unsnoozeCapture(id: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`inbox.php?id=${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ snoozedUntil: null }),
   });
 }
 

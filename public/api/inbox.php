@@ -31,6 +31,10 @@ try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN kind VARCHAR(16) NULL DEF
 // (e.g. "Trésorerie", "Pilotage"); informational for triage. Idempotent.
 try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN context VARCHAR(40) NULL DEFAULT NULL"); } catch (Throwable $e) {}
 
+// Snooze — when set (UTC), the capture is hidden from the pending list until
+// this time; digest.php wakes it (push + clears the column). Idempotent.
+try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN snoozed_until DATETIME NULL DEFAULT NULL"); } catch (Throwable $e) {}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -41,14 +45,18 @@ if ($method === 'GET') {
     $source = $_GET['source'] ?? 'admin';
     $limit  = max(1, min(500, (int)($_GET['limit'] ?? 100)));
     if (!in_array($source, ['admin', 'personal'], true)) fail('Invalid source');
-    if (!in_array($status, ['pending', 'triaged', 'all'], true)) fail('Invalid status');
+    if (!in_array($status, ['pending', 'triaged', 'snoozed', 'all'], true)) fail('Invalid status');
 
     $where = ['source = ?'];
     $args  = [$source];
-    if ($status === 'pending') $where[] = 'triaged_at IS NULL';
+    // Pending hides captures snoozed into the future; "snoozed" is their
+    // dedicated view so they stay reachable. UTC matches how the value is
+    // stored (gmdate) and how digest.php wakes them.
+    if ($status === 'pending') { $where[] = 'triaged_at IS NULL'; $where[] = '(snoozed_until IS NULL OR snoozed_until <= UTC_TIMESTAMP())'; }
     if ($status === 'triaged') $where[] = 'triaged_at IS NOT NULL';
+    if ($status === 'snoozed') { $where[] = 'triaged_at IS NULL'; $where[] = 'snoozed_until IS NOT NULL'; $where[] = 'snoozed_until > UTC_TIMESTAMP()'; }
 
-    $sql = 'SELECT id, source, text, kind, context, project_hint, created_at, triaged_at, triaged_destination
+    $sql = 'SELECT id, source, text, kind, context, project_hint, snoozed_until, created_at, triaged_at, triaged_destination
             FROM inbox_capture
             WHERE ' . implode(' AND ', $where) . '
             ORDER BY created_at DESC
@@ -59,7 +67,7 @@ if ($method === 'GET') {
 
     // Also return a quick count of pending so the Monday popup doesn't need a
     // second roundtrip.
-    $cstmt = $pdo->prepare("SELECT COUNT(*) FROM inbox_capture WHERE source = ? AND triaged_at IS NULL");
+    $cstmt = $pdo->prepare("SELECT COUNT(*) FROM inbox_capture WHERE source = ? AND triaged_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= UTC_TIMESTAMP())");
     $cstmt->execute([$source]);
     $pendingCount = (int)$cstmt->fetchColumn();
 
@@ -87,7 +95,7 @@ if ($method === 'POST') {
     $pdo->prepare("INSERT INTO inbox_capture (id, source, text, kind, context, project_hint) VALUES (?, ?, ?, ?, ?, ?)")
         ->execute([$id, $source, $text, $kind ?: null, $context ?: null, $hint ?: null]);
 
-    $stmt = $pdo->prepare("SELECT id, source, text, kind, context, project_hint, created_at, triaged_at, triaged_destination FROM inbox_capture WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, source, text, kind, context, project_hint, snoozed_until, created_at, triaged_at, triaged_destination FROM inbox_capture WHERE id = ?");
     $stmt->execute([$id]);
     ok($stmt->fetch());
 }
@@ -106,6 +114,18 @@ if ($method === 'PATCH') {
             // un-triage (rare, but useful for undo)
             $pdo->prepare("UPDATE inbox_capture SET triaged_at = NULL, triaged_destination = NULL WHERE id = ?")
                 ->execute([$id]);
+        }
+    }
+    if (array_key_exists('snoozedUntil', $body)) {
+        $su = $body['snoozedUntil'];
+        if ($su === null || $su === '') {
+            // Un-snooze — bring it straight back to the pending list.
+            $pdo->prepare("UPDATE inbox_capture SET snoozed_until = NULL WHERE id = ?")->execute([$id]);
+        } else {
+            $ts = strtotime((string)$su);
+            if ($ts === false) fail('snoozedUntil invalid (expect an ISO datetime)');
+            $pdo->prepare("UPDATE inbox_capture SET snoozed_until = ? WHERE id = ?")
+                ->execute([gmdate('Y-m-d H:i:s', $ts), $id]);
         }
     }
     if (array_key_exists('text', $body)) {

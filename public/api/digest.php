@@ -49,12 +49,37 @@ try {
     }
 } catch (Throwable $e) { /* reminders are best-effort; never break the digest */ }
 
+// ── Snoozed inbox captures due now ───────────────────────────
+// A woken capture is already back in the pending list (the inbox GET filter
+// shows it once snoozed_until has passed); here we additionally fire one push
+// nudge and clear snoozed_until so it stops counting as snoozed. Best-effort.
+$snoozeResults = ['woken' => 0];
+try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN snoozed_until DATETIME NULL DEFAULT NULL"); } catch (Throwable $e) {}
+try {
+    $woke = $pdo->query("SELECT id, text FROM inbox_capture WHERE triaged_at IS NULL AND snoozed_until IS NOT NULL AND snoozed_until <= UTC_TIMESTAMP() ORDER BY snoozed_until ASC LIMIT 100")->fetchAll();
+    if ($woke) {
+        if (file_exists(__DIR__ . '/push_send.php')) {
+            require_once __DIR__ . '/push_send.php';
+            $n     = count($woke);
+            $first = trim((string)($woke[0]['text'] ?? ''));
+            if (strlen($first) > 80) $first = substr($first, 0, 77) . '…';
+            $title = $n === 1 ? 'Capture à trier' : "$n captures à trier";
+            $body  = $n === 1 ? $first : 'Elles reviennent dans ton inbox.';
+            sendPushNotifications($pdo, $title, $body, '/home');
+        }
+        $ids = array_column($woke, 'id');
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        $pdo->prepare("UPDATE inbox_capture SET snoozed_until = NULL WHERE id IN ($ph)")->execute($ids);
+        $snoozeResults['woken'] = count($ids);
+    }
+} catch (Throwable $e) { /* best-effort; never break the digest */ }
+
 // ── Fetch all unsent notifications ──────────────────────────
 $stmt    = $pdo->query('SELECT * FROM notifications WHERE sent = 0 ORDER BY created_at ASC');
 $pending = $stmt->fetchAll();
 
 if (empty($pending)) {
-    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults]);
+    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults]);
 }
 
 $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'chraiti.massaki@gmail.com';
@@ -129,4 +154,5 @@ ok([
     'email'     => null,
     'push'      => $pushResults,
     'reminders' => $reminderResults,
+    'snooze'    => $snoozeResults,
 ]);
