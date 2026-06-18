@@ -27,6 +27,10 @@ try {
 // to pre-seed triage. Idempotent; safe on existing rows (NULL = untyped).
 try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN kind VARCHAR(16) NULL DEFAULT NULL"); } catch (Throwable $e) {}
 
+// Origin context — friendly label of the app section the capture was made from
+// (e.g. "Trésorerie", "Pilotage"); informational for triage. Idempotent.
+try { $pdo->exec("ALTER TABLE inbox_capture ADD COLUMN context VARCHAR(40) NULL DEFAULT NULL"); } catch (Throwable $e) {}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -44,7 +48,7 @@ if ($method === 'GET') {
     if ($status === 'pending') $where[] = 'triaged_at IS NULL';
     if ($status === 'triaged') $where[] = 'triaged_at IS NOT NULL';
 
-    $sql = 'SELECT id, source, text, kind, project_hint, created_at, triaged_at, triaged_destination
+    $sql = 'SELECT id, source, text, kind, context, project_hint, created_at, triaged_at, triaged_destination
             FROM inbox_capture
             WHERE ' . implode(' AND ', $where) . '
             ORDER BY created_at DESC
@@ -71,17 +75,19 @@ if ($method === 'POST') {
     $source = $body['source'] ?? 'admin';
     $hint   = isset($body['projectHint']) ? trim((string)$body['projectHint']) : null;
     $kind   = isset($body['kind']) ? trim((string)$body['kind']) : null;
+    $context = isset($body['context']) ? trim((string)$body['context']) : null;
     if ($text === '') fail('text must not be empty');
     if (strlen($text) > 2000) fail('text too long (max 2000 chars)');
     if (!in_array($source, ['admin', 'personal'], true)) fail('Invalid source');
     if ($hint !== null && strlen($hint) > 255) fail('projectHint too long');
     if ($kind !== null && !in_array($kind, ['idea', 'todo', 'note', 'urgent'], true)) $kind = null;
+    if ($context !== null) $context = substr($context, 0, 40);
 
     $id = uuid();
-    $pdo->prepare("INSERT INTO inbox_capture (id, source, text, kind, project_hint) VALUES (?, ?, ?, ?, ?)")
-        ->execute([$id, $source, $text, $kind ?: null, $hint ?: null]);
+    $pdo->prepare("INSERT INTO inbox_capture (id, source, text, kind, context, project_hint) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([$id, $source, $text, $kind ?: null, $context ?: null, $hint ?: null]);
 
-    $stmt = $pdo->prepare("SELECT id, source, text, kind, project_hint, created_at, triaged_at, triaged_destination FROM inbox_capture WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, source, text, kind, context, project_hint, created_at, triaged_at, triaged_destination FROM inbox_capture WHERE id = ?");
     $stmt->execute([$id]);
     ok($stmt->fetch());
 }

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox, Check, Trash2, ArrowRight, Pencil, X, Loader2, Target,
   Sparkles, ChevronDown, ChevronUp, FolderOpen, StickyNote, FolderKanban,
-  Archive, Zap,
+  Archive, Zap, MapPin,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -608,6 +608,12 @@ function CaptureRow({
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100/60 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 normal-case">
                 <FolderOpen size={9} />
                 {capture.project_hint}
+              </span>
+            )}
+            {capture.context && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-100/60 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 normal-case">
+                <MapPin size={9} />
+                {capture.context}
               </span>
             )}
           </div>

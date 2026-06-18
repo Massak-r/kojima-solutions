@@ -8,6 +8,10 @@ export interface InboxCapture {
   source: "admin" | "personal";
   text: string;
   kind: CaptureKind | null;
+  /** Friendly label of the app section the capture was made from (e.g.
+   *  "Trésorerie"). Null when captured from /home or a project page (the
+   *  latter carries project_hint instead). */
+  context: string | null;
   project_hint: string | null;
   created_at: string;
   triaged_at: string | null;
@@ -33,7 +37,7 @@ export function listInboxCaptures(opts?: { status?: InboxStatus; source?: "admin
 
 /** Add a quick capture. project_hint is a freeform tag, not a strict reference.
  *  kind is an optional capture type used to pre-seed triage. */
-export function addInboxCapture(text: string, opts?: { projectHint?: string; source?: "admin" | "personal"; kind?: CaptureKind }): Promise<InboxCapture> {
+export function addInboxCapture(text: string, opts?: { projectHint?: string; source?: "admin" | "personal"; kind?: CaptureKind; context?: string }): Promise<InboxCapture> {
   return apiFetch<InboxCapture>("inbox.php", {
     method: "POST",
     body: JSON.stringify({
@@ -41,6 +45,7 @@ export function addInboxCapture(text: string, opts?: { projectHint?: string; sou
       projectHint: opts?.projectHint,
       source: opts?.source ?? "admin",
       kind: opts?.kind,
+      context: opts?.context,
     }),
   });
 }

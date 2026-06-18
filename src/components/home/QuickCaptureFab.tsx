@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Loader2, Inbox, Sparkles, Mic, Square, Scissors } from "lucide-react";
+import { X, Send, Loader2, Inbox, Sparkles, Mic, Square, Scissors, MapPin } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { addInboxCapture, type CaptureKind } from "@/api/inboxCaptures";
@@ -37,6 +37,29 @@ function getSpeechRecognition(): SRConstructor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/** Friendly label of the app section a capture was made from — stamped as
+ *  `context` so triage knows the origin. Returns undefined where a more
+ *  specific signal already exists (project routes carry projectHint) or where
+ *  it adds nothing (the home surface itself). */
+function routeContextLabel(pathname: string): string | undefined {
+  if (pathname.startsWith("/project/")) return undefined; // projectHint covers it
+  const MAP: Array<[RegExp, string]> = [
+    [/^\/cockpit/,     "Pilotage"],
+    [/^\/relances/,    "Relances"],
+    [/^\/pipeline/,    "Leads"],
+    [/^\/sprint/,      "Sprint"],
+    [/^\/quotes/,      "Devis"],
+    [/^\/accounting/,  "Finance"],
+    [/^\/tresorerie/,  "Trésorerie"],
+    [/^\/documents/,   "Documents"],
+    [/^\/clients/,     "Clients"],
+    [/^\/settings/,    "Réglages"],
+    [/^\/objective\//, "Objectif"],
+  ];
+  for (const [re, label] of MAP) if (re.test(pathname)) return label;
+  return undefined; // /home and unknowns → no context tag
+}
+
 /** Floating capture button on /home and project pages. Tap → small panel with
  *  textarea + send. Now supports voice dictation, an optional 1-tap type, and
  *  splitting a multi-line brain-dump into one capture per line. The DB is the
@@ -70,6 +93,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
     return proj ? projectJournalSlug(proj.title) : undefined;
   }, [location.pathname, projects]);
   const effectiveHint = projectHint ?? routeHint;
+  const routeContext = useMemo(() => routeContextLabel(location.pathname), [location.pathname]);
 
   const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
   const isMulti = lines.length >= 2;
@@ -158,6 +182,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
         await addInboxCapture(item, {
           projectHint: effectiveHint,
           kind: kind ?? undefined,
+          context: routeContext,
         });
       }
       resetAndClose();
@@ -235,6 +260,12 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                   {effectiveHint && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
                       {effectiveHint}
+                    </span>
+                  )}
+                  {!effectiveHint && routeContext && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">
+                      <MapPin size={9} />
+                      {routeContext}
                     </span>
                   )}
                 </div>
