@@ -26,8 +26,11 @@ import { subtasksQueryKey } from "@/hooks/useSubtasks";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { UnifiedObjective } from "@/api/objectiveSource";
+import { INBOX_PENDING_KEY } from "@/hooks/useInboxCount";
 
-const PENDING_KEY = ["inbox-captures", "admin", "pending"] as const;
+/** Shared with the nav badge (useInboxCount) so the panel and the badge
+ *  dedupe one fetch and react to the same invalidations. */
+const PENDING_KEY = INBOX_PENDING_KEY;
 const KEPT_KEY    = ["inbox-captures", "admin", "kept"] as const;
 
 /** Destination label used by the pre-2026-05-26 "Garder" button. Captures

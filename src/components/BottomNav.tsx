@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 import { useAdminDocs } from "@/hooks/useAdminDocs";
+import { useInboxCount } from "@/hooks/useInboxCount";
 
 const BOTTOM_NAV = [
   { to: "/home",       label: "Accueil",    icon: LayoutDashboard },
@@ -58,6 +59,7 @@ export default function BottomNav() {
   const isAdminPage = ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
   const sprintActive = useAnyFocusSessionActive();
   const { pendingCount } = useAdminDocs({ enabled: isAdminPage });
+  const { pendingCount: inboxCount } = useInboxCount({ enabled: isAdminPage });
 
   if (!isAdminPage) return null;
 
@@ -76,7 +78,7 @@ export default function BottomNav() {
               (to === "/home" && pathname.startsWith("/project/")) ||
               (to === "/quotes" && pathname.startsWith("/quote"));
             const showBadge = to === "/sprint" && sprintActive;
-            const docCount = to === "/documents" ? pendingCount : 0;
+            const badgeCount = to === "/documents" ? pendingCount : to === "/home" ? inboxCount : 0;
             return (
               <Link
                 key={to}
@@ -84,7 +86,7 @@ export default function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 aria-label={
                   showBadge ? `${label} · session en cours`
-                  : docCount > 0 ? `${label} · ${docCount} à trier`
+                  : badgeCount > 0 ? `${label} · ${badgeCount} à trier`
                   : label
                 }
                 className={`relative flex flex-col items-center justify-center gap-0.5 shrink-0 min-w-[4rem] py-2 transition-colors ${
@@ -106,7 +108,7 @@ export default function BottomNav() {
                       "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
                     )} />
                   )}
-                  <NavCountBadge count={docCount} />
+                  <NavCountBadge count={badgeCount} />
                 </div>
                 <span className="text-[10px] font-medium leading-tight">
                   {label}
@@ -125,7 +127,7 @@ export default function BottomNav() {
             (to === "/home" && pathname.startsWith("/project/")) ||
             (to === "/quotes" && pathname.startsWith("/quote"));
           const showBadge = to === "/sprint" && sprintActive;
-          const docCount = to === "/documents" ? pendingCount : 0;
+          const badgeCount = to === "/documents" ? pendingCount : to === "/home" ? inboxCount : 0;
           return (
             <Link
               key={to}
@@ -133,7 +135,7 @@ export default function BottomNav() {
               aria-current={active ? "page" : undefined}
               aria-label={
                 sprintActive && to === "/sprint" ? `${label} · session en cours`
-                : docCount > 0 ? `${label} · ${docCount} à trier`
+                : badgeCount > 0 ? `${label} · ${badgeCount} à trier`
                 : label
               }
               className={`relative flex flex-col items-center justify-center gap-0.5 w-14 py-2.5 rounded-lg transition-colors ${
@@ -158,7 +160,7 @@ export default function BottomNav() {
                     "before:absolute before:inset-0 before:rounded-full before:bg-emerald-500 before:animate-ping before:opacity-70"
                   )} />
                 )}
-                <NavCountBadge count={docCount} />
+                <NavCountBadge count={badgeCount} />
               </div>
               <span className="text-[9px] font-medium leading-tight">
                 {label}

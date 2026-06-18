@@ -15,6 +15,7 @@ import {
   useTodaysSprint, type TodayItem, type TodaySuggestion, type SuggestionReason,
 } from "@/hooks/useTodaysSprint";
 import { DayBlocks } from "@/components/home/DayBlocks";
+import { InboxPanel } from "@/components/home/InboxPanel";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
@@ -151,6 +152,9 @@ export function AujourdhuiTab() {
           </div>
         )}
       </section>
+
+      {/* Inbox à trier — captures non triées ; se masque seule si rien en attente */}
+      <InboxPanel />
 
       {/* Programme du jour — manual time-blocks */}
       <DayBlocks />
