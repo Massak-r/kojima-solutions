@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Loader2, Inbox, Sparkles, Mic, Square, Scissors } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 import { addInboxCapture, type CaptureKind } from "@/api/inboxCaptures";
 import { CAPTURE_KINDS } from "@/lib/captureKinds";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "react-router-dom";
+import { useProjects } from "@/contexts/ProjectsContext";
+import { projectJournalSlug } from "@/api/projectJournal";
+import { useIsAdminPage } from "@/components/BottomNav";
 
 interface QuickCaptureFabProps {
   /** Optional pre-filled project tag (slug or title) shown to the user as a chip. */
@@ -51,6 +55,21 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
   const [srSupported] = useState(() => !!getSpeechRecognition());
   const qc = useQueryClient();
   const { toast } = useToast();
+  const isAdminPage = useIsAdminPage();
+  const location = useLocation();
+  const { projects } = useProjects();
+
+  // Route-derived project context: on any /project/:id/* page, auto-tag the
+  // capture with that project's journal slug so triage can route it back —
+  // reproduces the hint ProjectBrief used to pass explicitly, now that this
+  // FAB is mounted globally. An explicit `projectHint` prop still wins.
+  const routeHint = useMemo(() => {
+    const m = location.pathname.match(/^\/project\/([^/]+)/);
+    if (!m) return undefined;
+    const proj = projects.find((p) => p.id === m[1]);
+    return proj ? projectJournalSlug(proj.title) : undefined;
+  }, [location.pathname, projects]);
+  const effectiveHint = projectHint ?? routeHint;
 
   const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
   const isMulti = lines.length >= 2;
@@ -137,7 +156,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
     try {
       for (const item of items) {
         await addInboxCapture(item, {
-          projectHint,
+          projectHint: effectiveHint,
           kind: kind ?? undefined,
         });
       }
@@ -158,6 +177,10 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
       setSubmitting(false);
     }
   }
+
+  // Global mount (App.tsx) — render only on admin pages, mirroring
+  // BottomNav / QuickActionFAB; hidden on public, client and print routes.
+  if (!isAdminPage) return null;
 
   return (
     <>
@@ -209,9 +232,9 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                   <span className="text-[10px] font-display font-bold uppercase tracking-widest text-foreground/70">
                     Capture rapide
                   </span>
-                  {projectHint && (
+                  {effectiveHint && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                      {projectHint}
+                      {effectiveHint}
                     </span>
                   )}
                 </div>

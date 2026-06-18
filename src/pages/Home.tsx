@@ -11,7 +11,6 @@ import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
 import { OverviewTab } from "@/components/home/OverviewTab";
 import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
 import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
-import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { AujourdhuiTab } from "@/components/home/AujourdhuiTab";
 import { HomeSearch } from "@/components/home/HomeSearch";
@@ -196,7 +195,6 @@ export default function Home() {
       </main>
 
       <MondayBriefDialog open={mondayBriefOpen} onOpenChange={handleMondayBriefChange} />
-      <QuickCaptureFab />
     </div>
   );
 }
