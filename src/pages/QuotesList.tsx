@@ -316,12 +316,12 @@ export default function QuotesList() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-accent"
-              title={t("Facturer ce devis", "Bill this quote")}
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1 h-7 border-accent/40 text-accent hover:bg-accent/10"
+              title={t("Facturer ce devis — en totalité, ou en 2 (acompte + solde)", "Bill this quote — in full, or split (deposit + balance)")}
             >
-              <Coins size={14} />
+              <Coins size={14} /> {t("Facturer", "Bill")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

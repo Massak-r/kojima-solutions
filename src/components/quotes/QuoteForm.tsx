@@ -261,7 +261,7 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   return (
     <div className="grid lg:grid-cols-2 gap-8 items-start">
       {/* Form */}
-      <div className="quote-form-panel space-y-8 glass-card p-6 md:p-8">
+      <div className="quote-form-panel min-w-0 space-y-8 glass-card p-6 md:p-8">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <h2 className="font-display text-xl font-semibold text-foreground">
@@ -760,7 +760,7 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           quotes are fully visible. The inner doc is scaled with transform: scale,
           which doesn't shrink layout space, so we compute the wrapper height
           manually from the measured content height × scale. */}
-      <div className="quote-preview-panel lg:sticky lg:top-24">
+      <div className="quote-preview-panel min-w-0 lg:sticky lg:top-24">
         <p className="text-xs text-muted-foreground mb-2" data-print-hide>
           {siteT("Aperçu du devis", "Quote preview")}
           <span className="ml-2 text-muted-foreground/80">
