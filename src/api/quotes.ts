@@ -6,7 +6,9 @@ export function listQuotes() {
 }
 
 export function listProjectQuotes(projectId: string) {
-  return apiFetch<Quote[]>(`quotes.php?projectId=${projectId}`);
+  // NB: the PHP reads `project_id` (snake_case) — sending `projectId` here used
+  // to silently fall through to the unscoped all-quotes list.
+  return apiFetch<Quote[]>(`quotes.php?project_id=${projectId}`);
 }
 
 export function getQuote(id: string) {

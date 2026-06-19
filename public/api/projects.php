@@ -96,6 +96,29 @@ function mapProject(array $row): array {
     ];
 }
 
+/**
+ * Strip internal-only fields before returning a project to a non-admin caller
+ * (client portal + public print pages). Keys are kept (values blanked) so the
+ * client-facing frontend shape stays intact and nothing reads `undefined`.
+ */
+function stripProjectForClient(array $project): array {
+    $project['notes']         = '';
+    $project['initialQuote']  = '';
+    $project['revisedQuote']  = '';
+    $project['invoiceNumber'] = '';
+    if (!empty($project['tasks'])) {
+        foreach ($project['tasks'] as &$t) {
+            $t['estimatedHours'] = null;
+            $t['actualHours']    = null;
+            $t['completedBy']    = null;
+            $t['sprintTier']     = 'nice';
+            $t['flaggedToday']   = false;
+        }
+        unset($t);
+    }
+    return $project;
+}
+
 function mapTask(array $row): array {
     return [
         'id'               => $row['id'],
@@ -255,18 +278,28 @@ function loadFullProject(PDO $pdo, string $projectId): ?array {
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = $_GET['id'] ?? null;
 
-// GET — list all or single
+// GET — list all or single. Non-admin callers (client portal + public print
+// pages) only ever see client-kind projects with internal fields (financials,
+// hour tracking, private notes) stripped. The admin app — authed by the
+// HttpOnly session cookie — gets every project, fully.
 if ($method === 'GET') {
+    $isAdmin = validateAdminSession() !== null;
     if ($id) {
         $project = loadFullProject($pdo, $id);
         if (!$project) fail('Project not found', 404);
+        if (!$isAdmin) {
+            if (($project['kind'] ?? 'client') !== 'client') fail('Project not found', 404);
+            $project = stripProjectForClient($project);
+        }
         ok($project);
     } else {
-        $rows = $pdo->query('SELECT id FROM projects ORDER BY created_at DESC')->fetchAll();
+        $rows = $isAdmin
+            ? $pdo->query('SELECT id FROM projects ORDER BY created_at DESC')->fetchAll()
+            : $pdo->query("SELECT id FROM projects WHERE kind = 'client' ORDER BY created_at DESC")->fetchAll();
         $projects = [];
         foreach ($rows as $row) {
             $p = loadFullProject($pdo, $row['id']);
-            if ($p) $projects[] = $p;
+            if ($p) $projects[] = $isAdmin ? $p : stripProjectForClient($p);
         }
         ok($projects);
     }

@@ -81,6 +81,9 @@ if ($method === 'GET') {
         $stmt->execute([$projectId]);
         ok(array_map('mapQuote', $stmt->fetchAll()));
     } else {
+        // The unscoped list (every client's quotes) is admin-only. Client-facing
+        // pages read scoped via ?id= or ?project_id=, which stay public.
+        if (validateAdminSession() === null) fail('Unauthorized', 401);
         $rows = $pdo->query('SELECT * FROM quotes ORDER BY created_at DESC')->fetchAll();
         ok(array_map('mapQuote', $rows));
     }

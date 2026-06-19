@@ -1,15 +1,24 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuotes } from "@/hooks/useQuotes";
+import { Loader2 } from "lucide-react";
+import { getQuote as fetchQuote } from "@/api/quotes";
 import { QuotePreview } from "@/components/quotes/QuotePreview";
-import { buildQuoteFilename } from "@/types/quote";
+import { buildQuoteFilename, type Quote } from "@/types/quote";
 
 const SUPPORT_EMAIL = "massaki@kojima-solutions.ch";
 
 export default function QuotePrintPage() {
   const { id } = useParams<{ id: string }>();
-  const { getQuote } = useQuotes();
-  const quote = id ? getQuote(id) : undefined;
+  // Public print route → fetch the single quote directly (the unscoped
+  // all-quotes list is now admin-only). undefined = loading, null = not found.
+  const [quote, setQuote] = useState<Quote | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!id) { setQuote(null); return; }
+    let live = true;
+    fetchQuote(id).then((q) => { if (live) setQuote(q); }).catch(() => { if (live) setQuote(null); });
+    return () => { live = false; };
+  }, [id]);
 
   useEffect(() => {
     if (!quote) return;
@@ -38,6 +47,14 @@ export default function QuotePrintPage() {
       document.title = originalTitle;
     };
   }, [quote]);
+
+  if (quote === undefined) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="animate-spin text-gray-300" size={24} />
+      </div>
+    );
+  }
 
   if (!id || !quote) {
     const subject = encodeURIComponent(`Lien devis introuvable (ref: ${id ?? "n/a"})`);
