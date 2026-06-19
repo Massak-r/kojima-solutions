@@ -14,6 +14,7 @@ import type { Quote } from "@/types/quote";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { QuoteStatsPanel } from "@/components/quotes/QuoteStatsPanel";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
@@ -69,6 +70,9 @@ export default function QuotesList() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [reminderSent, setReminderSent] = useState<Set<string>>(new Set());
+  // Custom-% deposit split — the quote being split + the chosen percentage.
+  const [customSplit, setCustomSplit] = useState<Quote | null>(null);
+  const [customPct, setCustomPct] = useState<number>(40);
 
   const templateCount = useMemo(
     () => quotes.filter((q) => q.isTemplate === true).length,
@@ -338,6 +342,9 @@ export default function QuotesList() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => acompteFromQuote(q, 30)}>
               {t("Acompte 30% · solde 70%", "30% deposit · 70% balance")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setCustomPct(40); setCustomSplit(q); }}>
+              {t("Acompte personnalisé…", "Custom deposit…")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -724,6 +731,82 @@ export default function QuotesList() {
         )}
 
       </div>
+
+      {/* Custom-% deposit split — pick any acompte % with a live amount preview */}
+      <Dialog open={!!customSplit} onOpenChange={(o) => { if (!o) setCustomSplit(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("Acompte personnalisé", "Custom deposit")}</DialogTitle>
+            <DialogDescription>
+              {customSplit
+                ? `${t("Devis", "Quote")} ${customSplit.quoteNumber} · ${t("net", "net")} ${formatCurrency(netSubtotalQuote(customSplit), customSplit.lang)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {customSplit && (() => {
+            const base = netSubtotalQuote(customSplit);
+            const pct = Math.min(99, Math.max(1, Math.round(customPct) || 0));
+            const acompte = Math.round(base * (pct / 100) * 100) / 100;
+            const solde = Math.round(base * ((100 - pct) / 100) * 100) / 100;
+            return (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">{t("% de l'acompte", "Deposit %")}</label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={customPct}
+                      onChange={(e) => setCustomPct(Math.min(99, Math.max(1, parseInt(e.target.value, 10) || 0)))}
+                      className="w-24 font-mono"
+                      autoFocus
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                    <div className="flex gap-1 ml-auto">
+                      {[25, 40, 60, 75].map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setCustomPct(v)}
+                          className={cn(
+                            "text-xs px-2 py-1 rounded-full border transition-colors",
+                            pct === v ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground border-border hover:bg-secondary",
+                          )}
+                        >
+                          {v}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/30 p-3 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("Acompte", "Deposit")} ({pct}%)</span>
+                    <span className="font-medium">{formatCurrency(acompte, customSplit.lang)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("Solde", "Balance")} ({100 - pct}%)</span>
+                    <span className="font-medium">{formatCurrency(solde, customSplit.lang)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomSplit(null)}>{t("Annuler", "Cancel")}</Button>
+            <Button
+              onClick={() => {
+                const pct = Math.min(99, Math.max(1, Math.round(customPct) || 0));
+                if (customSplit) acompteFromQuote(customSplit, pct);
+                setCustomSplit(null);
+              }}
+            >
+              {t(`Créer l'acompte ${Math.min(99, Math.max(1, Math.round(customPct) || 0))}%`, `Create ${Math.min(99, Math.max(1, Math.round(customPct) || 0))}% deposit`)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
