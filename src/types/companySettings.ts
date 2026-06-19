@@ -98,7 +98,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   email: "massaki@kojima-solutions.ch",
   website: "kojima-solutions.ch",
   ideNumber: "",
-  bankAccountHolder: "Kojima Solutions — Massaki Chraïti",
+  bankAccountHolder: "Kojima Solutions - Massaki Chraïti",
   bankIban: "",
   bankBic: "",
   bankName: "",

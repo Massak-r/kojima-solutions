@@ -256,13 +256,13 @@ export default function QuotesList() {
       isTemplate: false,
       templateName: null,
       discountEnabled: false,
-      projectTitle: `${heading} — ${original.projectTitle || original.quoteNumber}`,
+      projectTitle: `${heading} - ${original.projectTitle || original.quoteNumber}`,
       sourceQuoteId: original.id,
       billingKind: kind,
       billedPct: pct,
       lineItems: [{
         id: crypto.randomUUID?.() ?? `line-${Date.now()}`,
-        description: `${heading} ${t("sur", "on")} ${original.quoteNumber}${original.projectTitle ? " — " + original.projectTitle : ""}`,
+        description: `${heading} ${t("sur", "on")} ${original.quoteNumber}${original.projectTitle ? " - " + original.projectTitle : ""}`,
         quantity: 1,
         unitPrice: Math.round(base * (pct / 100) * 100) / 100,
       }],
@@ -380,7 +380,7 @@ export default function QuotesList() {
       invoiceStatus: "draft",
       isTemplate: false,
       templateName: null,
-      projectTitle: `${baseTitle} — ${monthLabel}`,
+      projectTitle: `${baseTitle} - ${monthLabel}`,
     };
     delete clone.createdAt; delete clone.updatedAt;
     addQuote(clone);

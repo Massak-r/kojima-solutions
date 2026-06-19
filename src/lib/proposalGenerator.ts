@@ -66,12 +66,12 @@ const PAGE_EXTRAS: Record<string, { amount: number; label: string }> = {
 };
 
 const HOSTING_LINES: Record<string, { amount: number; label: string }> = {
-  simple: { amount: 360, label: "Hébergement Suisse — 1 an" },
+  simple: { amount: 360, label: "Hébergement Suisse - 1 an" },
 };
 
 const MAINTENANCE_LINES: Record<string, { amount: number; label: string }> = {
-  basic:  { amount: 500,  label: "Maintenance basique — 1 an (mises à jour + 1h)" },
-  custom: { amount: 1000, label: "Maintenance sur mesure — 1 an (10h incluses)" },
+  basic:  { amount: 500,  label: "Maintenance basique - 1 an (mises à jour + 1h)" },
+  custom: { amount: 1000, label: "Maintenance sur mesure - 1 an (10h incluses)" },
 };
 
 const PROJECT_TYPE_LABEL: Record<string, string> = {
@@ -241,8 +241,8 @@ export function generateProposal(
 
   // ── Project title & description ────────────────────────────────────
   const projectTitle =
-    company ? `${projectLabel} — ${company}`
-    : intake.clientName ? `${projectLabel} — ${intake.clientName}`
+    company ? `${projectLabel} - ${company}`
+    : intake.clientName ? `${projectLabel} - ${intake.clientName}`
     : projectLabel;
 
   const projectDescription = buildDescription(intake, modules);
