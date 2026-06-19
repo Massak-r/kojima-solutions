@@ -26,6 +26,11 @@ try {
     if (!in_array('client_ref', $cols)) {
         $pdo->exec('ALTER TABLE quotes ADD COLUMN client_ref VARCHAR(128) DEFAULT NULL');
     }
+    // Encaissement date — set when an invoice flips to 'paid' (the bookable
+    // revenue date for the Soroban bridge + the forecast). Idempotent.
+    if (!in_array('paid_at', $cols)) {
+        $pdo->exec('ALTER TABLE quotes ADD COLUMN paid_at DATETIME DEFAULT NULL');
+    }
 } catch (Throwable $e) {}
 
 // ── Helper ──────────────────────────────────────────────────
@@ -59,6 +64,7 @@ function mapQuote(array $row): array {
         'sourceQuoteId'      => $row['source_quote_id'] ?? null,
         'billingKind'        => $row['billing_kind'] ?? null,
         'billedPct'          => isset($row['billed_pct']) && $row['billed_pct'] !== null ? (float)$row['billed_pct'] : null,
+        'paidAt'             => $row['paid_at'] ?? null,
         'createdAt'          => $row['created_at'],
     ];
 }
@@ -178,6 +184,9 @@ if ($method === 'PUT') {
         $data['clientRef']          ?? null,
         $id,
     ]);
+    // Stamp/clear the encaissement date when the invoice flips to/from 'paid'
+    // (preserved if already set). Feeds the forecast + Soroban revenue events.
+    $pdo->prepare("UPDATE quotes SET paid_at = CASE WHEN invoice_status = 'paid' THEN COALESCE(paid_at, NOW()) ELSE NULL END WHERE id = ?")->execute([$id]);
     $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
