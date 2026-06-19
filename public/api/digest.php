@@ -74,12 +74,82 @@ try {
     }
 } catch (Throwable $e) { /* best-effort; never break the digest */ }
 
+// ── Deadline scan: auto-flag upcoming / overdue deadlines ────
+// Derives deadlines from existing data (validated invoices' échéances, client
+// project end-dates) and the admin_deadlines table, and emits one notification
+// per deadline (→ NotificationBell + push) exactly once via a dedup ledger.
+// Recurring admin deadlines roll forward. Best-effort; never breaks the digest.
+$deadlineResults = ['flagged' => 0];
+try {
+    $today = date('Y-m-d');
+    $pdo->exec("CREATE TABLE IF NOT EXISTS deadline_alerts (
+        alert_key  VARCHAR(191) NOT NULL PRIMARY KEY,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS admin_deadlines (
+        id VARCHAR(36) NOT NULL PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT NULL,
+        due_date DATE NOT NULL, category VARCHAR(50) NOT NULL DEFAULT 'Général', recurring VARCHAR(20) NULL,
+        remind_days INT NOT NULL DEFAULT 7, completed TINYINT(1) NOT NULL DEFAULT 0, completed_at DATETIME NULL,
+        notified TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $notify = $pdo->prepare("INSERT INTO notifications (id, project_id, project_title, task_title, client_name, question, response)
+                             VALUES (?, NULL, ?, ?, '', ?, '')");
+    $claim  = $pdo->prepare("INSERT IGNORE INTO deadline_alerts (alert_key) VALUES (?)");
+    $dayLabel = function (string $due) use ($today): string {
+        $d = (int)((strtotime($due) - strtotime($today)) / 86400);
+        if ($d < 0)   return 'En retard de ' . abs($d) . ' j';
+        if ($d === 0) return "Échéance aujourd'hui";
+        return "Échéance dans $d j";
+    };
+
+    // (a) Roll recurring admin deadlines forward when past due, then re-arm.
+    $recMap = ['weekly'=>'+1 week','monthly'=>'+1 month','quarterly'=>'+3 months','biannual'=>'+6 months','yearly'=>'+1 year'];
+    foreach ($pdo->query("SELECT id, due_date, recurring FROM admin_deadlines WHERE recurring IS NOT NULL AND recurring <> '' AND completed = 0 AND due_date < '$today'")->fetchAll() as $dl) {
+        $step = $recMap[$dl['recurring']] ?? null;
+        if (!$step) continue;
+        $next = $dl['due_date']; $guard = 0;
+        while (strtotime($next) < strtotime($today) && $guard++ < 200) { $next = date('Y-m-d', strtotime("$next $step")); }
+        $pdo->prepare("UPDATE admin_deadlines SET due_date = ?, notified = 0 WHERE id = ?")->execute([$next, $dl['id']]);
+    }
+
+    // (b) admin_deadlines inside their remind window (manual + fiscal).
+    $stmt = $pdo->prepare("SELECT * FROM admin_deadlines WHERE completed = 0 AND notified = 0 AND DATEDIFF(due_date, ?) <= remind_days AND DATEDIFF(due_date, ?) >= -30");
+    $stmt->execute([$today, $today]);
+    foreach ($stmt->fetchAll() as $dl) {
+        $notify->execute([uuid(), 'Échéance · ' . $dl['category'], $dl['title'], $dayLabel($dl['due_date'])]);
+        $pdo->prepare("UPDATE admin_deadlines SET notified = 1 WHERE id = ?")->execute([$dl['id']]);
+        $deadlineResults['flagged']++;
+    }
+
+    // (c) Validated invoices due within 7 days or overdue.
+    foreach ($pdo->query("SELECT id, quote_number, project_title, validity_date FROM quotes
+                          WHERE doc_type = 'invoice' AND invoice_status = 'validated' AND validity_date IS NOT NULL
+                            AND DATEDIFF(validity_date, '$today') <= 7 AND DATEDIFF(validity_date, '$today') >= -120")->fetchAll() as $q) {
+        $claim->execute(['inv:' . $q['id'] . ':' . $q['validity_date']]);
+        if ($claim->rowCount() === 0) continue;
+        $label = trim(($q['quote_number'] ?? '') . ' · ' . ($q['project_title'] ?? ''), " ·");
+        $notify->execute([uuid(), 'Facture', $label !== '' ? $label : ($q['quote_number'] ?? 'Facture'), $dayLabel($q['validity_date'])]);
+        $deadlineResults['flagged']++;
+    }
+
+    // (d) Client projects in progress whose end date is within 7 days or overdue.
+    foreach ($pdo->query("SELECT id, title, end_date FROM projects
+                          WHERE kind = 'client' AND status = 'in-progress' AND end_date IS NOT NULL AND end_date <> ''
+                            AND DATEDIFF(end_date, '$today') <= 7 AND DATEDIFF(end_date, '$today') >= -60")->fetchAll() as $pr) {
+        $claim->execute(['proj:' . $pr['id'] . ':' . $pr['end_date']]);
+        if ($claim->rowCount() === 0) continue;
+        $notify->execute([uuid(), 'Projet', $pr['title'], $dayLabel($pr['end_date'])]);
+        $deadlineResults['flagged']++;
+    }
+} catch (Throwable $e) { /* best-effort; never break the digest */ }
+
 // ── Fetch all unsent notifications ──────────────────────────
 $stmt    = $pdo->query('SELECT * FROM notifications WHERE sent = 0 ORDER BY created_at ASC');
 $pending = $stmt->fetchAll();
 
 if (empty($pending)) {
-    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults]);
+    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults, 'deadlines' => $deadlineResults]);
 }
 
 $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'chraiti.massaki@gmail.com';
@@ -155,4 +225,5 @@ ok([
     'push'      => $pushResults,
     'reminders' => $reminderResults,
     'snooze'    => $snoozeResults,
+    'deadlines' => $deadlineResults,
 ]);
