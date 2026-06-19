@@ -1,6 +1,7 @@
 import { Settings, Bell, Globe, Receipt, Landmark, Wand2, Plus, Trash2, RotateCcw, Wrench } from "lucide-react";
 import { EmailTemplates } from "@/components/EmailTemplates";
 import { RemindersManager } from "@/components/settings/RemindersManager";
+import { DeadlinesManager } from "@/components/settings/DeadlinesManager";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,9 @@ export default function SettingsPage() {
 
         {/* Scheduled push reminders */}
         <RemindersManager />
+
+        {/* Key dates & fiscal deadlines */}
+        <DeadlinesManager />
 
         {/* Site Info */}
         <SiteInfoSection />

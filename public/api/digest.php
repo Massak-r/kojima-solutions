@@ -203,13 +203,28 @@ $headers .= "X-Mailer: PHP/" . phpversion();
 $pushResults = ['sent' => 0, 'failed' => 0, 'expired' => 0];
 if (file_exists(__DIR__ . '/push_send.php')) {
     require_once __DIR__ . '/push_send.php';
-    $pushTitle = $count === 1
-        ? "Réponse client — {$pending[0]['project_title']}"
-        : "{$count} nouvelles réponses clients";
-    $pushBody  = $count === 1
-        ? "{$pending[0]['client_name']} : {$pending[0]['response']}"
-        : "{$count} réponses sur " . count($byProject) . " projet(s)";
-    $pushResults = sendPushNotifications($pdo, $pushTitle, $pushBody, '/space');
+    // Deadline notifications (project_title Facture/Projet/Échéance·…) get
+    // their own copy + link so the push isn't mislabelled "réponses clients".
+    $isDeadline = function ($n) {
+        $pt = $n['project_title'] ?? '';
+        return in_array($pt, ['Facture', 'Projet'], true) || str_starts_with((string)$pt, 'Échéance');
+    };
+    $dl = array_values(array_filter($pending, $isDeadline));
+    $fb = array_values(array_filter($pending, fn($n) => !$isDeadline($n)));
+    if (count($fb) === 0) {
+        $pushTitle = $count === 1 ? "📅 {$dl[0]['project_title']} — {$dl[0]['question']}" : "📅 {$count} échéances";
+        $pushBody  = $count === 1 ? (string)$dl[0]['task_title'] : 'À traiter dans Kojima';
+        $pushUrl   = '/relances';
+    } elseif (count($dl) === 0) {
+        $pushTitle = $count === 1 ? "Réponse client — {$fb[0]['project_title']}" : "{$count} nouvelles réponses clients";
+        $pushBody  = $count === 1 ? "{$fb[0]['client_name']} : {$fb[0]['response']}" : "{$count} réponses sur " . count($byProject) . " projet(s)";
+        $pushUrl   = '/space';
+    } else {
+        $pushTitle = "{$count} notifications";
+        $pushBody  = count($fb) . " réponse(s) client · " . count($dl) . " échéance(s)";
+        $pushUrl   = '/home';
+    }
+    $pushResults = sendPushNotifications($pdo, $pushTitle, $pushBody, $pushUrl);
 }
 
 // Mark notifications as sent (push only, no email)
