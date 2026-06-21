@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, Banknote, CalendarClock, History, BellRing, Landmark } from "lucide-react";
+import { Wallet, Banknote, CalendarClock, History, BellRing, Landmark, TrendingUp } from "lucide-react";
 import { TresorerieTab } from "@/components/personal/TresorerieTab";
 import { BudgetTab } from "@/components/tresorerie/BudgetTab";
 import { AccountsManager } from "@/components/tresorerie/AccountsManager";
@@ -8,6 +8,7 @@ import { PayablesManager } from "@/components/tresorerie/PayablesManager";
 import { LedgerView } from "@/components/tresorerie/LedgerView";
 import { RenewalsTab } from "@/components/tresorerie/RenewalsTab";
 import { CamtReconcile } from "@/components/tresorerie/CamtReconcile";
+import { ForecastTab } from "@/components/tresorerie/ForecastTab";
 
 export default function Tresorerie() {
   const [params] = useSearchParams();
@@ -28,6 +29,9 @@ export default function Tresorerie() {
               <TabsTrigger value="accounts" className="text-xs sm:text-sm flex items-center gap-1.5">
                 <Banknote size={13} /> Comptes
               </TabsTrigger>
+              <TabsTrigger value="forecast" className="text-xs sm:text-sm flex items-center gap-1.5">
+                <TrendingUp size={13} /> Prévisionnel
+              </TabsTrigger>
               <TabsTrigger value="payables" className="text-xs sm:text-sm flex items-center gap-1.5">
                 <CalendarClock size={13} /> À payer
               </TabsTrigger>
@@ -47,6 +51,7 @@ export default function Tresorerie() {
             </TabsList>
           </div>
           <TabsContent value="accounts"><AccountsManager /></TabsContent>
+          <TabsContent value="forecast"><ForecastTab /></TabsContent>
           <TabsContent value="payables"><PayablesManager /></TabsContent>
           <TabsContent value="ledger"><LedgerView /></TabsContent>
           <TabsContent value="budget"><BudgetTab /></TabsContent>
