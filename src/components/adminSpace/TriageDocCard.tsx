@@ -13,8 +13,8 @@ import { toast } from "sonner";
 import { useClients } from "@/contexts/ClientsContext";
 import { classifyPdf, updateDoc, type AdminDocItem, type DocFolder } from "@/api/adminDocs";
 import { classifyDocument, type ClassifySuggestion, type DocCategory } from "@/lib/docClassifier";
-import { extractInvoiceFields } from "@/lib/invoiceExtractor";
 import { DocToPayableDialog, type PayablePrefill } from "./DocToPayableDialog";
+import { buildDocPayablePrefill } from "./docPayable";
 import { folderOptions, formatBytes, formatDate } from "./helpers";
 import { DocPreviewSheet } from "./DocPreviewSheet";
 import { PdfThumbnail } from "./PdfThumbnail";
@@ -91,16 +91,7 @@ export function TriageDocCard({
   async function openPayable() {
     setPayableLoading(true);
     try {
-      const payload = await classifyPdf(doc.id);
-      const f = extractInvoiceFields(payload.extractedText || "");
-      const refBits = [f.iban && `IBAN ${f.iban}`, f.reference && `réf ${f.reference}`].filter(Boolean).join(" · ");
-      setPayablePrefill({
-        label: f.vendor ? `Facture ${f.vendor}` : doc.title,
-        amount: f.amount != null ? String(f.amount) : "",
-        dueDate: f.dueDate ?? "",
-        category: "",
-        notes: `Depuis « ${doc.title} »${refBits ? " · " + refBits : ""}`,
-      });
+      setPayablePrefill(await buildDocPayablePrefill(doc.id, doc.title));
       setPayableOpen(true);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "";
@@ -472,6 +463,7 @@ export function TriageDocCard({
         open={payableOpen}
         onOpenChange={setPayableOpen}
         prefill={payablePrefill}
+        doc={{ id: doc.id, title: doc.title }}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
@@ -7,10 +8,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Loader2, ArrowDownRight, ArrowUpRight, Lock, CircleDashed, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createPayable } from "@/api/payables";
-import type { PayableCommitment, PayableDirection } from "@/types/payable";
+import { listAccounts } from "@/api/accounts";
+import type { PayableCommitment, PayableCreate, PayableDirection } from "@/types/payable";
 
 export interface PayablePrefill {
   label: string;
@@ -24,10 +29,12 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prefill: PayablePrefill | null;
+  /** Source document, so the payable links back (sourceType=admin_doc). */
+  doc?: { id: string; title: string };
   onCreated?: () => void;
 }
 
-export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: Props) {
+export function DocToPayableDialog({ open, onOpenChange, prefill, doc, onCreated }: Props) {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<PayableDirection>("out");
@@ -35,7 +42,18 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Entreprise accounts only: a payable needs one for the daily admin-pulse
+  // reminder (digest.php nudges only entreprise payables) to pick it up.
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts", "entreprise"],
+    queryFn: () => listAccounts({ type: "entreprise" }),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const liveAccounts = accounts.filter((a) => !a.isArchived);
 
   // Re-seed the form each time the dialog opens with a fresh extraction.
   useEffect(() => {
@@ -47,8 +65,15 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
       setDueDate(prefill.dueDate);
       setCategory(prefill.category);
       setNotes(prefill.notes);
+      setAccountId("");
     }
   }, [open, prefill]);
+
+  // Default to the first entreprise account once they've loaded (only while empty,
+  // so a deliberate "— Aucun —" choice isn't overridden).
+  useEffect(() => {
+    if (open && liveAccounts.length > 0) setAccountId((prev) => prev || liveAccounts[0].id);
+  }, [open, liveAccounts]);
 
   async function handleCreate() {
     if (!label.trim()) { toast.error("Libellé requis"); return; }
@@ -56,7 +81,7 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
     if (!isFinite(amt)) { toast.error("Montant invalide"); return; }
     setSaving(true);
     try {
-      await createPayable({
+      const payload: Partial<PayableCreate> & { sourceType?: string; sourceId?: string } = {
         label: label.trim(),
         amount: amt,
         currency: "CHF",
@@ -67,12 +92,15 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
         category: category.trim() || null,
         notes: notes.trim() || null,
         recurrence: "none",
-      });
-      toast.success("Payable créé", { description: "À vérifier dans Trésorerie → À payer." });
+        accountId: accountId || null,
+      };
+      if (doc) { payload.sourceType = "admin_doc"; payload.sourceId = doc.id; }
+      await createPayable(payload);
+      toast.success("Paiement enregistré", { description: "À retrouver dans Trésorerie → À payer." });
       onCreated?.();
       onOpenChange(false);
     } catch {
-      toast.error("Échec de la création du payable");
+      toast.error("Échec de la création du paiement");
     } finally {
       setSaving(false);
     }
@@ -83,7 +111,7 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            <Receipt size={16} className="text-primary" /> Créer un payable
+            <Receipt size={16} className="text-primary" /> Paiement à venir
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
@@ -136,6 +164,22 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
           </div>
 
           <div>
+            <label className="text-xs text-muted-foreground">Compte à débiter</label>
+            <Select value={accountId || "none"} onValueChange={(v) => setAccountId(v === "none" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Aucun —</SelectItem>
+                {liveAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {!accountId && (
+              <p className="text-[10px] text-amber-600 mt-0.5">
+                Sans compte entreprise, pas de rappel automatique.
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className="text-xs text-muted-foreground">Type</label>
             <div className="grid grid-cols-2 gap-2 mt-1">
               <button
@@ -180,7 +224,7 @@ export function DocToPayableDialog({ open, onOpenChange, prefill, onCreated }: P
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Annuler</Button>
           <Button onClick={handleCreate} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
-            Créer le payable
+            Enregistrer le paiement
           </Button>
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>

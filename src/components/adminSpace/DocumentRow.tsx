@@ -6,11 +6,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  FileText, Eye, Trash2, Pencil, Check, X, Link2, Link2Off, Folder, GripVertical, Inbox,
+  FileText, Eye, Trash2, Pencil, Check, X, Link2, Link2Off, Folder, GripVertical, Inbox, Receipt, Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { AdminDocItem } from "@/api/adminDocs";
 import { DOC_CATEGORIES, YEAR_OPTIONS, formatBytes, formatDate } from "./helpers";
 import { DocPreviewSheet } from "./DocPreviewSheet";
+import { DocToPayableDialog, type PayablePrefill } from "./DocToPayableDialog";
+import { buildDocPayablePrefill } from "./docPayable";
 
 interface DocumentRowProps {
   doc: AdminDocItem;
@@ -42,6 +45,9 @@ export function DocumentRow({
   const [category, setCategory] = useState(doc.category);
   const [year, setYear] = useState<number | null>(doc.year);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [payableOpen, setPayableOpen] = useState(false);
+  const [payablePrefill, setPayablePrefill] = useState<PayablePrefill | null>(null);
+  const [payableLoading, setPayableLoading] = useState(false);
 
   useEffect(() => {
     if (isEditing) {
@@ -53,6 +59,19 @@ export function DocumentRow({
 
   function save() {
     onSaveEdit({ title, category, year });
+  }
+
+  async function openPayable() {
+    setPayableLoading(true);
+    try {
+      setPayablePrefill(await buildDocPayablePrefill(doc.id, doc.title));
+      setPayableOpen(true);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "";
+      if (!message.includes("→ 401")) toast.error("Lecture du document impossible.");
+    } finally {
+      setPayableLoading(false);
+    }
   }
 
   return (
@@ -167,6 +186,15 @@ export function DocumentRow({
           <Inbox size={16} />
         </button>
         <button
+          onClick={openPayable}
+          disabled={payableLoading}
+          className="p-2 md:p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+          title="Enregistrer comme paiement à venir"
+          aria-label="Enregistrer comme paiement à venir"
+        >
+          {payableLoading ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />}
+        </button>
+        <button
           onClick={onStartEdit}
           className="p-2 md:p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           title="Modifier"
@@ -196,6 +224,13 @@ export function DocumentRow({
         onOpenChange={setPreviewOpen}
         title={doc.title}
         viewUrl={viewUrl}
+      />
+
+      <DocToPayableDialog
+        open={payableOpen}
+        onOpenChange={setPayableOpen}
+        prefill={payablePrefill}
+        doc={{ id: doc.id, title: doc.title }}
       />
     </div>
   );
