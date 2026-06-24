@@ -16,6 +16,7 @@ import { useAdminDocs } from "@/hooks/useAdminDocs";
 import { useInboxCount } from "@/hooks/useInboxCount";
 import { listPayables } from "@/api/payables";
 import { listNotes } from "@/api/objectiveNotes";
+import { getAdminComplianceSignal } from "@/api/sorobanSnapshot";
 import {
   ADMIN_CHECKLIST_OBJECTIVE_ID, computeGauges, buildTimeline, summarize,
   type Gauge, type GaugeStatus, type DomainKey, type TimelineItem,
@@ -156,8 +157,16 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
   });
   const { pendingCount: pendingDocs } = useAdminDocs();
   const { pendingCount: inboxCount } = useInboxCount({ enabled: true });
+  // Phase-2 Soroban signal — null until Soroban pushes a snapshot, in which case
+  // the salaire / compta / TVA gauges sharpen from "part tâche" to real.
+  const { data: signal } = useQuery({
+    queryKey: ["soroban", "admin-compliance"],
+    queryFn: getAdminComplianceSignal,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
-  const gauges = useMemo(() => computeGauges({ subtasks, payables, today }), [subtasks, payables, today]);
+  const gauges = useMemo(() => computeGauges({ subtasks, payables, today, signal: signal ?? undefined }), [subtasks, payables, today, signal]);
   const timeline = useMemo(() => buildTimeline({ subtasks, payables, today }), [subtasks, payables, today]);
   const summary = useMemo(() => summarize(gauges), [gauges]);
   const pinned = useMemo(() => notes.filter((n) => n.pinned), [notes]);
@@ -238,7 +247,16 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
       </div>
 
       {/* Jauges de conformité */}
-      <SectionCard icon={ShieldCheck} title="Conformité" subtitle={`${summary.upToDate}/${summary.applicable} à jour`}>
+      <SectionCard
+        icon={ShieldCheck}
+        title="Conformité"
+        subtitle={`${summary.upToDate}/${summary.applicable} à jour`}
+        action={signal ? (
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 inline-flex items-center gap-1 shrink-0">
+            <Sparkles size={10} /> Soroban{signal.as_of ? ` · ${formatDateSwiss(signal.as_of)}` : ""}
+          </span>
+        ) : undefined}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {gauges.map((g) => (
             <GaugeCard key={g.key} gauge={g} />

@@ -303,8 +303,10 @@ function gaugeFor(meta: DomainMeta, all: Obligation[], today: Date, signal?: Adm
     else { status = "green"; reason = `Prochaine : ${n.label} (${formatDateSwiss(n.dueISO!)}).`; }
   }
 
-  // Honesty cap: a Soroban-truth domain can't be asserted "red" without the signal.
-  if (meta.phase2Note && !signal && status === "red") status = "amber";
+  // Honesty cap: a Soroban-truth domain can't be asserted "red" until the signal
+  // actually speaks to it. `refined` (not merely `signal`) is the real gate — a
+  // partial snapshot that omits this domain leaves it task-based + capped.
+  if (meta.phase2Note && !refined && status === "red") status = "amber";
 
   return {
     key: meta.key,
@@ -312,7 +314,7 @@ function gaugeFor(meta: DomainMeta, all: Obligation[], today: Date, signal?: Adm
     status,
     reason,
     nextAction: nextAction(meta, n),
-    phase2Note: signal ? undefined : meta.phase2Note,
+    phase2Note: refined ? undefined : meta.phase2Note,
     obligations: obs,
   };
 }
