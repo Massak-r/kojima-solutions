@@ -1,25 +1,26 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ShieldCheck, ShieldAlert, Banknote, Landmark, Calculator, Archive, Receipt,
   Percent, Users, CalendarClock, FileText, BookOpen, ArrowRight, ChevronRight,
-  Loader2, ScanLine, Inbox, Wallet, BellRing, Sparkles,
+  ChevronDown, Loader2, ScanLine, Inbox, Wallet, BellRing, Sparkles, Check,
+  Circle, Crosshair,
 } from "lucide-react";
 import { SectionCard } from "@/components/ui/section-card";
 import { cn } from "@/lib/utils";
 import { formatChf } from "@/lib/currency";
-import { formatDateSwiss, formatDateWithWeekday } from "@/lib/dateFormat";
+import { formatDateSwiss } from "@/lib/dateFormat";
 import { useObjectives } from "@/hooks/useObjectives";
-import { useObjectiveSubtasks } from "@/hooks/useSubtasks";
+import { useObjectiveSubtasks, useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useAdminDocs } from "@/hooks/useAdminDocs";
 import { useInboxCount } from "@/hooks/useInboxCount";
 import { listPayables } from "@/api/payables";
-import { listNotes } from "@/api/objectiveNotes";
+import { listNotes, type ObjectiveNote } from "@/api/objectiveNotes";
 import { getAdminComplianceSignal } from "@/api/sorobanSnapshot";
 import {
-  ADMIN_CHECKLIST_OBJECTIVE_ID, computeGauges, buildTimeline, summarize,
-  type Gauge, type GaugeStatus, type DomainKey, type TimelineItem,
+  ADMIN_CHECKLIST_OBJECTIVE_ID, computeGauges, buildTimeline, summarize, assignDomain,
+  type Gauge, type GaugeStatus, type DomainKey, type TimelineItem, type ComplianceSummary,
 } from "@/lib/adminCompliance";
 
 interface Props {
@@ -27,26 +28,17 @@ interface Props {
   onNavigateTab?: (tab: "triage" | "documents") => void;
 }
 
+/** Anything within this many days (or overdue) is "Maintenant"; further out is calm. */
+const NOW_HORIZON_DAYS = 14;
+
 const DOMAIN_ICONS: Record<DomainKey, typeof Banknote> = {
-  salaire: Banknote,
-  charges: Landmark,
-  compta: Calculator,
-  bouclement: Archive,
-  impots: Receipt,
-  tva: Percent,
-  gouvernance: Users,
+  salaire: Banknote, charges: Landmark, compta: Calculator, bouclement: Archive,
+  impots: Receipt, tva: Percent, gouvernance: Users,
 };
-
 const DOMAIN_LABELS: Record<DomainKey, string> = {
-  salaire: "Salaire",
-  charges: "Charges sociales",
-  compta: "Comptabilité",
-  bouclement: "Bouclement",
-  impots: "Impôts",
-  tva: "TVA",
-  gouvernance: "Gouvernance",
+  salaire: "Salaire", charges: "Charges sociales", compta: "Comptabilité",
+  bouclement: "Bouclement", impots: "Impôts", tva: "TVA", gouvernance: "Gouvernance",
 };
-
 const STATUS_UI: Record<GaugeStatus, { dot: string; chip: string; label: string }> = {
   green: { dot: "bg-emerald-500", chip: "bg-emerald-50 border-emerald-200 text-emerald-700", label: "À jour" },
   amber: { dot: "bg-amber-400",   chip: "bg-amber-50 border-amber-200 text-amber-700",       label: "À préparer" },
@@ -66,6 +58,164 @@ function stripColor(days: number): string {
   if (days <= 7) return "bg-amber-400";
   if (days <= 30) return "bg-amber-300";
   return "bg-emerald-400";
+}
+
+/** Pull numbered / bulleted lines out of a how-to note as guided micro-steps. */
+function parseSteps(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => /^(\d+[.)]|[-*•])\s+/.test(l))
+    .map((l) => l.replace(/^(\d+[.)]|[-*•])\s+/, "").trim())
+    .filter(Boolean);
+}
+
+function NowCard({
+  now, nextUp, summary, guideNote, objectiveHref, onDone, busy, focus, onToggleFocus,
+}: {
+  now: TimelineItem | null;
+  nextUp: TimelineItem | null;
+  summary: ComplianceSummary;
+  guideNote: ObjectiveNote | null;
+  objectiveHref: string;
+  onDone: (item: TimelineItem) => void;
+  busy: boolean;
+  focus: boolean;
+  onToggleFocus: () => void;
+}) {
+  const [openGuide, setOpenGuide] = useState(false);
+  const [doneSteps, setDoneSteps] = useState<Set<number>>(new Set());
+  useEffect(() => { setDoneSteps(new Set()); setOpenGuide(false); }, [now?.id]);
+
+  const steps = useMemo(() => (guideNote ? parseSteps(guideNote.content) : []), [guideNote]);
+  const allStepsDone = steps.length > 0 && doneSteps.size >= steps.length;
+
+  const focusToggle = (
+    <button
+      type="button"
+      onClick={onToggleFocus}
+      aria-pressed={focus}
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition shrink-0",
+        focus ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Crosshair size={12} /> Focus
+    </button>
+  );
+
+  const summaryLine = (
+    <p className="text-xs text-muted-foreground/80 mt-3 flex items-center gap-1.5 flex-wrap">
+      <ShieldCheck size={12} className={summary.allClear ? "text-emerald-600" : "text-muted-foreground"} />
+      {summary.allClear ? "Tous les domaines applicables sont à jour" : `${summary.upToDate}/${summary.applicable} domaines à jour`}
+      {summary.naCount > 0 && <span className="text-muted-foreground/60">· {summary.naCount} hors saison</span>}
+    </p>
+  );
+
+  if (!now) {
+    return (
+      <div className="rounded-2xl border bg-emerald-50/50 border-emerald-200 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="rounded-xl p-2.5 bg-emerald-100 text-emerald-700 shrink-0"><ShieldCheck size={22} /></div>
+            <div className="min-w-0">
+              <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight">Tout est en ordre</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {nextUp ? (
+                  <>Rien d'urgent. Prochaine échéance : <span className="font-medium text-foreground">{nextUp.label}</span> {dueLabel(nextUp.daysUntil, nextUp.dueISO).text.toLowerCase()}.</>
+                ) : (
+                  "Rien à l'horizon. Profite."
+                )}
+              </p>
+            </div>
+          </div>
+          {focusToggle}
+        </div>
+        {summaryLine}
+      </div>
+    );
+  }
+
+  const dl = dueLabel(now.daysUntil, now.dueISO);
+  return (
+    <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-eyebrow text-primary">Maintenant</span>
+        {focusToggle}
+      </div>
+      <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight leading-snug">{now.label}</h2>
+      <div className="flex items-center gap-2 mt-1.5 text-xs flex-wrap">
+        {now.domain && <span className="text-muted-foreground">{DOMAIN_LABELS[now.domain]}</span>}
+        <span className={dl.cls}>{dl.text}</span>
+        {now.amount != null && <span className="text-muted-foreground tabular-nums">· {formatChf(now.amount)} CHF</span>}
+      </div>
+
+      <div className="flex items-center gap-2 mt-4 flex-wrap">
+        {now.kind === "subtask" ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDone(now)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground px-3.5 py-2 hover:bg-primary/90 transition disabled:opacity-60"
+          >
+            <Check size={15} /> C'est fait
+          </button>
+        ) : (
+          <Link
+            to="/tresorerie?tab=payables"
+            className="inline-flex items-center gap-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground px-3.5 py-2 hover:bg-primary/90 transition"
+          >
+            <Wallet size={15} /> Voir le paiement
+          </Link>
+        )}
+        {steps.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpenGuide((o) => !o)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium rounded-lg border px-3 py-2 hover:border-primary/40 transition"
+          >
+            <BookOpen size={14} /> Comment faire
+            <ChevronDown size={13} className={cn("transition", openGuide && "rotate-180")} />
+          </button>
+        )}
+        <Link to={objectiveHref} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition px-1">
+          Ouvrir la checklist <ArrowRight size={12} />
+        </Link>
+      </div>
+
+      {openGuide && steps.length > 0 && (
+        <div className="mt-3 rounded-xl border bg-card/60 p-3 space-y-1.5">
+          {steps.map((s, i) => {
+            const done = doneSteps.has(i);
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setDoneSteps((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(i)) n.delete(i); else n.add(i);
+                  return n;
+                })}
+                className="flex items-start gap-2 w-full text-left text-sm"
+              >
+                {done
+                  ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />
+                  : <Circle size={15} className="text-muted-foreground/40 mt-0.5 shrink-0" />}
+                <span className={cn(done && "line-through text-muted-foreground")}>{s}</span>
+              </button>
+            );
+          })}
+          {allStepsDone && (
+            <p className="text-xs text-emerald-700 pt-1 flex items-center gap-1">
+              <Sparkles size={11} /> Étapes faites — coche « C'est fait ».
+            </p>
+          )}
+        </div>
+      )}
+
+      {summaryLine}
+    </div>
+  );
 }
 
 function GaugeCard({ gauge }: { gauge: Gauge }) {
@@ -136,6 +286,7 @@ function Shortcut({ icon: Icon, label, count }: { icon: typeof Banknote; label: 
 
 export function AdminOverviewTab({ onNavigateTab }: Props) {
   const today = useMemo(() => new Date(), []);
+  const [focus, setFocus] = useState(false);
 
   const { data: objectives, isLoading: objLoading } = useObjectives();
   const adminObj = objectives?.find(
@@ -155,21 +306,32 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
     staleTime: 60_000,
     enabled: !!objectiveId,
   });
-  const { pendingCount: pendingDocs } = useAdminDocs();
-  const { pendingCount: inboxCount } = useInboxCount({ enabled: true });
-  // Phase-2 Soroban signal — null until Soroban pushes a snapshot, in which case
-  // the salaire / compta / TVA gauges sharpen from "part tâche" to real.
   const { data: signal } = useQuery({
     queryKey: ["soroban", "admin-compliance"],
     queryFn: getAdminComplianceSignal,
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const { pendingCount: pendingDocs } = useAdminDocs();
+  const { pendingCount: inboxCount } = useInboxCount({ enabled: true });
+  const updateSubtask = useUpdateSubtask();
 
   const gauges = useMemo(() => computeGauges({ subtasks, payables, today, signal: signal ?? undefined }), [subtasks, payables, today, signal]);
   const timeline = useMemo(() => buildTimeline({ subtasks, payables, today }), [subtasks, payables, today]);
   const summary = useMemo(() => summarize(gauges), [gauges]);
   const pinned = useMemo(() => notes.filter((n) => n.pinned), [notes]);
+
+  const flatTimeline = useMemo(() => timeline.flatMap((b) => b.items), [timeline]);
+  const nextUp = flatTimeline[0] ?? null;
+  const now = nextUp && nextUp.daysUntil <= NOW_HORIZON_DAYS ? nextUp : null;
+  const guideNote = useMemo(
+    () => (now?.domain ? pinned.find((n) => assignDomain(n.title) === now.domain) ?? null : null),
+    [now, pinned],
+  );
+
+  function markDone(item: TimelineItem) {
+    if (item.kind === "subtask") updateSubtask.mutate({ id: item.id, patch: { completed: true } });
+  }
 
   if ((objLoading || subLoading) && subtasks.length === 0) {
     return (
@@ -194,139 +356,112 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
     );
   }
 
-  const heroOk = summary.allClear;
-
   return (
     <div className="max-w-4xl mx-auto space-y-5">
-      {/* État général */}
-      <div
-        className={cn(
-          "rounded-2xl border p-5 sm:p-6",
-          heroOk ? "bg-emerald-50/60 border-emerald-200" : "bg-gradient-to-br from-primary/5 to-transparent",
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <div className={cn("rounded-xl p-2.5 shrink-0", heroOk ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary")}>
-            {heroOk ? <ShieldCheck size={22} /> : <ShieldAlert size={22} />}
-          </div>
-          <div className="min-w-0">
-            <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight">
-              {heroOk ? "Tout est en ordre" : `${summary.upToDate}/${summary.applicable} domaines à jour`}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {summary.worst ? (
-                <>
-                  À regarder : <span className="font-medium text-foreground">{summary.worst.label}</span> — {summary.worst.reason}
-                </>
-              ) : (
-                "Rien d'urgent à signaler."
-              )}
-              {summary.naCount > 0 && <span className="text-muted-foreground/70"> · {summary.naCount} hors saison</span>}
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground/70 mt-3 flex items-center gap-1.5">
-          <CalendarClock size={12} /> Dernier contrôle : {formatDateWithWeekday(today)}
-        </p>
-      </div>
+      {/* Maintenant — the one next action */}
+      <NowCard
+        now={now}
+        nextUp={nextUp}
+        summary={summary}
+        guideNote={guideNote}
+        objectiveHref={`/objective/admin/${objectiveId}`}
+        onDone={markDone}
+        busy={updateSubtask.isPending}
+        focus={focus}
+        onToggleFocus={() => setFocus((f) => !f)}
+      />
 
-      {/* Raccourcis */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <button type="button" onClick={() => onNavigateTab?.("triage")} className="block text-left">
-          <Shortcut icon={ScanLine} label="À trier" count={pendingDocs} />
-        </button>
-        <Link to="/home" className="block">
-          <Shortcut icon={Inbox} label="Captures" count={inboxCount} />
-        </Link>
-        <Link to="/tresorerie?tab=payables" className="block">
-          <Shortcut icon={Wallet} label="Paiements" />
-        </Link>
-        <Link to="/relances" className="block">
-          <Shortcut icon={BellRing} label="Relances" />
-        </Link>
-      </div>
-
-      {/* Jauges de conformité */}
-      <SectionCard
-        icon={ShieldCheck}
-        title="Conformité"
-        subtitle={`${summary.upToDate}/${summary.applicable} à jour`}
-        action={signal ? (
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 inline-flex items-center gap-1 shrink-0">
-            <Sparkles size={10} /> Soroban{signal.as_of ? ` · ${formatDateSwiss(signal.as_of)}` : ""}
-          </span>
-        ) : undefined}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {gauges.map((g) => (
-            <GaugeCard key={g.key} gauge={g} />
-          ))}
-        </div>
-      </SectionCard>
-
-      {/* Timeline */}
-      <SectionCard icon={CalendarClock} title="À faire" subtitle="échéances">
-        {timeline.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic text-center py-6">Aucune échéance à venir. 🎉</p>
-        ) : (
-          <div className="space-y-4">
-            {timeline.map((bucket) => (
-              <div key={bucket.key}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <h3 className={cn("text-eyebrow", bucket.key === "overdue" && "text-destructive")}>{bucket.label}</h3>
-                  <span className="text-[10px] text-muted-foreground">{bucket.items.length}</span>
-                </div>
-                <ul className="space-y-1.5">
-                  {bucket.items.map((it) => (
-                    <TimelineRow key={`${it.kind}-${it.id}`} item={it} />
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Aide & modes d'emploi */}
-      <SectionCard icon={BookOpen} title="Aide & modes d'emploi">
-        <div className="space-y-3">
-          {pinned.length > 0 ? (
-            pinned.map((n) => (
-              <details key={n.id} className="group rounded-lg border px-3 py-2">
-                <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-medium">
-                  <FileText size={14} className="text-primary shrink-0" />
-                  <span className="truncate">{n.title || "Note"}</span>
-                  <ChevronRight size={14} className="ml-auto text-muted-foreground transition group-open:rotate-90" />
-                </summary>
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-2 leading-relaxed">{n.content}</p>
-              </details>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground italic">Aucun mode d'emploi épinglé pour l'instant.</p>
-          )}
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Link
-              to={`/objective/admin/${objectiveId}`}
-              className="inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-3 py-1.5 hover:border-primary/40 hover:text-primary transition"
-            >
-              <ArrowRight size={13} /> Toute la checklist
-            </Link>
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.("documents")}
-              className="inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-3 py-1.5 hover:border-primary/40 hover:text-primary transition"
-            >
-              <BookOpen size={13} /> Bibliothèque de documents
+      {!focus && (
+        <>
+          {/* Raccourcis */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button type="button" onClick={() => onNavigateTab?.("triage")} className="block text-left">
+              <Shortcut icon={ScanLine} label="À trier" count={pendingDocs} />
             </button>
+            <Link to="/home" className="block"><Shortcut icon={Inbox} label="Captures" count={inboxCount} /></Link>
+            <Link to="/tresorerie?tab=payables" className="block"><Shortcut icon={Wallet} label="Paiements" /></Link>
+            <Link to="/relances" className="block"><Shortcut icon={BellRing} label="Relances" /></Link>
           </div>
 
-          <p className="text-[11px] text-muted-foreground/70 flex items-start gap-1.5 pt-1">
-            <Landmark size={12} className="mt-0.5 shrink-0" />
-            Fiche de salaire &amp; états financiers : générés dans <span className="font-medium">Soroban</span> (application comptable locale).
-          </p>
-        </div>
-      </SectionCard>
+          {/* Jauges de conformité */}
+          <SectionCard
+            icon={ShieldCheck}
+            title="Conformité"
+            subtitle={`${summary.upToDate}/${summary.applicable} à jour`}
+            action={signal ? (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 inline-flex items-center gap-1 shrink-0">
+                <Sparkles size={10} /> Soroban{signal.as_of ? ` · ${formatDateSwiss(signal.as_of)}` : ""}
+              </span>
+            ) : undefined}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {gauges.map((g) => <GaugeCard key={g.key} gauge={g} />)}
+            </div>
+          </SectionCard>
+
+          {/* Timeline */}
+          <SectionCard icon={CalendarClock} title="À faire" subtitle="échéances">
+            {timeline.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic text-center py-6">Aucune échéance à venir. 🎉</p>
+            ) : (
+              <div className="space-y-4">
+                {timeline.map((bucket) => (
+                  <div key={bucket.key}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className={cn("text-eyebrow", bucket.key === "overdue" && "text-destructive")}>{bucket.label}</h3>
+                      <span className="text-[10px] text-muted-foreground">{bucket.items.length}</span>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {bucket.items.map((it) => <TimelineRow key={`${it.kind}-${it.id}`} item={it} />)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Aide & modes d'emploi */}
+          <SectionCard icon={BookOpen} title="Aide & modes d'emploi">
+            <div className="space-y-3">
+              {pinned.length > 0 ? (
+                pinned.map((n) => (
+                  <details key={n.id} className="group rounded-lg border px-3 py-2">
+                    <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-medium">
+                      <FileText size={14} className="text-primary shrink-0" />
+                      <span className="truncate">{n.title || "Note"}</span>
+                      <ChevronRight size={14} className="ml-auto text-muted-foreground transition group-open:rotate-90" />
+                    </summary>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-2 leading-relaxed">{n.content}</p>
+                  </details>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Aucun mode d'emploi épinglé pour l'instant.</p>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link
+                  to={`/objective/admin/${objectiveId}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-3 py-1.5 hover:border-primary/40 hover:text-primary transition"
+                >
+                  <ArrowRight size={13} /> Toute la checklist
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab?.("documents")}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-3 py-1.5 hover:border-primary/40 hover:text-primary transition"
+                >
+                  <BookOpen size={13} /> Bibliothèque de documents
+                </button>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground/70 flex items-start gap-1.5 pt-1">
+                <Landmark size={12} className="mt-0.5 shrink-0" />
+                Fiche de salaire &amp; états financiers : générés dans <span className="font-medium">Soroban</span> (application comptable locale).
+              </p>
+            </div>
+          </SectionCard>
+        </>
+      )}
     </div>
   );
 }
