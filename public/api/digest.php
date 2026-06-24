@@ -19,6 +19,24 @@ if (defined('CRON_KEY') && CRON_KEY !== '' && $key !== CRON_KEY) {
     exit;
 }
 
+/** Effective due date (YYYY-MM-DD) for an admin checklist subtask, resolving a
+ *  monthly recurrence to its next on/after-today occurrence. Null = no date
+ *  (group headers, weekly/daily — not surfaced in the daily admin pulse). */
+function adminPulseDue(array $s, DateTime $today): ?string {
+    if (!empty($s['due_date'])) return substr((string)$s['due_date'], 0, 10);
+    $rec = $s['recurrence'] ?? null;
+    $day = ($s['recurrence_day'] !== null && $s['recurrence_day'] !== '') ? (int)$s['recurrence_day'] : null;
+    if ($rec === 'monthly' && $day) {
+        $d   = (int)$today->format('j');
+        $dim = (int)$today->format('t');
+        $t   = min($day, $dim);
+        if ($d <= $t) return $today->format('Y-m-') . sprintf('%02d', $t);
+        $nm = new DateTime($today->format('Y-m-01')); $nm->modify('+1 month');
+        return $nm->format('Y-m-') . sprintf('%02d', min($day, (int)$nm->format('t')));
+    }
+    return null;
+}
+
 // ── Scheduled push reminders due now ─────────────────────────
 // Fires any reminder whose scheduled_at has passed, reusing the web-push path.
 // Runs before the notifications early-return so reminders go out even when
@@ -144,12 +162,102 @@ try {
     }
 } catch (Throwable $e) { /* best-effort; never break the digest */ }
 
+// ── Admin pulse: one adaptive daily push from the Centre admin's own data ────
+// The deadline scan above never looks at the admin checklist subtasks/payables
+// that drive the cockpit, so those obligations were silent. This sends ONE push
+// per day (after pulse_hour, outside quiet hours) summarising what's due in the
+// next 3 days or overdue, adaptive in tone (bientôt → aujourd'hui → en retard).
+// Governed by notification_prefs (pulse on/off, hour, quiet hours). $quietNow is
+// reused below to defer the feedback/deadline pushes during quiet hours.
+$pulseResults = ['sent' => false];
+$quietNow = false;
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS notification_prefs (
+        id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+        admin_pulse_enabled TINYINT NOT NULL DEFAULT 1,
+        pulse_hour TINYINT NOT NULL DEFAULT 8,
+        quiet_start TINYINT NOT NULL DEFAULT 21,
+        quiet_end TINYINT NOT NULL DEFAULT 8,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS deadline_alerts (
+        alert_key VARCHAR(191) NOT NULL PRIMARY KEY, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $prefs = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8];
+    $row = $pdo->query("SELECT * FROM notification_prefs WHERE id = 1")->fetch();
+    if ($row) $prefs = array_merge($prefs, $row);
+
+    // Local time decisions in the founder's timezone (DST-aware), not server UTC.
+    $nowLocal = new DateTime('now', new DateTimeZone('Europe/Zurich'));
+    $hour     = (int)$nowLocal->format('G');
+    $locDate  = $nowLocal->format('Y-m-d');
+    $qs = (int)$prefs['quiet_start']; $qe = (int)$prefs['quiet_end'];
+    $quietNow = ($qs === $qe) ? false : (($qs < $qe) ? ($hour >= $qs && $hour < $qe) : ($hour >= $qs || $hour < $qe));
+
+    if ((int)$prefs['admin_pulse_enabled'] === 1 && !$quietNow && $hour >= (int)$prefs['pulse_hour']) {
+        $daysTo = fn(string $due) => (int)(new DateTime($locDate))->diff(new DateTime($due))->format('%r%a');
+        $items  = []; // [label, days]
+
+        // (a) Admin checklist subtasks not done this period (recurring reset monthly).
+        $objId = '96c0b590-8edf-45b2-a93f-9aff24c2ffd2';
+        $sub = $pdo->prepare("SELECT text, due_date, recurrence, recurrence_day
+            FROM todo_subtasks
+            WHERE source = 'admin' AND parent_id = ?
+              AND ( completed = 0
+                    OR (recurrence IS NOT NULL AND recurrence <> ''
+                        AND DATE_FORMAT(COALESCE(completed_at, '2000-01-01'), '%Y-%m') < ?) )");
+        $sub->execute([$objId, $nowLocal->format('Y-m')]);
+        foreach ($sub->fetchAll() as $s) {
+            $due = adminPulseDue($s, $nowLocal);
+            if ($due === null) continue;
+            $days = $daysTo($due);
+            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days];
+        }
+
+        // (b) Entreprise payables (pending/scheduled) with a due date.
+        foreach ($pdo->query("SELECT p.label, p.due_date
+            FROM payables p LEFT JOIN accounts a ON a.id = p.account_id
+            WHERE p.direction = 'out' AND p.status IN ('pending','scheduled')
+              AND p.due_date IS NOT NULL AND a.type = 'entreprise'")->fetchAll() as $p) {
+            $days = $daysTo(substr((string)$p['due_date'], 0, 10));
+            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days];
+        }
+
+        if (!empty($items)) {
+            usort($items, fn($a, $b) => $a['days'] <=> $b['days']);
+            // Claim once-per-day; only push if we win the claim.
+            $claim = $pdo->prepare("INSERT IGNORE INTO deadline_alerts (alert_key) VALUES (?)");
+            $claim->execute(['admin_pulse:' . $locDate]);
+            if ($claim->rowCount() > 0 && file_exists(__DIR__ . '/push_send.php')) {
+                require_once __DIR__ . '/push_send.php';
+                $top   = $items[0];
+                $label = strlen($top['label']) > 80 ? substr($top['label'], 0, 77) . '…' : $top['label'];
+                $more  = count($items) - 1;
+                $tail  = $more > 0 ? " · +$more autre" . ($more > 1 ? 's' : '') : '';
+                if ($top['days'] < 0) {
+                    $title = 'Admin · en retard';
+                    $body  = "⚠️ $label (en retard de " . abs($top['days']) . " j)$tail";
+                } elseif ($top['days'] === 0) {
+                    $title = 'Admin du jour';
+                    $body  = "Aujourd'hui : $label$tail";
+                } else {
+                    $title = 'Admin du jour';
+                    $body  = "Dans {$top['days']} j : $label$tail";
+                }
+                sendPushNotifications($pdo, $title, $body, '/documents');
+                $pulseResults = ['sent' => true, 'count' => count($items)];
+            }
+        }
+    }
+} catch (Throwable $e) { /* best-effort; never break the digest */ }
+
 // ── Fetch all unsent notifications ──────────────────────────
 $stmt    = $pdo->query('SELECT * FROM notifications WHERE sent = 0 ORDER BY created_at ASC');
 $pending = $stmt->fetchAll();
 
 if (empty($pending)) {
-    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults, 'deadlines' => $deadlineResults]);
+    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults, 'deadlines' => $deadlineResults, 'pulse' => $pulseResults]);
 }
 
 $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'chraiti.massaki@gmail.com';
@@ -200,8 +308,10 @@ $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
 $headers .= "X-Mailer: PHP/" . phpversion();
 
 // ── Push notifications only (no auto-email) ───────────────────
+// Deferred during quiet hours: the rows stay sent = 0 and push on the next run
+// after quiet hours end. The in-app bell shows them immediately regardless.
 $pushResults = ['sent' => 0, 'failed' => 0, 'expired' => 0];
-if (file_exists(__DIR__ . '/push_send.php')) {
+if (!$quietNow && file_exists(__DIR__ . '/push_send.php')) {
     require_once __DIR__ . '/push_send.php';
     // Deadline notifications (project_title Facture/Projet/Échéance·…) get
     // their own copy + link so the push isn't mislabelled "réponses clients".
@@ -227,18 +337,22 @@ if (file_exists(__DIR__ . '/push_send.php')) {
     $pushResults = sendPushNotifications($pdo, $pushTitle, $pushBody, $pushUrl);
 }
 
-// Mark notifications as sent (push only, no email)
-$ids          = array_column($pending, 'id');
-$placeholders = implode(',', array_fill(0, count($ids), '?'));
-$pdo->prepare("UPDATE notifications SET sent = 1, sent_at = NOW() WHERE id IN ({$placeholders})")
-    ->execute($ids);
+// Mark notifications as sent — only when we actually pushed (not deferred by quiet hours).
+if (!$quietNow) {
+    $ids          = array_column($pending, 'id');
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $pdo->prepare("UPDATE notifications SET sent = 1, sent_at = NOW() WHERE id IN ({$placeholders})")
+        ->execute($ids);
+}
 
 ok([
-    'sent'      => true,
+    'sent'      => !$quietNow,
     'count'     => $count,
     'email'     => null,
     'push'      => $pushResults,
     'reminders' => $reminderResults,
     'snooze'    => $snoozeResults,
     'deadlines' => $deadlineResults,
+    'pulse'     => $pulseResults,
+    'quiet'     => $quietNow,
 ]);

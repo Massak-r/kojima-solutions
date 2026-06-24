@@ -2,6 +2,7 @@ import { Settings, Bell, Globe, Receipt, Landmark, Wand2, Plus, Trash2, RotateCc
 import { EmailTemplates } from "@/components/EmailTemplates";
 import { RemindersManager } from "@/components/settings/RemindersManager";
 import { DeadlinesManager } from "@/components/settings/DeadlinesManager";
+import { AdminPulseSettings } from "@/components/settings/AdminPulseSettings";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,9 @@ export default function SettingsPage() {
 
         {/* Notification Preferences */}
         <NotificationSettings />
+
+        {/* Daily admin pulse + quiet hours */}
+        <AdminPulseSettings />
 
         {/* Scheduled push reminders */}
         <RemindersManager />
