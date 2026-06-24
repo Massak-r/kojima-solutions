@@ -1,22 +1,24 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Archive, FileText, ScanLine } from "lucide-react";
+import { Archive, FileText, ScanLine, Gauge } from "lucide-react";
 import { RegistreTab } from "@/components/admin/RegistreTab";
 import { DocumentsTab } from "@/components/adminSpace/DocumentsTab";
 import { TriageTab } from "@/components/adminSpace/TriageTab";
+import { AdminOverviewTab } from "@/components/adminSpace/AdminOverviewTab";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
 import { useAdminDocs } from "@/hooks/useAdminDocs";
 
-type AdminTab = "triage" | "documents" | "registre";
+type AdminTab = "overview" | "triage" | "documents" | "registre";
 
 export default function AdminSpace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const param = searchParams.get("tab");
   const initialTab: AdminTab =
+    param === "triage" ? "triage" :
     param === "documents" ? "documents" :
     param === "registre" ? "registre" :
-    "triage";
+    "overview";
 
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [defaultFolder, setDefaultFolder] = useState<string | null>(null);
@@ -36,10 +38,10 @@ export default function AdminSpace() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-12 py-8">
         <div className="mb-6">
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
-            Documents <span className="text-primary">&amp;</span> Registre
+            Centre <span className="text-primary">admin</span>
           </h1>
           <p className="text-muted-foreground text-sm font-body mt-1">
-            Scanne, trie et archive tes documents administratifs.
+            Conformité, échéances et documents de Kojima Sàrl.
           </p>
         </div>
 
@@ -47,6 +49,9 @@ export default function AdminSpace() {
 
         <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
           <TabsList className="mb-6">
+            <TabsTrigger value="overview" className="font-body gap-1.5">
+              <Gauge size={14} /> Vue d'ensemble
+            </TabsTrigger>
             <TabsTrigger value="triage" className="font-body gap-1.5">
               <ScanLine size={14} /> À trier
               {pendingCount > 0 && (
@@ -62,6 +67,7 @@ export default function AdminSpace() {
               <Archive size={14} /> Registre
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="overview"><AdminOverviewTab onNavigateTab={(t) => changeTab(t)} /></TabsContent>
           <TabsContent value="triage"><TriageTab /></TabsContent>
           <TabsContent value="documents"><DocumentsTab defaultFolder={defaultFolder} /></TabsContent>
           <TabsContent value="registre">

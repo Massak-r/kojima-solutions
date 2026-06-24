@@ -5,11 +5,11 @@ import {
   TrendingUp,
   Wallet,
   FileText,
-  FolderOpen,
   Target,
   Gauge,
   BellRing,
   Handshake,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
@@ -25,7 +25,7 @@ const BOTTOM_NAV = [
   { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
   { to: "/tresorerie", label: "Trésorerie", icon: Wallet          },
-  { to: "/documents",  label: "Documents",  icon: FolderOpen      },
+  { to: "/documents",  label: "Admin",      icon: ShieldCheck     },
 ];
 
 const ADMIN_PREFIXES = [
