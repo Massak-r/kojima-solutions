@@ -39,6 +39,7 @@ import {
 import type { Account } from "@/types/account";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { cn } from "@/lib/utils";
+import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 
 function formatCHF(n: number, currency = "CHF") {
   try {
@@ -49,6 +50,24 @@ function formatCHF(n: number, currency = "CHF") {
   } catch {
     return `${n.toFixed(2)} ${currency}`;
   }
+}
+
+/** Title + details for the "Add to Google Calendar" event of a payable. */
+function payableCalendarEvent(p: Payable, accountName?: string | null): { title: string; details: string } {
+  const isIn  = p.direction === "in";
+  const money = formatCHF(p.amount, p.currency);
+  const title = `${isIn ? "💰 Encaisser" : "💸 Payer"}: ${p.label} - ${money}`;
+  const details = [
+    `Montant: ${money}`,
+    accountName ? `Compte: ${accountName}` : null,
+    p.category ? `Catégorie: ${p.category}` : null,
+    p.recurrence !== "none" ? `Récurrence: ${PAYABLE_RECURRENCE_LABELS[p.recurrence]}` : null,
+    p.notes ? `Notes: ${p.notes}` : null,
+    "",
+    "Suivi dans Kojima Solutions - Trésorerie",
+    "https://kojima-solutions.ch/tresorerie?tab=payables",
+  ].filter((x): x is string => x !== null).join("\n");
+  return { title, details };
 }
 
 function daysUntil(date?: string | null): number | null {
@@ -608,6 +627,8 @@ export function PayablesManager() {
                 const due = dueLabel(p.dueDate);
                 const account = p.accountId ? accountById.get(p.accountId) : null;
                 const isIn = p.direction === "in";
+                const calDue = p.dueDate && (p.status === "pending" || p.status === "scheduled");
+                const cal = calDue ? payableCalendarEvent(p, account?.name) : null;
                 return (
                   <li key={p.id} className={cn(
                     "group border rounded-lg p-3 transition hover:border-primary/40 border-l-4",
@@ -656,7 +677,10 @@ export function PayablesManager() {
                         )}>
                           {isIn ? "+" : ""}{formatCHF(p.amount, p.currency)}
                         </div>
-                        <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition justify-end">
+                        <div className="flex gap-1 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition justify-end">
+                          {cal && p.dueDate && (
+                            <AddToCalendarButton title={cal.title} date={p.dueDate} details={cal.details} />
+                          )}
                           {p.status === "paid" ? (
                             <Button size="icon" variant="ghost" className="h-7 w-7" title={isIn ? "Remettre en attente" : "Remettre à payer"} onClick={() => markUnpaid(p)}>
                               <RotateCcw className="h-3.5 w-3.5" />

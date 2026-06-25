@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import {
   listDeadlines, createDeadline, updateDeadline, deleteDeadline,
   type AdminDeadline, type NewDeadline, type DeadlineRecurrence,
@@ -203,6 +204,21 @@ export function DeadlinesManager() {
                     </p>
                   </div>
                   {!d.completed && <span className={cn("text-[11px] font-mono shrink-0", dl.cls)}>{dl.label}</span>}
+                  {!d.completed && (
+                    <AddToCalendarButton
+                      title={`📅 ${d.title}`}
+                      date={d.dueDate}
+                      details={[
+                        d.description || null,
+                        `Catégorie: ${d.category}`,
+                        d.recurring ? `Récurrent: ${RECURRENCES.find((r) => r.value === d.recurring)?.label}` : null,
+                        d.remindDays ? `Rappel souhaité: ${d.remindDays} j avant l'échéance` : null,
+                        "",
+                        "Suivi dans Kojima Solutions - Échéances & deadlines",
+                      ].filter((x): x is string => x !== null).join("\n")}
+                      className="h-7 w-7 text-muted-foreground/60"
+                    />
+                  )}
                   <button
                     onClick={() => remove.mutate(d.id)}
                     disabled={remove.isPending}

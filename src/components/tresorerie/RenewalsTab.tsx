@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import {
   listRenewals, createRenewal, updateRenewal, deleteRenewal, advanceExpiry,
   RENEWAL_RECURRENCE_LABELS, type Renewal, type RenewalRecurrence,
@@ -188,6 +189,19 @@ export function RenewalsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
+                  <AddToCalendarButton
+                    title={`🔁 Renouveler: ${r.label}${r.amount != null ? ` - ${fmtCHF(r.amount)}` : ""}`}
+                    date={r.expiryDate}
+                    details={[
+                      r.category ? `Catégorie: ${r.category}` : null,
+                      `Récurrence: ${RENEWAL_RECURRENCE_LABELS[r.recurrence]}`,
+                      r.amount != null ? `Montant: ${fmtCHF(r.amount)}` : null,
+                      r.notes ? `Notes: ${r.notes}` : null,
+                      "",
+                      "Suivi dans Kojima Solutions - Trésorerie (Échéances)",
+                      "https://kojima-solutions.ch/tresorerie?tab=renewals",
+                    ].filter((x): x is string => x !== null).join("\n")}
+                  />
                   {r.recurrence !== "none" && (
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-700 dark:text-emerald-400" title="Marquer renouvelé (avance la date)" onClick={() => renew(r)}>
                       <RotateCcw className="h-3.5 w-3.5" />
