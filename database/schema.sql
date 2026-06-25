@@ -394,6 +394,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   balance_updated_at   DATETIME      NULL,
   sort_order           INT           NOT NULL DEFAULT 0,
   is_archived          TINYINT(1)    NOT NULL DEFAULT 0,
+  bank_feed            TINYINT(1)    NOT NULL DEFAULT 0,
   notes                TEXT          NULL,
   created_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

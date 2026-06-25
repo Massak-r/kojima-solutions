@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/_bank_feed.php';
 requireAdminSession();
+ensureBankFeedColumn($pdo);
 
 function mapAccount(array $row): array {
     return [
@@ -13,6 +15,7 @@ function mapAccount(array $row): array {
         'balanceUpdatedAt'  => $row['balance_updated_at'] ?? null,
         'sortOrder'         => (int)($row['sort_order'] ?? 0),
         'isArchived'        => (bool)($row['is_archived'] ?? false),
+        'bankFeed'          => (bool)($row['bank_feed'] ?? false),
         'notes'             => $row['notes'] ?? null,
         'createdAt'         => $row['created_at'],
         'updatedAt'         => $row['updated_at'],
@@ -62,6 +65,10 @@ if ($method === 'POST') {
         $data['notes'] ?? null,
     ]);
 
+    if (array_key_exists('bankFeed', $data)) {
+        setBankFeedAccount($pdo, $newId, !empty($data['bankFeed']));
+    }
+
     $stmt = $pdo->prepare('SELECT * FROM accounts WHERE id = ?');
     $stmt->execute([$newId]);
     ok(mapAccount($stmt->fetch()));
@@ -91,6 +98,12 @@ if ($method === 'PUT') {
     if (!empty($fields)) {
         $values[] = $id;
         $pdo->prepare('UPDATE accounts SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+    }
+
+    // Apply the bank-feed flag last so an explicit `balance` in the same payload
+    // is overwritten by the synced statement balance (bank feed wins).
+    if (array_key_exists('bankFeed', $data)) {
+        setBankFeedAccount($pdo, $id, !empty($data['bankFeed']));
     }
 
     $stmt = $pdo->prepare('SELECT * FROM accounts WHERE id = ?');

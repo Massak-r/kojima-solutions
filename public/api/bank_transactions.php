@@ -4,6 +4,7 @@
 // (UNIQUE source_key) and later pulled by Soroban into its "À classer"
 // (see public/api/soroban/bank.php). Admin-session only.
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/_bank_feed.php';
 requireAdminSession();
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS bank_transactions (
@@ -67,10 +68,13 @@ if ($method === 'GET') {
         ]);
         if ($ins->rowCount() > 0) $stored++;
     }
-    ok(['stored' => $stored, 'skipped' => count($txns) - $stored, 'total' => count($txns)]);
+    // Push the new running balance onto the linked "compte entreprise", if any.
+    $accountSync = syncBankFeedAccount($pdo);
+    ok(['stored' => $stored, 'skipped' => count($txns) - $stored, 'total' => count($txns), 'accountSync' => $accountSync]);
 } elseif ($method === 'DELETE') {
     if (!$id) fail('Missing id');
     $pdo->prepare("DELETE FROM bank_transactions WHERE id = ?")->execute([$id]);
+    syncBankFeedAccount($pdo); // closing balance may have changed
     ok();
 } else {
     fail('Method not allowed', 405);

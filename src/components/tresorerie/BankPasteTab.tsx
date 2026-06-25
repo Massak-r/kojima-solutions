@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ClipboardPaste, Loader2, Trash2, Send, CheckCircle2, AlertTriangle,
+  ClipboardPaste, Loader2, Trash2, Send, CheckCircle2, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,7 @@ import { parseBankPaste } from "@/lib/bankPaste";
 import {
   importBankTransactions, listBankTransactions, deleteBankTransaction,
 } from "@/api/bankTransactions";
+import { listAccounts } from "@/api/accounts";
 
 const money = (n: number) => `${n < 0 ? "−" : "+"} ${formatChf(Math.abs(n))} CHF`;
 
@@ -30,19 +31,27 @@ export function BankPasteTab() {
     staleTime: 30_000,
   });
 
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => listAccounts(),
+    staleTime: 30_000,
+  });
+  const linkedAccount = useMemo(() => accounts.find((a) => a.bankFeed), [accounts]);
+
   async function send() {
     if (parsed.transactions.length === 0) return;
     setSaving(true);
     try {
       const res = await importBankTransactions(parsed.transactions);
-      toast({
-        title: `${res.stored} transaction(s) importée(s)`,
-        description: res.skipped > 0
+      const description = res.accountSync
+        ? `Solde de « ${linkedAccount?.name ?? "compte"} » mis à jour : ${formatChf(res.accountSync.balance)} CHF.`
+        : res.skipped > 0
           ? `${res.skipped} déjà présente(s) — pas de doublon.`
-          : "Soroban les récupérera à la prochaine synchro.",
-      });
+          : "Soroban les récupérera à la prochaine synchro.";
+      toast({ title: `${res.stored} transaction(s) importée(s)`, description });
       setText("");
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
     } catch {
       toast({ title: "Échec de l'import", variant: "destructive" });
     } finally {
@@ -68,6 +77,15 @@ export function BankPasteTab() {
         <p className="text-xs text-muted-foreground mt-0.5">
           Copie la liste des transactions depuis ton e-banking et colle-la ici. Chaque ligne devient une dépense à classer côté Soroban.
         </p>
+        {linkedAccount ? (
+          <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-emerald-600">
+            <RefreshCw size={13} /> Le solde du relevé alimente « {linkedAccount.name} » dans Comptes.
+          </div>
+        ) : (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Astuce : marque ton compte entreprise comme « synchronisé » dans l'onglet Comptes pour suivre le solde en direct.
+          </div>
+        )}
       </div>
 
       <Textarea

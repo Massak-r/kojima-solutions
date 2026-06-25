@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Pencil, Trash2, Archive, ArchiveRestore, Building2, Wallet,
-  Banknote, Loader2,
+  Banknote, Loader2, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -54,11 +55,12 @@ interface FormState {
   institution: string;
   currency: string;
   balance: string;
+  bankFeed: boolean;
   notes: string;
 }
 
 const EMPTY_FORM: FormState = {
-  name: "", type: "perso", institution: "", currency: "CHF", balance: "", notes: "",
+  name: "", type: "perso", institution: "", currency: "CHF", balance: "", bankFeed: false, notes: "",
 };
 
 export function AccountsManager() {
@@ -109,6 +111,7 @@ export function AccountsManager() {
       institution: a.institution ?? "",
       currency: a.currency,
       balance: a.balance.toString(),
+      bankFeed: a.bankFeed,
       notes: a.notes ?? "",
     });
     setDialogOpen(true);
@@ -123,6 +126,7 @@ export function AccountsManager() {
       institution: form.institution.trim() || null,
       currency: form.currency.trim() || "CHF",
       balance: parseFloat(form.balance.replace(",", ".")) || 0,
+      bankFeed: form.bankFeed,
       notes: form.notes.trim() || null,
     };
     try {
@@ -182,12 +186,17 @@ export function AccountsManager() {
             >
               <div className="flex items-start justify-between gap-3">
                 <button onClick={() => openEdit(a)} className="flex-1 text-left">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{a.name}</span>
                     {a.institution && <span className="text-xs text-muted-foreground">· {a.institution}</span>}
+                    {a.bankFeed && (
+                      <Badge variant="secondary" className="gap-1 text-[10px] px-1.5 py-0 font-normal">
+                        <RefreshCw className="h-3 w-3" /> Relevé
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    MAJ {timeAgo(a.balanceUpdatedAt)}
+                    {a.bankFeed ? "Synchronisé " : "MAJ "}{timeAgo(a.balanceUpdatedAt)}
                   </div>
                   {a.notes && (
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{a.notes}</div>
@@ -289,7 +298,34 @@ export function AccountsManager() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Solde actuel</label>
-              <Input type="text" inputMode="decimal" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} placeholder="0.00" />
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={form.balance}
+                disabled={form.bankFeed}
+                onChange={e => setForm(f => ({ ...f, balance: e.target.value }))}
+                placeholder="0.00"
+              />
+              {form.bankFeed && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Géré automatiquement par le dernier relevé bancaire collé.
+                </p>
+              )}
+            </div>
+            <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+              <div className="space-y-0.5 pr-1">
+                <label htmlFor="bank-feed" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
+                  <RefreshCw className="h-3.5 w-3.5 text-primary" /> Solde synchronisé depuis le relevé
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Met à jour ce solde automatiquement à partir du relevé bancaire collé dans l'onglet « Relevé ». Un seul compte peut être lié.
+                </p>
+              </div>
+              <Switch
+                id="bank-feed"
+                checked={form.bankFeed}
+                onCheckedChange={v => setForm(f => ({ ...f, bankFeed: v }))}
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Notes</label>

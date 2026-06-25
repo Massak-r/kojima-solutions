@@ -14,9 +14,16 @@ export interface StoredBankTxn {
   createdAt: string;
 }
 
+/** Result of pushing the latest running balance onto the linked account. */
+export interface BankFeedSync {
+  accountId: string;
+  balance: number;
+  asOf: string; // YYYY-MM-DD of the closing transaction
+}
+
 /** Store a parsed batch (idempotent by sourceKey). */
 export function importBankTransactions(transactions: BankPasteTxn[]) {
-  return apiFetch<{ stored: number; skipped: number; total: number }>("bank_transactions.php", {
+  return apiFetch<{ stored: number; skipped: number; total: number; accountSync: BankFeedSync | null }>("bank_transactions.php", {
     method: "POST",
     body: JSON.stringify({ transactions }),
   });

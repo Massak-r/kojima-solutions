@@ -15,6 +15,8 @@ export interface Account {
   balanceUpdatedAt?: string | null;
   sortOrder:         number;
   isArchived:        boolean;
+  /** When true, this account's balance is auto-synced from the pasted bank statement. */
+  bankFeed:          boolean;
   notes?:            string | null;
   createdAt:         string;
   updatedAt:         string;
