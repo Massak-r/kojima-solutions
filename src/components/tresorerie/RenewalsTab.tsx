@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
+import { buildRecurrenceRule } from "@/lib/googleCalendar";
 import {
   listRenewals, createRenewal, updateRenewal, deleteRenewal, advanceExpiry,
   RENEWAL_RECURRENCE_LABELS, type Renewal, type RenewalRecurrence,
@@ -192,6 +193,7 @@ export function RenewalsTab() {
                   <AddToCalendarButton
                     title={`🔁 Renouveler: ${r.label}${r.amount != null ? ` - ${fmtCHF(r.amount)}` : ""}`}
                     date={r.expiryDate}
+                    recur={r.recurrence !== "none" ? buildRecurrenceRule(r.recurrence) : undefined}
                     details={[
                       r.category ? `Catégorie: ${r.category}` : null,
                       `Récurrence: ${RENEWAL_RECURRENCE_LABELS[r.recurrence]}`,

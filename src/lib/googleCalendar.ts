@@ -12,11 +12,17 @@
 
 export interface CalendarEvent {
   title: string;
-  /** All-day date, YYYY-MM-DD. */
+  /** All-day date, YYYY-MM-DD (start / first occurrence). */
   date: string;
   details?: string;
   location?: string;
+  /** RRULE body WITHOUT the "RRULE:" prefix, e.g. "FREQ=MONTHLY". When set, the
+   *  event repeats from `date` — build it with buildRecurrenceRule(). */
+  recur?: string;
 }
+
+/** App-side recurrence frequencies, mapped to RFC-5545 RRULE bodies. */
+export type CalendarFrequency = "weekly" | "monthly" | "bimonthly" | "quarterly" | "biannual" | "yearly";
 
 const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -36,6 +42,25 @@ function endExclusive(iso: string): string | null {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+const FREQ_RULE: Record<CalendarFrequency, string> = {
+  weekly:    "FREQ=WEEKLY",
+  monthly:   "FREQ=MONTHLY",
+  bimonthly: "FREQ=MONTHLY;INTERVAL=2",
+  quarterly: "FREQ=MONTHLY;INTERVAL=3",
+  biannual:  "FREQ=MONTHLY;INTERVAL=6",
+  yearly:    "FREQ=YEARLY",
+};
+
+/** Build an RRULE body (no "RRULE:" prefix) from an app recurrence frequency,
+ *  optionally bounded by an end date (YYYY-MM-DD → UNTIL). The event repeats on
+ *  the same day-of-month/week as its start date. */
+export function buildRecurrenceRule(freq: CalendarFrequency, until?: string | null): string {
+  let rule = FREQ_RULE[freq];
+  const u = until ? compactDate(until) : null;
+  if (u) rule += `;UNTIL=${u}`;
+  return rule;
+}
+
 /** Build the Google Calendar compose URL for an all-day event, or null if the
  *  date is missing/invalid (caller can then render nothing). */
 export function buildGoogleCalendarUrl(event: CalendarEvent): string | null {
@@ -49,5 +74,6 @@ export function buildGoogleCalendarUrl(event: CalendarEvent): string | null {
   });
   if (event.details) params.set("details", event.details);
   if (event.location) params.set("location", event.location);
+  if (event.recur) params.set("recur", `RRULE:${event.recur}`);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

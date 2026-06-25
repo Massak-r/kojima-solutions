@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
+import { buildRecurrenceRule } from "@/lib/googleCalendar";
 import {
   listDeadlines, createDeadline, updateDeadline, deleteDeadline,
   type AdminDeadline, type NewDeadline, type DeadlineRecurrence,
@@ -208,6 +209,7 @@ export function DeadlinesManager() {
                     <AddToCalendarButton
                       title={`📅 ${d.title}`}
                       date={d.dueDate}
+                      recur={d.recurring ? buildRecurrenceRule(d.recurring) : undefined}
                       details={[
                         d.description || null,
                         `Catégorie: ${d.category}`,

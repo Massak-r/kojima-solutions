@@ -40,6 +40,7 @@ import type { Account } from "@/types/account";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { cn } from "@/lib/utils";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
+import { buildRecurrenceRule } from "@/lib/googleCalendar";
 
 function formatCHF(n: number, currency = "CHF") {
   try {
@@ -52,8 +53,10 @@ function formatCHF(n: number, currency = "CHF") {
   }
 }
 
-/** Title + details for the "Add to Google Calendar" event of a payable. */
-function payableCalendarEvent(p: Payable, accountName?: string | null): { title: string; details: string } {
+/** Title, details and recurrence rule for the "Add to Google Calendar" event of
+ *  a payable. Recurring payables produce a repeating calendar event so the
+ *  reminder fires every cycle, not just once. */
+function payableCalendarEvent(p: Payable, accountName?: string | null): { title: string; details: string; recur?: string } {
   const isIn  = p.direction === "in";
   const money = formatCHF(p.amount, p.currency);
   const title = `${isIn ? "💰 Encaisser" : "💸 Payer"}: ${p.label} - ${money}`;
@@ -67,7 +70,8 @@ function payableCalendarEvent(p: Payable, accountName?: string | null): { title:
     "Suivi dans Kojima Solutions - Trésorerie",
     "https://kojima-solutions.ch/tresorerie?tab=payables",
   ].filter((x): x is string => x !== null).join("\n");
-  return { title, details };
+  const recur = p.recurrence !== "none" ? buildRecurrenceRule(p.recurrence, p.recurrenceEnd) : undefined;
+  return { title, details, recur };
 }
 
 function daysUntil(date?: string | null): number | null {
@@ -679,7 +683,7 @@ export function PayablesManager() {
                         </div>
                         <div className="flex gap-1 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition justify-end">
                           {cal && p.dueDate && (
-                            <AddToCalendarButton title={cal.title} date={p.dueDate} details={cal.details} />
+                            <AddToCalendarButton title={cal.title} date={p.dueDate} details={cal.details} recur={cal.recur} />
                           )}
                           {p.status === "paid" ? (
                             <Button size="icon" variant="ghost" className="h-7 w-7" title={isIn ? "Remettre en attente" : "Remettre à payer"} onClick={() => markUnpaid(p)}>
