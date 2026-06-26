@@ -17,6 +17,7 @@ import {
 import { DayBlocks } from "@/components/home/DayBlocks";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { TomorrowPlanDialog } from "@/components/home/TomorrowPlanDialog";
+import { BriefDuJour } from "@/components/home/BriefDuJour";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
@@ -112,6 +113,9 @@ export function AujourdhuiTab() {
 
   return (
     <div className="space-y-5">
+      {/* L'essentiel — daily brief: start-here, money to collect, next deadline */}
+      <BriefDuJour />
+
       {/* Heartbeat hero */}
       <section className="rounded-2xl border border-border bg-card shadow-card p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
