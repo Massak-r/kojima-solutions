@@ -48,6 +48,10 @@ interface ResponsiveDialogContentProps extends React.HTMLAttributes<HTMLDivEleme
    * horizontal padding the mobile drawer adds by default. Consumers then
    * own padding for each section. */
   padded?: boolean;
+  /** Radix/vaul Content lifecycle hook — forwarded to both the desktop dialog
+   * and the mobile drawer. Call `e.preventDefault()` to stop the first field
+   * auto-focusing (e.g. to avoid popping the mobile keyboard on open). */
+  onOpenAutoFocus?: (event: Event) => void;
 }
 
 export const ResponsiveDialogContent = React.forwardRef<

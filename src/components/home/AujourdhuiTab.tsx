@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Compass, CalendarRange, CheckCircle2, Star, Target, FolderKanban,
-  ArrowRight, Plus, Repeat, CalendarClock, Flame, Sparkles, ListChecks,
+  ArrowRight, Plus, Repeat, CalendarClock, Flame, Sparkles, ListChecks, Sunrise,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useTodaysSprint";
 import { DayBlocks } from "@/components/home/DayBlocks";
 import { InboxPanel } from "@/components/home/InboxPanel";
+import { TomorrowPlanDialog } from "@/components/home/TomorrowPlanDialog";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
@@ -43,7 +44,7 @@ const REASON_META: Record<SuggestionReason, { label: string; Icon: typeof Repeat
 
 export function AujourdhuiTab() {
   const navigate = useNavigate();
-  const { flagged, done, suggestions, counts } = useTodaysSprint();
+  const { flagged, done, suggestions, plannedTomorrow, counts } = useTodaysSprint();
   const updateSubtask = useUpdateSubtask();
   const { updateProjectTask } = useProjects();
   const { flag: flagSubtask } = useFlagSubtask();
@@ -52,6 +53,7 @@ export function AujourdhuiTab() {
   // Celebrate clearing the day's sprint — fires once per day the moment the
   // last pending item is completed (not on a fresh load that's already empty).
   const [celebrate, setCelebrate] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const prevPendingRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const prev = prevPendingRef.current;
@@ -92,7 +94,9 @@ export function AujourdhuiTab() {
   }
 
   /** Close-the-day ritual: clear today's flag off everything already done so
-   *  tomorrow starts clean (mirrors the daily sprint-cleanup). */
+   *  tomorrow starts clean (mirrors the daily sprint-cleanup), then flow straight
+   *  into lining up tomorrow's 1-3 — the evening shutdown that kills the morning
+   *  blank page. */
   function closeDay() {
     if (done.length === 0) return;
     haptic("success");
@@ -103,6 +107,7 @@ export function AujourdhuiTab() {
     toast.success("Journée close", {
       description: `${done.length} tâche${done.length > 1 ? "s" : ""} bouclée${done.length > 1 ? "s" : ""} aujourd'hui — bravo.`,
     });
+    setPlanOpen(true);
   }
 
   return (
@@ -256,12 +261,53 @@ export function AujourdhuiTab() {
         </section>
       )}
 
+      {/* Demain — evening shutdown: line up tomorrow's 1-3 so the morning isn't blank */}
+      <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+        <header className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Sunrise size={15} className="text-primary" />
+            <h2 className="text-eyebrow">Demain</h2>
+            {plannedTomorrow.length > 0 && (
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {plannedTomorrow.length}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setPlanOpen(true)}
+            className="inline-flex items-center gap-1.5 text-[11px] font-body font-medium rounded-full px-2.5 py-1 border border-border hover:bg-secondary transition-colors"
+          >
+            {plannedTomorrow.length > 0 ? <><Sparkles size={12} /> Modifier</> : <><Plus size={12} /> Préparer</>}
+          </button>
+        </header>
+        {plannedTomorrow.length > 0 ? (
+          <ul className="divide-y divide-border/40">
+            {plannedTomorrow.map((item) => {
+              const { label, Icon } = itemSource(item);
+              return (
+                <li key={`tomorrow:${item.id}`} className="flex items-center gap-3 px-5 py-2.5">
+                  <Sunrise size={15} className="text-primary/60 shrink-0" />
+                  <span className="flex-1 min-w-0 text-sm font-body text-foreground/90 truncate">{itemTitle(item)}</span>
+                  <span className="hidden sm:flex items-center gap-1 text-[11px] font-body text-muted-foreground/60 truncate max-w-[160px]">
+                    <Icon size={11} /> {label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-5 py-4 text-sm font-body text-muted-foreground">
+            Termine en douceur : choisis 1 à 3 tâches pour démarrer demain sans hésiter.
+          </p>
+        )}
+      </section>
+
       <Celebration
         show={celebrate}
         title="Journée bouclée"
         subtitle={`${counts.done} tâche${counts.done > 1 ? "s" : ""} terminée${counts.done > 1 ? "s" : ""} aujourd'hui — bravo.`}
         onDone={() => setCelebrate(false)}
       />
+
+      <TomorrowPlanDialog open={planOpen} onOpenChange={setPlanOpen} />
     </div>
   );
 }

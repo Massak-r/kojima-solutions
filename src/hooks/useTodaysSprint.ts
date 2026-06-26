@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAllSubtasks } from "@/hooks/useSubtasks";
 import { useObjectives } from "@/hooks/useObjectives";
 import { useProjects, type StoredProject } from "@/contexts/ProjectsContext";
+import { addDays } from "date-fns";
 import { recurrenceMatchesDate, toISODate } from "@/lib/weekDates";
 import { urgentSubtaskFilter, DAILY_SPRINT_CAP } from "@/lib/sprintLimits";
 import type { SubtaskItem } from "@/api/todoSubtasks";
@@ -41,6 +42,9 @@ export interface TodaysSprint {
   flagged: TodayItem[];
   done: TodayItem[];
   suggestions: TodaySuggestion[];
+  /** Subtasks the user lined up last night for tomorrow (scheduledFor === tomorrow).
+   *  The server auto-flags these into the sprint once that date arrives. */
+  plannedTomorrow: TodaySubtaskItem[];
   counts: { pending: number; must: number; nice: number; done: number; cap: number; capReached: boolean };
 }
 
@@ -62,6 +66,7 @@ export function useTodaysSprint(): TodaysSprint {
     const objById = new Map(objectives.map((o) => [o.id, o]));
     const now = new Date();
     const today = toISODate(now);
+    const tomorrow = toISODate(addDays(now, 1));
 
     const flaggedSub: TodayItem[] = allSubtasks
       .filter((s) => s.flaggedToday && !s.completed)
@@ -90,10 +95,18 @@ export function useTodaysSprint(): TodaysSprint {
     );
     const done = [...doneSub, ...doneTask];
 
+    // Lined up last night for tomorrow. The server's daily refresh auto-flags
+    // these into the sprint once tomorrow arrives, so the morning starts seeded.
+    const plannedTomorrow: TodaySubtaskItem[] = allSubtasks
+      .filter((s) => s.scheduledFor === tomorrow && !s.completed)
+      .map((s) => ({ kind: "subtask" as const, id: s.id, subtask: s, objective: objById.get(s.parentId) ?? null }));
+
     // Unflagged subtasks that belong to today, tagged with the reason so the UI
     // can explain why each is surfaced. recurring wins over scheduled over urgent.
+    // Items already parked for a future day (scheduledFor > today, e.g. lined up
+    // last night for tomorrow) are committed elsewhere — don't also nag today.
     const suggestions: TodaySuggestion[] = allSubtasks
-      .filter((s) => !s.flaggedToday && !s.completed)
+      .filter((s) => !s.flaggedToday && !s.completed && !(s.scheduledFor != null && s.scheduledFor > today))
       .flatMap((s) => {
         const reason: SuggestionReason | null =
           recurrenceMatchesDate(s.recurrence, s.recurrenceDay, now) ? "recurring"
@@ -110,6 +123,7 @@ export function useTodaysSprint(): TodaysSprint {
       flagged,
       done,
       suggestions,
+      plannedTomorrow,
       counts: {
         pending: flagged.length,
         must,
