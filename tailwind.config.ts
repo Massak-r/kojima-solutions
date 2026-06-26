@@ -16,6 +16,11 @@ export default {
       fontFamily: {
         sans: ["Inter", "sans-serif"],
         display: ["Sora", "sans-serif"],
+        // No monospace by design. `font-mono` is used in ~90 spots purely for
+        // figure alignment (always paired with tabular-nums) — map it to Inter
+        // so it renders sans while keeping aligned numerals, instead of falling
+        // through to Tailwind's default monospace stack.
+        mono: ["Inter", "sans-serif"],
       },
       // Display type scale — same sizes as Tailwind's defaults (no layout
       // resize), but with tightened leading + optical negative tracking so

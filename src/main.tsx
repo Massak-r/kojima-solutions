@@ -18,8 +18,10 @@ if ('serviceWorker' in navigator) {
 
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // Auto-activate and reload to pick up new JS
-            newWorker.postMessage({ type: 'SKIP_WAITING' });
+            // A new version is ready and waiting. Do NOT auto-skip/reload here —
+            // that can reload mid-task (losing an in-flight capture). Surface the
+            // "Mettre à jour" banner; the user's tap drives SKIP_WAITING, then
+            // the controllerchange listener below reloads into the new bundle.
             window.dispatchEvent(
               new CustomEvent('sw-update-available', { detail: { registration: reg } })
             );

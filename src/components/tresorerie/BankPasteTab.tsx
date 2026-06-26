@@ -156,7 +156,7 @@ export function BankPasteTab() {
                   <span className="text-[10px] text-muted-foreground shrink-0">en attente</span>
                 )}
                 <span className={cn("tabular-nums font-medium shrink-0", t.amount < 0 ? "text-destructive" : "text-emerald-600")}>{money(t.amount)}</span>
-                <button onClick={() => remove(t.id)} className="opacity-0 group-hover:opacity-100 transition text-destructive shrink-0" title="Supprimer">
+                <button onClick={() => remove(t.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition text-destructive shrink-0" title="Supprimer">
                   <Trash2 size={14} />
                 </button>
               </li>

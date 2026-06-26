@@ -206,7 +206,7 @@ export function AccountsManager() {
                   <div className="font-display text-lg font-semibold tabular-nums">
                     {formatCHF(a.balance, a.currency)}
                   </div>
-                  <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition">
+                  <div className="flex gap-1 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(a)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>

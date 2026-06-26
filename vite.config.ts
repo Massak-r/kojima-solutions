@@ -1,7 +1,27 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { readFileSync, writeFileSync } from "fs";
 import { componentTagger } from "lovable-tagger";
+
+// Stamp a unique build id into the service worker so every deploy ships a
+// byte-different sw.js → the browser detects the update and surfaces the
+// "Mettre à jour" banner (instead of silently serving the old bundle).
+function stampServiceWorker(): Plugin {
+  return {
+    name: "stamp-sw-version",
+    apply: "build",
+    closeBundle() {
+      const swPath = path.resolve(__dirname, "dist/sw.js");
+      try {
+        const version = `b${Date.now().toString(36)}`;
+        writeFileSync(swPath, readFileSync(swPath, "utf8").replace(/__SW_VERSION__/g, version));
+      } catch {
+        /* sw.js absent in some build modes — non-fatal */
+      }
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -18,7 +38,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger(), stampServiceWorker()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

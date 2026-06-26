@@ -8,7 +8,7 @@ import { ProjectStepNav } from "@/components/ProjectStepNav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { totalQuote, createEmptyQuote } from "@/types/quote";
+import { totalQuote, createEmptyQuote, nextQuoteNumber, invoiceNumberFromQuote } from "@/types/quote";
 import type { Quote } from "@/types/quote";
 import {
   Plus, FileText, Pencil, Trash2, ChevronRight, Blocks, ArrowRightLeft, ListTodo, AlertTriangle,
@@ -206,8 +206,12 @@ export default function ProjectDocuments() {
   function performConvertToInvoice() {
     const q = pendingConvert;
     if (!q) return;
-    const now = new Date();
-    const invoiceNumber = `FAC-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    // Use the canonical sequence (FAC-YYYY-MM-NNN), aligned to the source devis
+    // number when possible — never an inline date-based number, which collides
+    // same-day and corrupts the counter.
+    const invoiceNumber =
+      invoiceNumberFromQuote(q.quoteNumber, quotes) ??
+      nextQuoteNumber(quotes.filter((x) => !x.isTemplate), "invoice");
     updateQuote(q.id, {
       ...q,
       docType: "invoice",

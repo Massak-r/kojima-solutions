@@ -1,4 +1,9 @@
-const CACHE_NAME = 'kojima-space-v14';
+// __SW_VERSION__ is replaced with a unique build id at build time
+// (vite.config.ts → stampServiceWorker), so every deploy ships a byte-different
+// service worker. That's what makes the browser detect the update and show the
+// "Mettre à jour" banner. In local dev it stays literal (harmless).
+const BUILD = '__SW_VERSION__';
+const CACHE_NAME = 'kojima-space-' + BUILD;
 const ASSETS_CACHE = 'kojima-assets-v1';
 const API_CACHE = 'kojima-api-v3';
 const API_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours — wider so train-ride

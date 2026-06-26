@@ -21,6 +21,7 @@ import { UpdateBanner } from "@/components/UpdateBanner";
 import PageTransition from "@/components/PageTransition";
 import ScrollToTop from "@/components/ScrollToTop";
 import CommandPalette from "@/components/CommandPalette";
+import { RouteErrorBoundary } from "@/components/ErrorBoundary";
 import { ProjectMeetingNotes } from "@/components/ProjectMeetingNotes";
 import { FocusRetroPrompt } from "@/components/objective/FocusRetroPrompt";
 import { SprintCapProvider } from "@/components/sprint/SprintCapProvider";
@@ -127,6 +128,7 @@ const App = () => (
                   <SprintCapOverloadDialog />
                   <AdminContentWrapper>
                     <PageTransition>
+                    <RouteErrorBoundary>
                     <Suspense fallback={<RouteFallback />}>
                     <Routes>
                       {/* Public routes */}
@@ -181,6 +183,7 @@ const App = () => (
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                     </Suspense>
+                    </RouteErrorBoundary>
                     </PageTransition>
                   </AdminContentWrapper>
                 </QuickCreateProvider>

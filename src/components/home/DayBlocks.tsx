@@ -101,7 +101,7 @@ export function DayBlocks() {
                     <button
                       onClick={() => { haptic("tap"); deleteBlock.mutate(b.id); }}
                       aria-label="Supprimer le bloc"
-                      className="p-1 rounded-md text-muted-foreground/40 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-1 rounded-md text-muted-foreground/40 hover:text-red-600 hover:bg-red-50 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     >
                       <Trash2 size={12} />
                     </button>

@@ -113,8 +113,20 @@ function stripProjectForClient(array $project): array {
             $t['completedBy']    = null;
             $t['sprintTier']     = 'nice';
             $t['flaggedToday']   = false;
+            // Step comments leak the commenter's email (PII) — drop it for
+            // non-admin callers; keep the name/message so the thread still reads.
+            if (!empty($t['comments'])) {
+                foreach ($t['comments'] as &$c) { $c['authorEmail'] = null; }
+                unset($c);
+            }
         }
         unset($t);
+    }
+    // Per-phase budgets are internal cost allocations, not client-facing pricing
+    // (the client sees pricing via quotes/proposals). Blank them for non-admins.
+    if (!empty($project['phases'])) {
+        foreach ($project['phases'] as &$ph) { $ph['budget'] = null; }
+        unset($ph);
     }
     return $project;
 }
