@@ -33,3 +33,13 @@ export function markRead(id: string) {
 export function markAllRead() {
   return apiFetch<{ ok: boolean }>('notifications.php?action=read-all', { method: 'PUT' });
 }
+
+/** Permanently remove a single notification (not just mark it read). */
+export function dismissNotification(id: string) {
+  return apiFetch<{ ok: boolean }>(`notifications.php?id=${id}`, { method: 'DELETE' });
+}
+
+/** Wipe every notification — the "clean slate" action for the bell. */
+export function clearAllNotifications() {
+  return apiFetch<{ ok: boolean }>('notifications.php?action=clear-all', { method: 'DELETE' });
+}

@@ -52,3 +52,15 @@ if ($method === 'PUT') {
     $pdo->prepare("UPDATE notifications SET `read` = 1, read_at = NOW() WHERE id = ?")->execute([$id]);
     ok(['ok' => true]);
 }
+
+// DELETE — dismiss one notification, or clear all
+if ($method === 'DELETE') {
+    if ($action === 'clear-all') {
+        $pdo->exec("DELETE FROM notifications");
+        ok(['ok' => true]);
+    }
+
+    if (!$id) fail('Missing id');
+    $pdo->prepare("DELETE FROM notifications WHERE id = ?")->execute([$id]);
+    ok(['ok' => true]);
+}

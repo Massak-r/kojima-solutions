@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, CheckCircle2, RotateCcw, MessageSquare, Mail, ChevronRight } from "lucide-react";
+import { Bell, CheckCircle2, RotateCcw, MessageSquare, Mail, ChevronRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { listNotifications, markRead, markAllRead } from "@/api/notifications";
+import {
+  listNotifications, markRead, markAllRead, dismissNotification, clearAllNotifications,
+} from "@/api/notifications";
 import type { NotificationItem } from "@/api/notifications";
-import { listQueuedEmails } from "@/api/emailQueue";
+import { listQueuedEmails, discardQueuedEmail } from "@/api/emailQueue";
+import type { QueuedEmail } from "@/api/emailQueue";
 import { useNavigate } from "react-router-dom";
 
 function timeAgo(dateStr: string): string {
@@ -24,11 +27,20 @@ function notifIcon(item: NotificationItem): { icon: React.ReactNode; border: str
   return { icon: <MessageSquare size={14} className="text-primary" />, border: "border-l-primary" };
 }
 
+/** Reflect a count on the PWA app icon when the platform supports it. */
+function setBadge(n: number) {
+  if (!("setAppBadge" in navigator)) return;
+  try {
+    if (n > 0) (navigator as any).setAppBadge(n);
+    else (navigator as any).clearAppBadge();
+  } catch { /* ignore */ }
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingEmails, setPendingEmails] = useState(0);
+  const [pendingEmails, setPendingEmails] = useState<QueuedEmail[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -37,15 +49,7 @@ export function NotificationBell() {
       const res = await listNotifications(false, 20);
       setItems(res.items);
       setUnreadCount(res.unreadCount);
-
-      // Update app badge if supported
-      if ("setAppBadge" in navigator) {
-        if (res.unreadCount > 0) {
-          (navigator as any).setAppBadge(res.unreadCount);
-        } else {
-          (navigator as any).clearAppBadge();
-        }
-      }
+      setBadge(res.unreadCount);
     } catch {
       // API not available yet — silently ignore
     }
@@ -53,8 +57,7 @@ export function NotificationBell() {
 
   const fetchPendingEmails = useCallback(async () => {
     try {
-      const emails = await listQueuedEmails("pending");
-      setPendingEmails(emails.length);
+      setPendingEmails(await listQueuedEmails("pending"));
     } catch {
       // queue endpoint optional — silently ignore
     }
@@ -85,7 +88,7 @@ export function NotificationBell() {
     if (!item.read) {
       await markRead(item.id).catch(() => {});
       setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
-      setUnreadCount((c) => Math.max(0, c - 1));
+      setUnreadCount((c) => { const next = Math.max(0, c - 1); setBadge(next); return next; });
     }
     setOpen(false);
     if (item.projectId) navigate(`/project/${item.projectId}/feedback`);
@@ -95,14 +98,41 @@ export function NotificationBell() {
     await markAllRead().catch(() => {});
     setItems((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-    if ("clearAppBadge" in navigator) (navigator as any).clearAppBadge();
+    setBadge(0);
   };
 
-  // Badge combines unread notifications + pending emails so the bell
-  // reflects everything that needs admin attention from any page.
-  const totalBadge = unreadCount + pendingEmails;
+  // Remove a single notification from the bell AND the DB (not just mark read).
+  // Optimistic — the row leaves immediately; the request reconciles in the back.
+  const handleDismiss = async (e: React.MouseEvent, item: NotificationItem) => {
+    e.stopPropagation();
+    setItems((prev) => prev.filter((n) => n.id !== item.id));
+    if (!item.read) setUnreadCount((c) => { const next = Math.max(0, c - 1); setBadge(next); return next; });
+    await dismissNotification(item.id).catch(() => {});
+  };
+
+  // Clear every notification at once — the "clean slate" the bell was missing.
+  const handleClearAll = async () => {
+    setItems([]);
+    setUnreadCount(0);
+    setBadge(0);
+    await clearAllNotifications().catch(() => {});
+  };
+
+  // Dismiss the pending-email reminder without leaving the bell. Emails are sent
+  // manually here, so "Ignorer" simply discards the queued draft(s).
+  const handleDismissEmails = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ids = pendingEmails.map((em) => em.id);
+    setPendingEmails([]);
+    await Promise.all(ids.map((id) => discardQueuedEmail(id).catch(() => {})));
+  };
+
+  // Badge combines unread notifications + pending emails so the bell reflects
+  // everything that needs admin attention from any page.
+  const pendingCount = pendingEmails.length;
+  const totalBadge = unreadCount + pendingCount;
   const ariaLabel = totalBadge > 0
-    ? `Notifications (${unreadCount} non lue${unreadCount > 1 ? "s" : ""}, ${pendingEmails} email${pendingEmails > 1 ? "s" : ""} en attente)`
+    ? `Notifications (${unreadCount} non lue${unreadCount > 1 ? "s" : ""}, ${pendingCount} email${pendingCount > 1 ? "s" : ""} en attente)`
     : "Notifications";
 
   return (
@@ -141,35 +171,55 @@ export function NotificationBell() {
               <span className="font-display text-sm font-semibold text-foreground">
                 Notifications
               </span>
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  className="text-xs text-primary hover:underline font-body"
-                >
-                  Tout marquer lu
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-xs text-primary hover:underline font-body"
+                  >
+                    Tout lire
+                  </button>
+                )}
+                {items.length > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="text-xs text-muted-foreground hover:text-destructive hover:underline font-body"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Pending emails — only shown when there are queued sends.
-                Links straight to where EmailQueue lives so the admin can
-                review + send without hunting through tabs. */}
-            {pendingEmails > 0 && (
-              <button
-                onClick={() => { setOpen(false); navigate("/home?tab=overview"); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-secondary/30 transition-colors text-left border-b border-border/30 bg-amber-50/40 dark:bg-amber-500/5"
-              >
-                <Mail size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-body font-semibold text-foreground">
-                    {pendingEmails} email{pendingEmails > 1 ? "s" : ""} en attente
-                  </p>
-                  <p className="text-[10px] font-body text-muted-foreground/70">
-                    Revoir + envoyer manuellement
-                  </p>
-                </div>
-                <ChevronRight size={12} className="text-muted-foreground/40 shrink-0" />
-              </button>
+            {/* Pending emails — only shown when there are queued sends. The body
+                links to where EmailQueue lives; the X discards them inline
+                (emails are sent manually, so the queue is just a reminder). */}
+            {pendingCount > 0 && (
+              <div className="flex items-stretch border-b border-border/30 bg-amber-50/40 dark:bg-amber-500/5">
+                <button
+                  onClick={() => { setOpen(false); navigate("/home?tab=overview"); }}
+                  className="flex-1 min-w-0 flex items-center gap-2.5 px-4 py-2.5 hover:bg-secondary/30 transition-colors text-left"
+                >
+                  <Mail size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-body font-semibold text-foreground">
+                      {pendingCount} email{pendingCount > 1 ? "s" : ""} en attente
+                    </p>
+                    <p className="text-[10px] font-body text-muted-foreground/70">
+                      Revoir + envoyer manuellement
+                    </p>
+                  </div>
+                  <ChevronRight size={12} className="text-muted-foreground/40 shrink-0" />
+                </button>
+                <button
+                  onClick={handleDismissEmails}
+                  title="Ignorer"
+                  aria-label="Ignorer les emails en attente"
+                  className="px-3 flex items-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/5 transition-colors border-l border-border/30"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             )}
 
             {/* List */}
@@ -180,34 +230,46 @@ export function NotificationBell() {
                 </div>
               ) : (
                 items.slice(0, 15).map((item) => (
-                  <button
+                  <div
                     key={item.id}
-                    onClick={() => handleItemClick(item)}
-                    className={`w-full text-left px-4 py-3 hover:bg-secondary/30 transition-colors border-l-2 ${
+                    className={`group flex items-stretch border-l-2 ${
                       !item.read ? `bg-primary/[0.03] ${notifIcon(item).border}` : "border-l-transparent"
                     }`}
                   >
-                    <div className="flex items-start gap-2.5">
-                      <span className="shrink-0 mt-0.5">{notifIcon(item).icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-body font-semibold text-foreground">
-                          {item.projectTitle}
-                        </p>
-                        <p className="text-[11px] font-body text-muted-foreground mt-0.5">
-                          <span className="font-medium">{item.clientName}</span>
-                          {item.taskTitle && ` · ${item.taskTitle}`}
-                        </p>
-                        {item.response && (
-                          <p className="text-[11px] font-body text-muted-foreground/70 mt-0.5 line-clamp-2">
-                            {item.response}
+                    <button
+                      onClick={() => handleItemClick(item)}
+                      className="flex-1 min-w-0 text-left px-4 py-3 hover:bg-secondary/30 transition-colors"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span className="shrink-0 mt-0.5">{notifIcon(item).icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-body font-semibold text-foreground">
+                            {item.projectTitle}
                           </p>
-                        )}
+                          <p className="text-[11px] font-body text-muted-foreground mt-0.5">
+                            <span className="font-medium">{item.clientName}</span>
+                            {item.taskTitle && ` · ${item.taskTitle}`}
+                          </p>
+                          {item.response && (
+                            <p className="text-[11px] font-body text-muted-foreground/70 mt-0.5 line-clamp-2">
+                              {item.response}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/50 font-body shrink-0 mt-0.5">
+                          {timeAgo(item.createdAt)}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground/50 font-body shrink-0 mt-0.5">
-                        {timeAgo(item.createdAt)}
-                      </span>
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      onClick={(e) => handleDismiss(e, item)}
+                      title="Retirer"
+                      aria-label="Retirer la notification"
+                      className="px-2.5 flex items-center text-muted-foreground/30 hover:text-destructive hover:bg-destructive/5 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
