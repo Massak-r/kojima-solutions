@@ -278,8 +278,12 @@ export default function ClientDashboard() {
         />
       )}
 
-      {/* ── Branded masthead + progress strip ── */}
-      <header className="bg-primary text-primary-foreground">
+      {/* ── Branded masthead + progress strip (this IS the portal header — the
+            global site header stands down on this route, so own the notch). ── */}
+      <header
+        className="bg-gradient-to-b from-primary to-primary/90 text-primary-foreground shadow-sm"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center font-display font-bold text-lg shrink-0">

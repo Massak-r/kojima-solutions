@@ -13,7 +13,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { CompanySettingsProvider } from "@/contexts/CompanySettingsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Header from "@/components/Header";
-import BottomNav, { useIsAdminPage } from "@/components/BottomNav";
+import BottomNav, { useIsAdminPage, useIsClientDashboard } from "@/components/BottomNav";
 import { QuickActionFAB } from "@/components/QuickActionFAB";
 import { QuickCaptureFab } from "@/components/home/QuickCaptureFab";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -85,8 +85,11 @@ const queryClient = new QueryClient({
 
 function AdminContentWrapper({ children }: { children: React.ReactNode }) {
   const isAdmin = useIsAdminPage();
+  // The client dashboard hides the global header, so it also drops the top
+  // padding that reserves space for it — its masthead sits flush at the top.
+  const isClientDashboard = useIsClientDashboard();
   return (
-    <div className={`pt-16 pb-safe-bottom ${isAdmin ? "md:pl-16" : ""}`}>
+    <div className={`${isClientDashboard ? "" : "pt-16"} pb-safe-bottom ${isAdmin ? "md:pl-16" : ""}`}>
       {children}
     </div>
   );

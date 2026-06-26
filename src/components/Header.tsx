@@ -6,6 +6,7 @@ import { ArrowLeft, Lock, LogOut, Menu, MoreVertical, Settings, Shield, Users, X
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
+import { useIsClientDashboard } from "./BottomNav";
 import { getQueueSize, getDeadLetterSize } from "@/lib/offlineQueue";
 import { OfflineQueuePopover } from "@/components/OfflineQueuePopover";
 
@@ -22,6 +23,7 @@ const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, logoutAdmin } = useAuth();
+  const isClientDashboard = useIsClientDashboard();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
@@ -141,6 +143,10 @@ const Header = () => {
         ))
     );
   }
+
+  // The client dashboard owns the top of the screen with its branded masthead —
+  // a second Kojima logo here would just be noise, so the global header steps aside.
+  if (isClientDashboard) return null;
 
   return (
     <>

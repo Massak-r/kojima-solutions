@@ -44,6 +44,16 @@ export function useIsAdminPage() {
   return ADMIN_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/** True on the client portal dashboard (`/client/:id`), which renders its own
+ *  full-bleed branded masthead — so the global header and its top padding stand
+ *  down there (no double Kojima logo). Excludes `/client/login` and the
+ *  sub-routes (proposal / decision / feedback), which keep the global header. */
+export function useIsClientDashboard() {
+  const { pathname } = useLocation();
+  const seg = pathname.split("/").filter(Boolean);
+  return seg.length === 2 && seg[0] === "client" && seg[1] !== "login";
+}
+
 /** Small red count badge for the Documents nav item — pending scans to sort. */
 function NavCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
