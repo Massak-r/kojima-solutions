@@ -198,6 +198,28 @@ function validateClientSession(): ?array {
 }
 
 /**
+ * Authorize a client-portal action scoped to ONE project: true iff a valid
+ * client session (X-Client-Token) owns that project — i.e. projects.client_id
+ * equals the token's client_id. The token travels in a header (not a cookie),
+ * so it is not auto-sent cross-site and needs no CSRF check. Returns false for
+ * a missing/invalid token or a project the client does not own.
+ */
+function clientSessionOwnsProject(?string $projectId): bool {
+    if (!$projectId) return false;
+    $sess = validateClientSession();
+    if ($sess === null) return false;
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare('SELECT client_id FROM projects WHERE id = ?');
+        $stmt->execute([$projectId]);
+        $row = $stmt->fetch();
+        return $row && $row['client_id'] !== null && $row['client_id'] === $sess['clientId'];
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * Validate file content by checking magic bytes.
  * Returns true if the file's actual bytes match the expected type.
  */

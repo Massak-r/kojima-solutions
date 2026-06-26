@@ -32,7 +32,7 @@ import { StakeholderShareCard } from "@/components/clientDashboard/StakeholderSh
 export default function ClientDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getProject, respondToFeedbackRequest, toggleStakeholderHighlight, loading: projectsLoading } = useProjects();
+  const { getProject, respondToFeedbackRequest, loading: projectsLoading } = useProjects();
   const { clients, loading: clientsLoading } = useClients();
   const { toast } = useToast();
   const project = getProject(id!);
@@ -772,7 +772,6 @@ export default function ClientDashboard() {
                                 stepNumber={i + 1}
                                 projectId={project.id}
                                 onRespond={(r) => handleRespond(task.id, req.id, r)}
-                                onToggleHighlight={() => toggleStakeholderHighlight(project.id, task.id, req.id)}
                               />
                             ))}
                           </div>

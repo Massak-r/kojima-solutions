@@ -1,10 +1,16 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/_client_email.php';
-requireAuthForWrites();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = $_GET['id'] ?? null;
+
+// GET stays public (read feedback by task). POST/DELETE are admin-only. PUT —
+// a client answering a feedback request — is authorized inside the PUT handler
+// (an admin, or the client who owns the request's project).
+if ($method === 'POST' || $method === 'DELETE') {
+    requireAdminSession();
+}
 
 // ── Auto-migrate: add advanced feedback columns ──
 try {
@@ -108,6 +114,21 @@ if ($method === 'PUT') {
     $curStmt->execute([$id]);
     $current = $curStmt->fetch();
     if (!$current) fail('Not found', 404);
+
+    // Authorize: admin (cookie+CSRF / API key), or the client who owns this
+    // request's project. A client write is limited to client-facing fields.
+    $ownerClient = false;
+    if (validateAdminSession() === null) {
+        $pStmt = $pdo->prepare('SELECT project_id FROM tasks WHERE id = ?');
+        $pStmt->execute([$current['task_id']]);
+        $prow = $pStmt->fetch();
+        $ownerClient = $prow && clientSessionOwnsProject($prow['project_id']);
+    }
+    if ($ownerClient) {
+        unset($data['stakeholderHighlight']); // admin-only control, never from a client
+    } else {
+        requireAdminSession();
+    }
 
     $fields          = [];
     $values          = [];

@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-requireAuthForWrites();
+
+// Writes are admin-only EXCEPT the client-portal "accept devis" PUT, which is
+// authorized (scoped to the client's own project) inside the PUT handler below.
 
 // Auto-migrate: add payment_terms / template columns if missing (same pattern as client_address).
 try {
@@ -72,6 +74,11 @@ function mapQuote(array $row): array {
 $method    = $_SERVER['REQUEST_METHOD'];
 $id        = $_GET['id']         ?? null;
 $projectId = $_GET['project_id'] ?? null;
+
+// Create/delete are admin-only. The PUT handler authorizes its own client path.
+if ($method === 'POST' || $method === 'DELETE') {
+    requireAdminSession();
+}
 
 // ── GET ─────────────────────────────────────────────────────
 
@@ -145,6 +152,31 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     if (!$id) fail('Missing id');
     $data = body();
+
+    // Client-portal accept path: the owning client may ACCEPT a devis — a
+    // narrow invoice_status → 'validated' update on a still-pending devis,
+    // NEVER the full-row write below (a partial body would blank the quote).
+    $ownerAccept = false;
+    if (validateAdminSession() === null) {
+        $own = $pdo->prepare('SELECT project_id, doc_type, invoice_status FROM quotes WHERE id = ?');
+        $own->execute([$id]);
+        $q = $own->fetch();
+        if ($q && clientSessionOwnsProject($q['project_id'])) {
+            if ($q['doc_type'] !== 'invoice' && ($data['invoiceStatus'] ?? '') === 'validated' && $q['invoice_status'] === 'to-validate') {
+                $ownerAccept = true;
+            } else {
+                fail('Action non autorisée', 403);
+            }
+        }
+    }
+    if ($ownerAccept) {
+        $pdo->prepare('UPDATE quotes SET invoice_status = ? WHERE id = ?')->execute(['validated', $id]);
+        $stmt = $pdo->prepare('SELECT * FROM quotes WHERE id = ?');
+        $stmt->execute([$id]);
+        ok(mapQuote($stmt->fetch()));
+    }
+    requireAdminSession();
+
     $pdo->prepare('
         UPDATE quotes SET
             project_id = ?, lang = ?, doc_type = ?, invoice_status = ?, quote_number = ?, validity_date = ?,

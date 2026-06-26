@@ -37,9 +37,9 @@ function mapCadrage(array $r): array {
     ];
 }
 
-// GET — fetch cadrage for project
+// GET — fetch cadrage for project (admin, or the client who owns this project)
 if ($method === 'GET') {
-    requireAdminSession();
+    if (!clientSessionOwnsProject($projectId)) requireAdminSession();
     $stmt = $pdo->prepare('SELECT * FROM project_cadrage WHERE project_id = ?');
     $stmt->execute([$projectId]);
     $row = $stmt->fetch();
