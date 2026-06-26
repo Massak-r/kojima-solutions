@@ -3,8 +3,7 @@ import { PiggyBank, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatCHF } from "@/components/accounting/utils";
-
-const RATE_KEY = "kojima-tax-provision-rate";
+import { computeSetAside, readTaxProvisionRate, TAX_PROVISION_RATE_KEY } from "@/lib/safeToSpend";
 
 interface Props {
   /** Encaissé TTC sur l'année (factures payées). */
@@ -22,17 +21,10 @@ interface Props {
  * Le taux d'impôt est indicatif et configurable (persisté en local).
  */
 export function TaxSetAside({ revenueTTC, tvaCollected, expenses, year }: Props) {
-  const [rate, setRate] = useState<number>(() => {
-    const raw = localStorage.getItem(RATE_KEY);
-    const n = raw ? parseFloat(raw) : NaN;
-    return isFinite(n) ? n : 25;
-  });
-  useEffect(() => { localStorage.setItem(RATE_KEY, String(rate)); }, [rate]);
+  const [rate, setRate] = useState<number>(() => readTaxProvisionRate());
+  useEffect(() => { localStorage.setItem(TAX_PROVISION_RATE_KEY, String(rate)); }, [rate]);
 
-  const revenueHT = Math.max(0, revenueTTC - tvaCollected);
-  const profit = Math.max(0, revenueHT - expenses);
-  const taxProvision = profit * (rate / 100);
-  const setAside = tvaCollected + taxProvision;
+  const { revenueHT, taxProvision, total: setAside } = computeSetAside({ revenueTTC, tvaCollected, expenses, rate });
   const available = revenueTTC - setAside;
 
   return (

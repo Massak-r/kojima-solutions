@@ -4,6 +4,7 @@ import { Wallet, Banknote, CalendarClock, History, BellRing, Landmark, TrendingU
 import { TresorerieTab } from "@/components/personal/TresorerieTab";
 import { BudgetTab } from "@/components/tresorerie/BudgetTab";
 import { AccountsManager } from "@/components/tresorerie/AccountsManager";
+import { SafeToSpendCard } from "@/components/tresorerie/SafeToSpendCard";
 import { PayablesManager } from "@/components/tresorerie/PayablesManager";
 import { LedgerView } from "@/components/tresorerie/LedgerView";
 import { RenewalsTab } from "@/components/tresorerie/RenewalsTab";
@@ -54,7 +55,12 @@ export default function Tresorerie() {
               </TabsTrigger>
             </TabsList>
           </div>
-          <TabsContent value="accounts"><AccountsManager /></TabsContent>
+          <TabsContent value="accounts">
+            <div className="space-y-6">
+              <SafeToSpendCard />
+              <AccountsManager />
+            </div>
+          </TabsContent>
           <TabsContent value="forecast"><ForecastTab /></TabsContent>
           <TabsContent value="payables"><PayablesManager /></TabsContent>
           <TabsContent value="ledger"><LedgerView /></TabsContent>
