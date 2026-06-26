@@ -362,7 +362,7 @@ export default function ClientDashboard() {
                       </p>
                       {isOverdue && (
                         <p className="text-[10px] font-body text-red-600/80 mt-0.5">
-                          Votre retour est en retard — le projet est en pause jusqu'a votre reponse.
+                          Votre retour est en retard — le projet est en pause jusqu'à votre réponse.
                         </p>
                       )}
                     </div>
@@ -376,9 +376,9 @@ export default function ClientDashboard() {
           const currentOpen = sorted.find((t) => t.status === "open" &&
             (!t.feedbackRequests || t.feedbackRequests.every((r) => r.resolved)));
           const nextLockedStep = sorted.find((t) => t.status === "locked");
-          let agencyMsg = "L'equipe avance sur les prochaines etapes.";
+          let agencyMsg = "L'équipe avance sur les prochaines étapes.";
           if (currentOpen) agencyMsg = `Nous travaillons sur : ${currentOpen.title}`;
-          else if (nextLockedStep) agencyMsg = `Prochaine etape : ${nextLockedStep.title}`;
+          else if (nextLockedStep) agencyMsg = `Prochaine étape : ${nextLockedStep.title}`;
 
           return (
             <section>
@@ -395,7 +395,7 @@ export default function ClientDashboard() {
                       {agencyMsg}
                     </p>
                     <p className="text-[10px] font-body text-emerald-600/40 mt-0.5">
-                      Nous vous contacterons des que votre avis sera necessaire.
+                      Nous vous contacterons dès que votre avis sera nécessaire.
                     </p>
                   </div>
                 </div>
@@ -559,10 +559,10 @@ export default function ClientDashboard() {
                 <div className="bg-emerald-50/50 border border-emerald-200/30 rounded-xl p-5 text-center space-y-2">
                   <CheckCircle2 size={24} className="text-emerald-500 mx-auto" />
                   <p className="font-display text-sm font-semibold text-emerald-800">
-                    Vous etes a jour !
+                    Vous êtes à jour !
                   </p>
                   <p className="font-body text-xs text-emerald-600/70">
-                    Aucune action en attente. Nous vous notifierons des que votre retour sera necessaire.
+                    Aucune action en attente. Nous vous notifierons dès que votre retour sera nécessaire.
                   </p>
                 </div>
               </section>
@@ -613,7 +613,7 @@ export default function ClientDashboard() {
                             );
                             if (days <= 3) return (
                               <p className="text-[10px] font-body text-amber-600 mt-1">
-                                Echeance {days === 0 ? "aujourd'hui" : `dans ${days}j`} — merci de repondre rapidement pour eviter un retard.
+                                Échéance {days === 0 ? "aujourd'hui" : `dans ${days}j`} — merci de répondre rapidement pour éviter un retard.
                               </p>
                             );
                             return null;

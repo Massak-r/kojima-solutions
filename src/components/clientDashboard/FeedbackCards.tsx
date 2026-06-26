@@ -73,7 +73,7 @@ export function DeadlineBadge({ deadline }: { deadline: string }) {
     )}>
       <CalendarDays size={10} />
       {isOverdue
-        ? "Echéance dépassée"
+        ? "Échéance dépassée"
         : days === 0
           ? "Aujourd'hui"
           : `${days} jour${days > 1 ? "s" : ""} restant${days > 1 ? "s" : ""}`
@@ -528,7 +528,7 @@ export function TextFileCard({ request, onRespond }: { request: FeedbackRequest;
         </div>
       ) : (
         <div className="flex gap-2">
-          <Input placeholder="Votre reponse (soyez le plus precis possible)..." value={text}
+          <Input placeholder="Votre réponse (soyez le plus précis possible)..." value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && canSubmit) { onRespond(text); setText(""); } }}
             className="text-xs h-9" />
