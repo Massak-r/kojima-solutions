@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
 
 export function UpdateBanner() {
-  const { isAdmin } = useAuth();
   const [show, setShow] = useState(false);
   const [reg, setReg] = useState<ServiceWorkerRegistration | null>(null);
+  const reloadedRef = useRef(false);
 
   useEffect(() => {
     function onUpdate(e: Event) {
@@ -18,20 +17,29 @@ export function UpdateBanner() {
     return () => window.removeEventListener("sw-update-available", onUpdate);
   }, []);
 
-  function handleUpdate() {
-    if (reg?.waiting) {
-      reg.waiting.postMessage({ type: "SKIP_WAITING" });
-    }
-    // Wait for the new SW to take over, then reload
-    navigator.serviceWorker?.addEventListener("controllerchange", () => {
-      window.location.reload();
-    });
-    // Fallback: reload after 1s if controllerchange never fires
-    setTimeout(() => window.location.reload(), 1000);
+  function reloadOnce() {
+    if (reloadedRef.current) return;
+    reloadedRef.current = true;
+    window.location.reload();
   }
 
-  // Admins only — web users also benefit from knowing to refresh.
-  if (!isAdmin) return null;
+  function handleUpdate() {
+    if (reg?.waiting) {
+      // Tell the waiting worker to take over. main.tsx already listens for the
+      // resulting `controllerchange` and reloads — we keep a single fallback in
+      // case that event never fires (no double reload thanks to reloadOnce).
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      setTimeout(reloadOnce, 1000);
+    } else {
+      // No worker waiting (edge case) — just reload to pull fresh assets.
+      reloadOnce();
+    }
+  }
+
+  // Shown to everyone — admins, clients, and anonymous visitors on the public
+  // site all benefit from dropping a stale bundle. The service worker only
+  // fires `sw-update-available` once a new build is actually waiting, so this
+  // never nags without a real update behind it.
 
   return (
     <AnimatePresence>
