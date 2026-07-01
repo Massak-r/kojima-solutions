@@ -11,6 +11,7 @@ import {
   createEmptyLineItem,
   nextQuoteNumber,
   quoteNumberConflicts,
+  buildQuoteFilename,
   TVA_RATE,
 } from "@/types/quote";
 import type { Client } from "@/types/client";
@@ -36,6 +37,13 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type QuoteFormData = Omit<Quote, "id" | "createdAt">;
+
+// A4 geometry in CSS reference pixels (96dpi): 1mm = 96/25.4 px. The preview
+// document is laid out in mm, so these convert page size to on-screen pixels
+// for the fit-to-width scale factor and the page-break guides.
+const MM_TO_PX = 96 / 25.4;
+const A4_WIDTH_PX = 210 * MM_TO_PX; // ≈ 793.7
+const A4_HEIGHT_PX = 297 * MM_TO_PX; // ≈ 1122.5
 
 interface QuoteFormProps {
   initial?: QuoteFormData | null;
@@ -120,8 +128,8 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   const previewRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(0.5);
-  // 1123px ≈ 297mm at 96dpi — single A4 page, used as a sensible default.
-  const [previewContentHeight, setPreviewContentHeight] = useState(1123);
+  // One A4 page tall (≈1122.5px @ 96dpi) is the sensible default height.
+  const [previewContentHeight, setPreviewContentHeight] = useState(A4_HEIGHT_PX);
 
   useEffect(() => {
     const wrapper = previewRef.current;
@@ -130,12 +138,11 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
 
     function measure() {
       const w = wrapper!.clientWidth;
-      // 210mm ≈ 793.7px at 96dpi
-      setPreviewScale(Math.min(w / 793.7, 1));
+      setPreviewScale(Math.min(w / A4_WIDTH_PX, 1));
       // Use the rendered document's natural height so the wrapper grows for
       // multi-page documents instead of clipping them at one A4.
-      const naturalHeight = content!.scrollHeight || content!.offsetHeight || 1123;
-      setPreviewContentHeight(Math.max(naturalHeight, 1123));
+      const naturalHeight = content!.scrollHeight || content!.offsetHeight || A4_HEIGHT_PX;
+      setPreviewContentHeight(Math.max(naturalHeight, A4_HEIGHT_PX));
     }
 
     measure();
@@ -205,7 +212,8 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
     const quote: Quote = { ...data, id: quoteId, createdAt: new Date().toISOString() };
     updateQuote(quoteId, quote);
     await new Promise((resolve) => setTimeout(resolve, 150));
-    printViaIframe(`/quotes/${quoteId}/print`);
+    // Name the PDF after the document number (e.g. "FAC-2026-07-001.pdf").
+    printViaIframe(`/quotes/${quoteId}/print`, buildQuoteFilename(data));
   }
 
   function handleSave() {
@@ -257,6 +265,12 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
   }
 
   const isFr = data.lang === "fr";
+
+  // How many A4 pages the document currently spans — drives the page-break
+  // guides and the badge so the operator sees when content flows past page 1.
+  // The −4px tolerance keeps a document that exactly fills one page from
+  // reporting a phantom second page due to sub-pixel rounding.
+  const pageCount = Math.max(1, Math.ceil((previewContentHeight - 4) / A4_HEIGHT_PX));
 
   return (
     <div className="grid lg:grid-cols-2 gap-8 items-start">
@@ -761,12 +775,24 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           which doesn't shrink layout space, so we compute the wrapper height
           manually from the measured content height × scale. */}
       <div className="quote-preview-panel min-w-0 lg:sticky lg:top-24">
-        <p className="text-xs text-muted-foreground mb-2" data-print-hide>
-          {siteT("Aperçu du devis", "Quote preview")}
-          <span className="ml-2 text-muted-foreground/80">
-            ({siteT("Le PDF généré sera identique.", "Generated PDF will match this exactly.")})
+        <div className="flex items-center justify-between gap-2 mb-2" data-print-hide>
+          <p className="text-xs text-muted-foreground min-w-0">
+            {siteT("Aperçu du devis", "Quote preview")}
+            <span className="ml-2 text-muted-foreground/80 hidden sm:inline">
+              ({siteT("Le PDF généré sera identique.", "Generated PDF will match this exactly.")})
+            </span>
+          </p>
+          <span
+            className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+              pageCount > 1
+                ? "border-accent/40 text-accent bg-accent/5"
+                : "border-border text-muted-foreground bg-muted/40"
+            }`}
+            title={siteT("Format A4 — le PDF final", "A4 format — the final PDF")}
+          >
+            {pageCount} {siteT("page", "page")}{pageCount > 1 ? "s" : ""} A4
           </span>
-        </p>
+        </div>
         <div
           ref={previewRef}
           className="quote-preview-wrapper rounded-xl border border-border bg-muted/30 overflow-hidden relative"
@@ -782,6 +808,21 @@ export function QuoteForm({ initial = null, quoteId = null, onSaved }: QuoteForm
           >
             <QuotePreview quote={data} />
           </div>
+          {/* A4 page-break guides — a dashed line at each page boundary so the
+              operator can see exactly where content flows onto the next page. */}
+          {Array.from({ length: pageCount - 1 }, (_, i) => (
+            <div
+              key={i}
+              className="pointer-events-none absolute inset-x-0 -translate-y-1/2 flex items-center gap-2 px-2"
+              style={{ top: `${(i + 1) * A4_HEIGHT_PX * previewScale}px` }}
+            >
+              <div className="flex-1 border-t border-dashed border-accent/50" />
+              <span className="shrink-0 text-[10px] font-medium text-accent bg-background/95 border border-accent/30 rounded-full px-1.5 py-0.5 shadow-sm">
+                {siteT("Page", "Page")} {i + 2}
+              </span>
+              <div className="w-4 border-t border-dashed border-accent/50" />
+            </div>
+          ))}
         </div>
       </div>
 

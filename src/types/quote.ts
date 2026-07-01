@@ -113,13 +113,16 @@ function slugifyForFilename(s: string): string {
 }
 
 /** Client-facing filename for the printed PDF (without extension).
- *  Format: "Devis_DEV-2026-001_Acme-SA" or "Facture_FAC-2026-001_Jean-Dupont".
+ *  The document number already encodes the type (FAC-… / DEV-…) and is unique,
+ *  so it makes the cleanest, most sortable filename — "FAC-2026-07-001.pdf".
+ *  Falls back to a labelled name only when the number is missing.
  *  Browsers append ".pdf" automatically when saving from the print dialog. */
 export function buildQuoteFilename(quote: Pick<Quote, "docType" | "quoteNumber" | "clientCompany" | "clientName">): string {
+  const number = (quote.quoteNumber || "").trim();
+  if (number) return number;
   const docLabel = (quote.docType ?? "quote") === "invoice" ? "Facture" : "Devis";
-  const number = (quote.quoteNumber || "SansNumero").trim();
   const who = slugifyForFilename(quote.clientCompany || quote.clientName || "Client") || "Client";
-  return `${docLabel}_${number}_${who}`;
+  return `${docLabel}_${who}`;
 }
 
 /** Compute the next sequential quote number (DEV-YYYY-NNN or FAC-YYYY-NNN). */

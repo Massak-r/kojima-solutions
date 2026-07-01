@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Plus, Trash2, Loader2, Check, Repeat, Landmark } from "lucide-react";
+import { CalendarClock, Plus, Trash2, Loader2, Check, Repeat, Landmark, Search, CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import { buildRecurrenceRule } from "@/lib/googleCalendar";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import {
   listDeadlines, createDeadline, updateDeadline, deleteDeadline,
   type AdminDeadline, type NewDeadline, type DeadlineRecurrence,
@@ -59,9 +63,15 @@ export function DeadlinesManager() {
   const [recurring, setRecurring] = useState<"" | DeadlineRecurrence>("");
   const [remindDays, setRemindDays] = useState(7);
   const [seeding, setSeeding] = useState(false);
+  // Filter / sort controls + the delete confirmation target.
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"date" | "category" | "title">("date");
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<AdminDeadline | null>(null);
 
   const { data, isLoading } = useQuery({ queryKey: KEY, queryFn: listDeadlines, staleTime: 30_000 });
-  const items = data ?? [];
+  const items = useMemo(() => data ?? [], [data]);
   const hasFiscal = items.some((d) => ["TVA", "AVS", "Comptabilité"].includes(d.category));
 
   const create = useMutation({
@@ -84,6 +94,17 @@ export function DeadlinesManager() {
     },
     onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(KEY, ctx.prev); toast({ title: "Suppression échouée", variant: "destructive" }); },
     onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+
+  // Turn a recurring deadline into a one-off so it stops rolling forward — the
+  // current occurrence stays, but it won't reappear after its due date.
+  const stopRecurrence = useMutation({
+    mutationFn: (id: string) => updateDeadline(id, { recurring: null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      toast({ title: "Récurrence arrêtée", description: "Cette échéance ne se reportera plus." });
+    },
+    onError: () => toast({ title: "Échec", variant: "destructive" }),
   });
 
   const canAdd = title.trim().length > 0 && !!due && !create.isPending;
@@ -114,9 +135,32 @@ export function DeadlinesManager() {
     }
   }
 
-  const sorted = [...items].sort(
-    (a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate),
+  const presentCategories = useMemo(
+    () => Array.from(new Set(items.map((d) => d.category))).sort((a, b) => a.localeCompare(b)),
+    [items],
   );
+
+  const pillCls = (active: boolean) =>
+    cn(
+      "text-[11px] font-body px-2 py-0.5 rounded-full border transition-colors",
+      active ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground border-border hover:bg-secondary",
+    );
+
+  // Completed items always sink to the bottom; the chosen key orders the rest.
+  const visible = useMemo(() => {
+    let list = [...items];
+    if (hideCompleted) list = list.filter((d) => !d.completed);
+    if (categoryFilter !== "all") list = list.filter((d) => d.category === categoryFilter);
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter((d) =>
+      d.title.toLowerCase().includes(q) || (d.description ?? "").toLowerCase().includes(q));
+    return list.sort((a, b) => {
+      if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
+      if (sortBy === "category") return a.category.localeCompare(b.category) || a.dueDate.localeCompare(b.dueDate);
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  }, [items, hideCompleted, categoryFilter, search, sortBy]);
 
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -173,13 +217,63 @@ export function DeadlinesManager() {
           </div>
         </div>
 
+        {/* Filter / sort toolbar — appears once the list is worth navigating. */}
+        {items.length > 2 && (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher une échéance…"
+                className="h-9 pl-8 text-sm font-body"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {presentCategories.length > 1 && (
+                <>
+                  <button onClick={() => setCategoryFilter("all")} className={pillCls(categoryFilter === "all")}>Toutes</button>
+                  {presentCategories.map((c) => (
+                    <button key={c} onClick={() => setCategoryFilter(c)} className={pillCls(categoryFilter === c)}>{c}</button>
+                  ))}
+                  <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
+                </>
+              )}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "date" | "category" | "title")}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs font-body"
+                aria-label="Trier les échéances"
+              >
+                <option value="date">Par date</option>
+                <option value="category">Par catégorie</option>
+                <option value="title">Par titre</option>
+              </select>
+              <label className="flex items-center gap-1.5 text-xs font-body text-muted-foreground ml-auto cursor-pointer select-none">
+                <input type="checkbox" checked={hideCompleted} onChange={(e) => setHideCompleted(e.target.checked)} className="accent-primary w-3.5 h-3.5" />
+                Masquer terminées
+              </label>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin text-muted-foreground" /></div>
-        ) : sorted.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="text-xs font-body text-muted-foreground/50 italic py-1">Aucune échéance enregistrée.</p>
+        ) : visible.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-2 py-1">
+            <p className="text-xs font-body text-muted-foreground/60 italic">Aucune échéance ne correspond à ce filtre.</p>
+            <button
+              onClick={() => { setSearch(""); setCategoryFilter("all"); setHideCompleted(false); }}
+              className="text-xs font-body text-primary hover:underline"
+            >
+              Réinitialiser
+            </button>
+          </div>
         ) : (
           <ul className="divide-y divide-border/30">
-            {sorted.map((d) => {
+            {visible.map((d) => {
               const dl = daysLabel(d.dueDate);
               return (
                 <li key={d.id} className={cn("flex items-center gap-3 py-2.5", d.completed && "opacity-50")}>
@@ -222,9 +316,8 @@ export function DeadlinesManager() {
                     />
                   )}
                   <button
-                    onClick={() => remove.mutate(d.id)}
-                    disabled={remove.isPending}
-                    className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                    onClick={() => setPendingDelete(d)}
+                    className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
                     aria-label="Supprimer l'échéance"
                   >
                     <Trash2 size={13} />
@@ -235,6 +328,51 @@ export function DeadlinesManager() {
           </ul>
         )}
       </div>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingDelete?.recurring ? "Échéance récurrente" : "Supprimer l'échéance ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.recurring ? (
+                <>
+                  <span className="font-medium text-foreground">« {pendingDelete.title} »</span> se répète
+                  {" "}({RECURRENCES.find((r) => r.value === pendingDelete?.recurring)?.label.toLowerCase()}) et se reporte
+                  toute seule à chaque échéance — c'est pour ça qu'elle revient toujours.{" "}
+                  <strong>Arrêter la récurrence</strong> la garde une seule fois puis elle ne reviendra plus ;{" "}
+                  <strong>Supprimer</strong> l'enlève tout de suite et définitivement.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">« {pendingDelete?.title} »</span> sera supprimée
+                  définitivement. Cette action est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            {pendingDelete?.recurring && (
+              <Button
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => { if (pendingDelete) stopRecurrence.mutate(pendingDelete.id); setPendingDelete(null); }}
+              >
+                <CalendarOff size={14} /> Arrêter la récurrence
+              </Button>
+            )}
+            <Button
+              variant="destructive"
+              className="gap-1.5"
+              onClick={() => { if (pendingDelete) remove.mutate(pendingDelete.id); setPendingDelete(null); }}
+            >
+              <Trash2 size={14} /> Supprimer
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
