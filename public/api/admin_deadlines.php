@@ -118,9 +118,30 @@ if ($method === 'POST') {
     ok(mapDeadline($stmt->fetch()));
 }
 
+/** Prochaine occurrence STRICTEMENT future d'une échéance récurrente. */
+function nextDueDate(string $from, string $recurring): string {
+    $steps = [
+        'weekly'    => '+1 week',
+        'monthly'   => '+1 month',
+        'quarterly' => '+3 months',
+        'biannual'  => '+6 months',
+        'yearly'    => '+1 year',
+    ];
+    $step  = $steps[$recurring] ?? '+1 year';
+    $ts    = strtotime($from) ?: time();
+    $today = strtotime(date('Y-m-d'));
+    do { $ts = strtotime($step, $ts); } while ($ts <= $today);
+    return date('Y-m-d', $ts);
+}
+
 // PUT — update fields
 if ($method === 'PUT') {
     if (!$id) fail('Missing id');
+    $cur = $pdo->prepare('SELECT * FROM admin_deadlines WHERE id = ?');
+    $cur->execute([$id]);
+    $existing = $cur->fetch();
+    if (!$existing) fail('Deadline not found', 404);
+
     $data   = body();
     $fields = [];
     $values = [];
@@ -132,12 +153,22 @@ if ($method === 'PUT') {
     if (array_key_exists('recurring',   $data)) { $fields[] = 'recurring = ?';   $values[] = $data['recurring']; }
     if (array_key_exists('remindDays',  $data)) { $fields[] = 'remind_days = ?'; $values[] = (int)$data['remindDays']; }
     if (array_key_exists('completed',   $data)) {
-        $fields[] = 'completed = ?';
-        $values[] = (int)$data['completed'];
-        if ($data['completed']) {
-            $fields[] = 'completed_at = NOW()';
-        } else {
+        if ($data['completed'] && !empty($existing['recurring'])) {
+            // « Faite » sur une récurrente = avancer à la prochaine occurrence,
+            // pas la tuer : completed reste 0, la date et le rappel repartent.
+            $fields[] = 'due_date = ?';
+            $values[] = nextDueDate($existing['due_date'], $existing['recurring']);
+            $fields[] = 'completed = 0';
             $fields[] = 'completed_at = NULL';
+            $fields[] = 'notified = 0';
+        } else {
+            $fields[] = 'completed = ?';
+            $values[] = (int)$data['completed'];
+            if ($data['completed']) {
+                $fields[] = 'completed_at = NOW()';
+            } else {
+                $fields[] = 'completed_at = NULL';
+            }
         }
     }
     if (array_key_exists('notified',    $data)) { $fields[] = 'notified = ?';    $values[] = (int)$data['notified']; }

@@ -296,6 +296,14 @@ $id     = $_GET['id'] ?? null;
 // HttpOnly session cookie — gets every project, fully.
 if ($method === 'GET') {
     $isAdmin = validateAdminSession() !== null;
+    // Auto-archivage du sprint : une tâche projet complétée un jour précédent
+    // n'a plus rien à faire dans le sprint du jour — on la déflague (miroir de
+    // runDailyRefresh dans todo_subtasks.php). Idempotent, gardé par date.
+    try {
+        $pdo->exec("UPDATE tasks SET flagged_today = 0
+            WHERE flagged_today = 1 AND status = 'completed'
+              AND (completed_at IS NULL OR DATE(completed_at) < CURDATE())");
+    } catch (Throwable $e) {}
     if ($id) {
         $project = loadFullProject($pdo, $id);
         if (!$project) fail('Project not found', 404);

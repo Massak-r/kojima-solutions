@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listDeadlines } from "@/api/adminDeadlines";
+import { useCompleteDeadline } from "@/hooks/useCompleteDeadline";
 import { SectionCard } from "@/components/ui/section-card";
 
 /** Upcoming (≤30 days) or overdue admin/fiscal deadlines, on the home alerts
@@ -10,6 +11,7 @@ import { SectionCard } from "@/components/ui/section-card";
  *  cron's push notifications with a glanceable dashboard surface. */
 export function UpcomingAdminDeadlines() {
   const { data } = useQuery({ queryKey: ["admin-deadlines"], queryFn: listDeadlines, staleTime: 60_000 });
+  const completeDeadline = useCompleteDeadline();
 
   const items = useMemo(() => {
     const in30 = Date.now() + 30 * 86400000;
@@ -45,6 +47,15 @@ export function UpcomingAdminDeadlines() {
               )}>
                 {daysLeft < 0 ? `+${Math.abs(daysLeft)}j` : daysLeft === 0 ? "Auj." : `${daysLeft}j`}
               </span>
+              <button
+                onClick={() => completeDeadline.mutate(d.id)}
+                disabled={completeDeadline.isPending}
+                title="Marquer comme faite"
+                aria-label={`Marquer « ${d.title} » comme faite`}
+                className="shrink-0 ml-1 p-1.5 rounded-full text-muted-foreground/40 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+              >
+                <Check size={14} />
+              </button>
             </div>
           );
         })}

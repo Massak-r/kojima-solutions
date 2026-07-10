@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Sunrise, Play, ArrowRight, Coins, CalendarClock, Sparkles, X, Target, FolderKanban } from "lucide-react";
+import { Sunrise, Play, ArrowRight, Coins, CalendarClock, Sparkles, X, Target, FolderKanban, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 import { toISODate } from "@/lib/weekDates";
@@ -12,6 +12,7 @@ import { useClients } from "@/contexts/ClientsContext";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { computeRelances } from "@/lib/relances";
 import { listDeadlines } from "@/api/adminDeadlines";
+import { useCompleteDeadline } from "@/hooks/useCompleteDeadline";
 import { startSession } from "@/api/objectiveSessions";
 
 /**
@@ -28,6 +29,7 @@ export function BriefDuJour() {
   const { clients } = useClients();
   const { projects } = useProjects();
   const { data: deadlines = [] } = useQuery({ queryKey: ["admin-deadlines"], queryFn: listDeadlines, staleTime: 60_000 });
+  const completeDeadline = useCompleteDeadline();
 
   const today = toISODate(new Date());
   const [dismissed, setDismissed] = useState(() => {
@@ -155,16 +157,14 @@ export function BriefDuJour() {
           </button>
         )}
 
-        {/* Next compliance deadline */}
+        {/* Next compliance deadline — le ✓ la marque faite sans quitter le brief
+            (récurrente : le serveur avance la date à la prochaine occurrence) */}
         {hasDeadlines && nextDl && (
-          <button
-            onClick={() => navigate("/documents")}
-            className="group w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-secondary/30 transition-colors"
-          >
+          <div className="group flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors">
             <span className="shrink-0 w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center">
               <CalendarClock size={14} className="text-indigo-600 dark:text-indigo-400" />
             </span>
-            <div className="flex-1 min-w-0">
+            <button onClick={() => navigate("/documents")} className="flex-1 min-w-0 text-left">
               <p className="text-[11px] font-body font-semibold uppercase tracking-wider text-muted-foreground/70">Échéance</p>
               <p className="text-sm font-body text-foreground/90 truncate">
                 <span className="font-semibold">{nextDl.title}</span>
@@ -173,9 +173,17 @@ export function BriefDuJour() {
                 </span>
                 {deadlinesSoon.length > 1 && <span className="text-muted-foreground"> · +{deadlinesSoon.length - 1}</span>}
               </p>
-            </div>
-            <ArrowRight size={14} className="shrink-0 text-muted-foreground/30 group-hover:text-foreground transition-colors" />
-          </button>
+            </button>
+            <button
+              onClick={() => completeDeadline.mutate(nextDl.id)}
+              disabled={completeDeadline.isPending}
+              title="Marquer comme faite"
+              aria-label="Marquer l'échéance comme faite"
+              className="shrink-0 p-1.5 rounded-full text-muted-foreground/40 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+            >
+              <Check size={15} />
+            </button>
+          </div>
         )}
 
         {/* All clear */}

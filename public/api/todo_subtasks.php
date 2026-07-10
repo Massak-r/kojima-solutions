@@ -105,6 +105,17 @@ function runDailyRefresh(PDO $pdo): void {
     $dom   = (int)date('j'); // 1..31
 
     try {
+        // 0. Auto-archivage du sprint : tout ce qui a été complété un jour
+        // précédent sort du sprint tout seul — plus besoin du rituel manuel
+        // pour purger le « Fait aujourd'hui ». Les récurrentes sont exclues :
+        // leur cycle (reset + re-flag) est géré aux étapes 2+.
+        $pdo->prepare("UPDATE todo_subtasks
+            SET flagged_today = 0, flagged_at = NULL
+            WHERE flagged_today = 1 AND completed = 1
+              AND (recurrence IS NULL OR recurrence = '' OR recurrence = 'none')
+              AND (completed_at IS NULL OR DATE(completed_at) < ?)")
+            ->execute([$today]);
+
         // 1. Postponed tasks: scheduled_for arrived → re-flag
         $pdo->prepare("UPDATE todo_subtasks
             SET flagged_today = 1, flagged_at = NOW(), scheduled_for = NULL

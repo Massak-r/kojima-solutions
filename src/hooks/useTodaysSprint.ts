@@ -68,8 +68,21 @@ export function useTodaysSprint(): TodaysSprint {
     const today = toISODate(now);
     const tomorrow = toISODate(addDays(now, 1));
 
+    // Un objectif terminé archive tout ce qu'il porte : ses subtasks quittent
+    // le jour (sprint, fait, suggestions, demain) sans action manuelle.
+    const objectiveClosed = (parentId: string) => objById.get(parentId)?.completed === true;
+
+    // « Fait aujourd'hui » veut dire aujourd'hui : une complétion d'un jour
+    // précédent encore flaguée (rituel du soir sauté) est archivée à l'affichage
+    // — le serveur la déflague de son côté au prochain daily refresh.
+    const completedToday = (ts: string | null | undefined): boolean => {
+      if (!ts) return false;
+      const d = new Date(ts.includes("T") ? ts : ts.replace(" ", "T"));
+      return !Number.isNaN(d.getTime()) && toISODate(d) === today;
+    };
+
     const flaggedSub: TodayItem[] = allSubtasks
-      .filter((s) => s.flaggedToday && !s.completed)
+      .filter((s) => s.flaggedToday && !s.completed && !objectiveClosed(s.parentId))
       .map((s) => ({ kind: "subtask" as const, id: s.id, subtask: s, objective: objById.get(s.parentId) ?? null }));
 
     const flaggedTask: TodayItem[] = projects.flatMap((p) =>
@@ -86,11 +99,11 @@ export function useTodaysSprint(): TodaysSprint {
     });
 
     const doneSub: TodayItem[] = allSubtasks
-      .filter((s) => s.flaggedToday && s.completed)
+      .filter((s) => s.flaggedToday && s.completed && completedToday(s.completedAt) && !objectiveClosed(s.parentId))
       .map((s) => ({ kind: "subtask" as const, id: s.id, subtask: s, objective: objById.get(s.parentId) ?? null }));
     const doneTask: TodayItem[] = projects.flatMap((p) =>
       (p.tasks ?? [])
-        .filter((t) => t.flaggedToday && t.status === "completed")
+        .filter((t) => t.flaggedToday && t.status === "completed" && completedToday(t.completedAt))
         .map((t) => ({ kind: "task" as const, id: t.id, task: t, project: p })),
     );
     const done = [...doneSub, ...doneTask];
@@ -98,7 +111,7 @@ export function useTodaysSprint(): TodaysSprint {
     // Lined up last night for tomorrow. The server's daily refresh auto-flags
     // these into the sprint once tomorrow arrives, so the morning starts seeded.
     const plannedTomorrow: TodaySubtaskItem[] = allSubtasks
-      .filter((s) => s.scheduledFor === tomorrow && !s.completed)
+      .filter((s) => s.scheduledFor === tomorrow && !s.completed && !objectiveClosed(s.parentId))
       .map((s) => ({ kind: "subtask" as const, id: s.id, subtask: s, objective: objById.get(s.parentId) ?? null }));
 
     // Unflagged subtasks that belong to today, tagged with the reason so the UI
@@ -106,7 +119,8 @@ export function useTodaysSprint(): TodaysSprint {
     // Items already parked for a future day (scheduledFor > today, e.g. lined up
     // last night for tomorrow) are committed elsewhere — don't also nag today.
     const suggestions: TodaySuggestion[] = allSubtasks
-      .filter((s) => !s.flaggedToday && !s.completed && !(s.scheduledFor != null && s.scheduledFor > today))
+      .filter((s) => !s.flaggedToday && !s.completed && !objectiveClosed(s.parentId)
+        && !(s.scheduledFor != null && s.scheduledFor > today))
       .flatMap((s) => {
         const reason: SuggestionReason | null =
           recurrenceMatchesDate(s.recurrence, s.recurrenceDay, now) ? "recurring"
