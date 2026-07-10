@@ -80,12 +80,12 @@ export function SprintCapOverloadDialog() {
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <AlertTriangle size={18} className="text-amber-500" />
-            Sprint complet — 5/5
+            Plan du jour complet — 5/5
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Tu veux ajouter{" "}
             <span className="font-semibold text-foreground">"{sprintItemText(candidate)}"</span>{" "}
-            mais ton sprint est déjà à 5 items. Lequel tu retires ?
+            mais ton plan du jour est déjà à 5 tâches. Laquelle tu retires ?
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 

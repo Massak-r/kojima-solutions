@@ -116,7 +116,7 @@ const Header = () => {
   const PAGE_TITLES: Record<string, string> = {
     "/home": "Accueil",
     "/space": "Kojima Space",
-    "/sprint": "Sprint",
+    "/sprint": "Planifier",
     "/quotes": "Devis",
     "/clients": "Clients",
     "/accounting": "Finance",

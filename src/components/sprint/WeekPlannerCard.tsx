@@ -78,7 +78,7 @@ export function WeekPlannerCard({ sub, objectiveText, locked, onOpen }: WeekPlan
             <Repeat size={11} className="text-sky-500/80" aria-label="Récurrente" />
           )}
           {sub.flaggedToday && !sub.completed && (
-            <Star size={12} className="fill-amber-400 text-amber-400" aria-label="Sprint du jour" />
+            <Star size={12} className="fill-amber-400 text-amber-400" aria-label="Plan du jour" />
           )}
         </div>
       </div>

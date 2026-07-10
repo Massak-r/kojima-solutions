@@ -249,7 +249,7 @@ export default function SprintPage() {
           <Target size={22} className="text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">Sprint</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">Planifier</h1>
           <p className="text-sm text-muted-foreground font-body">Une action à la fois. Un objectif à la fois.</p>
         </div>
         {hasPendingFlagged && (
@@ -446,7 +446,7 @@ export default function SprintPage() {
                     <Target size={32} className="mx-auto text-muted-foreground/30 mb-3" />
                     <div className="text-sm font-body text-muted-foreground">Aucun objectif actif.</div>
                     <div className="text-xs font-body text-muted-foreground/50 mt-1 mb-4">
-                      Créez votre premier objectif pour entrer en sprint.
+                      Créez votre premier objectif pour planifier vos journées.
                     </div>
                     <Button
                       size="sm"

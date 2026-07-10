@@ -74,7 +74,7 @@ export function DailyCommitDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Sun size={18} className="text-amber-500" />
-            Sprint du jour
+            Plan du jour
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Choisissez les actions auxquelles vous vous engagez aujourd'hui. Les autres seront reportées (non supprimées).

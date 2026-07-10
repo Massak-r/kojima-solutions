@@ -48,7 +48,7 @@ export function SprintSummary() {
         </div>
         {total === 0 ? (
           <div className="text-xs font-body text-muted-foreground mt-0.5">
-            Sprint vide — clique pour t'engager sur la journée.
+            Rien d'engagé — clique pour planifier ta journée.
           </div>
         ) : (
           <div className="flex items-center gap-3 mt-1 text-xs font-body">

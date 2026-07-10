@@ -183,7 +183,10 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
               <span className="ml-2 text-base font-body font-medium text-muted-foreground">à faire</span>
             </p>
             <p className="mt-1.5 text-sm font-body text-muted-foreground tabular-nums">
-              {counts.must} must · {counts.nice} nice · {counts.done} fait
+              {counts.must} must · {counts.nice} nice · {counts.done} fait ·{" "}
+              <span className={cn(counts.capReached && "text-amber-600 dark:text-amber-400 font-medium")}>
+                {counts.pending}/{counts.cap} engagées
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -257,20 +260,19 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
         </div>
       )}
 
-      {/* À caser — le sprint sans heure */}
+      {/* Sans heure — les tâches engagées pas encore posées sur la timeline.
+          Le compteur d'engagement (X/5) vit dans l'en-tête, pas ici : il
+          compte TOUTES les tâches du jour, planifiées comprises. */}
       {untimed.length > 0 && (
         <div className="border-t border-border/60">
-          <div className="flex items-center justify-between gap-2 px-5 pt-3 pb-1">
-            <h3 className="text-eyebrow">{timedRows.length > 0 ? "À caser" : "Sprint du jour"}</h3>
-            <span className={cn(
-              "text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-full",
-              counts.capReached ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "text-muted-foreground/60",
-            )}>
-              {counts.pending}/{counts.cap}
-            </span>
-          </div>
+          {timedRows.length > 0 && (
+            <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+              <h3 className="text-eyebrow">Sans heure</h3>
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {untimed.length}</span>
+            </div>
+          )}
           {isMobile && (
-            <p className="px-5 pb-1 text-[11px] font-body text-muted-foreground/55 italic">
+            <p className={cn("px-5 pb-1 text-[11px] font-body text-muted-foreground/55 italic", timedRows.length === 0 && "pt-2.5")}>
               Astuce : glisse une tâche vers la gauche pour la terminer.
             </p>
           )}
@@ -297,12 +299,12 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
         </div>
       )}
 
-      {/* Journée sans sprint — état vide slim (les blocs et l'inbox restent) */}
+      {/* Journée sans tâches engagées — état vide slim (blocs et inbox restent) */}
       {flagged.length === 0 && (
         <div className="border-t border-border/60 px-5 py-6 text-center">
           {counts.done > 0 ? (
             <>
-              <p className="font-display text-base font-bold text-foreground mb-1">Sprint bouclé 🎉</p>
+              <p className="font-display text-base font-bold text-foreground mb-1">Tout est fait 🎉</p>
               <p className="text-sm font-body text-muted-foreground mb-3 max-w-sm mx-auto">
                 Tu as terminé toutes tes tâches du jour. Profite — ou prends un peu d'avance.
               </p>
@@ -317,7 +319,7 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
             <>
               <p className="font-display text-base font-bold text-foreground mb-1">Journée vierge</p>
               <p className="text-sm font-body text-muted-foreground mb-3 max-w-sm mx-auto">
-                Rien dans le sprint du jour. Choisis quelques tâches pour t'engager sur la journée.
+                Rien d'engagé pour aujourd'hui. Choisis quelques tâches pour lancer ta journée.
               </p>
               <button
                 onClick={() => navigate("/sprint")}
@@ -501,7 +503,7 @@ function FreeBlockRow({ block, orphan, done, doneMin, past, onDelete }: {
       )} />
       <div
         className="flex-1 min-w-0 flex items-center justify-between gap-2 rounded-lg bg-secondary/30 px-3 py-2"
-        title={orphan && !done ? "Cette tâche n'est plus dans le sprint du jour" : undefined}
+        title={orphan && !done ? "Cette tâche n'est plus dans le plan du jour" : undefined}
       >
         <span className="flex items-center gap-2 min-w-0">
           {done && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}

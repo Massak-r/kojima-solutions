@@ -43,7 +43,7 @@ export function ProjectResumeCard({ project }: { project: { id: string; tasks?: 
     updateProject(project.id, {
       tasks: tasks.map((t) => (t.id === nextStep.id ? { ...t, flaggedToday: true } : t)),
     });
-    toast.success("Étape ajoutée à ton sprint", { description: nextStep.title });
+    toast.success("Étape ajoutée au plan du jour", { description: nextStep.title });
   }
 
   return (

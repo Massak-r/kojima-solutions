@@ -166,7 +166,7 @@ export function LinkedObjectivesPanel({ projectId }: LinkedObjectivesPanelProps)
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Star size={10} className="fill-amber-400 text-amber-400" />
                         <span className="text-[9px] font-display font-bold uppercase tracking-wider text-foreground/50">
-                          Sprint du jour · {flaggedSubs.length}
+                          Plan du jour · {flaggedSubs.length}
                         </span>
                       </div>
                       <ul className="space-y-1">

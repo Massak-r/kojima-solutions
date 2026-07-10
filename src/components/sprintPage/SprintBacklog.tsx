@@ -97,7 +97,7 @@ export function SprintBacklog({
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Star size={14} className="fill-amber-400 text-amber-400" />
         <span className="text-xs font-display font-bold text-foreground/70 uppercase tracking-wider">
-          Sprint en cours
+          Plan du jour
         </span>
         <span className={cn(
           "text-[11px] font-mono tabular-nums",
@@ -365,7 +365,7 @@ function SprintBacklogRow({ item, subtaskById, objectivesById, projectsById, com
               {isStale && (
                 <span
                   className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
-                  title={`Flaggée depuis ${ageDays} jour${ageDays > 1 ? "s" : ""} — à faire ou à retirer du sprint`}
+                  title={`Flaggée depuis ${ageDays} jour${ageDays > 1 ? "s" : ""} — à faire ou à retirer du plan du jour`}
                 >
                   <Hourglass size={9} />
                   {ageDays}j

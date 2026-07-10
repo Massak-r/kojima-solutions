@@ -279,7 +279,7 @@ export function MondayBriefDialog({ open, onOpenChange }: MondayBriefDialogProps
                 <div className="space-y-2">
                   <BriefRow
                     icon={<Target size={13} className="text-red-500" />}
-                    label="Sprint actif"
+                    label="Plan du jour"
                     value={
                       sprintCounts.must + sprintCounts.nice === 0
                         ? "Rien de flaggé — à toi de définir"

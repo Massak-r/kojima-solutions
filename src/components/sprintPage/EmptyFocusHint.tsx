@@ -10,7 +10,7 @@ export function EmptyFocusHint({ hasBacklog }: { hasBacklog: boolean }) {
         <div className="text-sm font-body font-medium text-foreground">Aucune session de focus en cours</div>
         <div className="text-xs font-body text-muted-foreground/70 mt-0.5">
           {hasBacklog
-            ? <>Vous avez des étapes dans le sprint ci-dessous — ouvrez-en une et appuyez sur <span className="font-semibold">Démarrer</span>.</>
+            ? <>Vous avez des étapes dans le plan du jour ci-dessous — ouvrez-en une et appuyez sur <span className="font-semibold">Démarrer</span>.</>
             : <>Choisissez un objectif, marquez votre prochaine action en ⭐, puis appuyez sur <span className="font-semibold">Démarrer</span>.</>
           }
         </div>

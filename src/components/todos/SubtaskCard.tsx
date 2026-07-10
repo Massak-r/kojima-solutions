@@ -293,7 +293,7 @@ export function SubtaskCard({
             <button
               onClick={e => { e.stopPropagation(); onUpdate(sub.id, { flaggedToday: false }); }}
               className="text-amber-500 hover:text-amber-400 transition-all"
-              title="Retirer du sprint"
+              title="Retirer du plan du jour"
             >
               <Star size={isChild ? 12 : 14} className="fill-current" />
             </button>
@@ -311,7 +311,7 @@ export function SubtaskCard({
               <button
                 onClick={e => { e.stopPropagation(); flagSubtask(sub); }}
                 className="text-muted-foreground/30 hover:text-amber-400 transition-all"
-                title="Ajouter au sprint"
+                title="Ajouter au plan du jour"
               >
                 <Star size={isChild ? 12 : 14} />
               </button>

@@ -196,7 +196,7 @@ export function NextActionDialog() {
             <div className="rounded-xl border border-dashed border-border p-6 text-center">
               <p className="text-sm text-muted-foreground font-body">Aucune tâche flaggée pour aujourd'hui.</p>
               <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => { setOpen(false); navigate("/sprint"); }}>
-                <ListChecks size={14} /> Composer mon sprint
+                <ListChecks size={14} /> Planifier ma journée
               </Button>
             </div>
           )}

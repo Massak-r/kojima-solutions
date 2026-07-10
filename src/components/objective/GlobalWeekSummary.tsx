@@ -46,7 +46,7 @@ export function GlobalWeekSummary({ objectivesById }: GlobalWeekSummaryProps) {
       <div className="rounded-2xl border border-dashed border-border/40 bg-card/30 p-5 text-center">
         <Flame size={20} className="mx-auto text-muted-foreground/30 mb-1" />
         <div className="text-xs font-body text-muted-foreground">Aucune session de focus cette semaine.</div>
-        <div className="text-[10px] font-body text-muted-foreground/50 mt-0.5">Démarrez un sprint pour voir vos stats ici.</div>
+        <div className="text-[10px] font-body text-muted-foreground/50 mt-0.5">Démarrez une session de focus pour voir vos stats ici.</div>
       </div>
     );
   }

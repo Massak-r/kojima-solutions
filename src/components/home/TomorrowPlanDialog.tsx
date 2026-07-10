@@ -168,7 +168,7 @@ export function TomorrowPlanDialog({ open, onOpenChange }: { open: boolean; onOp
     onOpenChange(false);
     if (n > 0) {
       toast.success("Demain est prêt", {
-        description: `${n} tâche${n > 1 ? "s" : ""} t'attendr${n > 1 ? "ont" : "a"} dans ton sprint demain matin.`,
+        description: `${n} tâche${n > 1 ? "s" : ""} t'attendr${n > 1 ? "ont" : "a"} dans ton plan du jour demain matin.`,
       });
     } else {
       toast.success("Demain remis à zéro", { description: "Plus aucune tâche planifiée pour demain." });

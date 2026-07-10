@@ -229,7 +229,7 @@ function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySugge
       <StreakBadge subtask={suggestion.subtask} />
       <button
         onClick={onAdd}
-        title={disabled ? "Sprint plein — termine ou retire une tâche d'abord" : "Ajouter au sprint du jour"}
+        title={disabled ? "Plan du jour plein — termine ou retire une tâche d'abord" : "Ajouter au plan du jour"}
         className="inline-flex items-center gap-1 text-[11px] font-body font-medium rounded-full px-2 py-0.5 text-primary hover:bg-primary/10 transition-colors shrink-0"
       >
         <Plus size={12} /> Ajouter

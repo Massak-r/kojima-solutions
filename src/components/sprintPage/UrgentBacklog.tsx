@@ -147,7 +147,7 @@ export function UrgentBacklog({ allSubtasks, objectivesById, projects, today }: 
                 <button
                   onClick={() => flagSubtask(s)}
                   className="shrink-0 text-muted-foreground/30 hover:text-amber-400 transition-colors p-1"
-                  title="Ajouter au sprint"
+                  title="Ajouter au plan du jour"
                 >
                   <Star size={14} />
                 </button>
@@ -182,7 +182,7 @@ export function UrgentBacklog({ allSubtasks, objectivesById, projects, today }: 
               <button
                 onClick={() => flagTask(item.projectId, t)}
                 className="shrink-0 text-muted-foreground/30 hover:text-amber-400 transition-colors p-1"
-                title="Ajouter au sprint"
+                title="Ajouter au plan du jour"
               >
                 <Star size={14} />
               </button>
