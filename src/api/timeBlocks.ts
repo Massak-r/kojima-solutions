@@ -24,6 +24,11 @@ export function listTimeBlocks(day: string): Promise<TimeBlock[]> {
   return apiFetch<TimeBlock[]>(`time_blocks.php?day=${day}`);
 }
 
+/** Blocs sur une plage de jours (inclusif) — sert à la reprise du matin. */
+export function listTimeBlocksRange(from: string, to: string): Promise<TimeBlock[]> {
+  return apiFetch<TimeBlock[]>(`time_blocks.php?from=${from}&to=${to}`);
+}
+
 export function createTimeBlock(data: {
   day: string;
   startMin: number;

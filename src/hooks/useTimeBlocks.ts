@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import {
-  listTimeBlocks, createTimeBlock, updateTimeBlock, deleteTimeBlock,
+  listTimeBlocks, listTimeBlocksRange, createTimeBlock, updateTimeBlock, deleteTimeBlock,
   type TimeBlock, type TimeBlockRefKind,
 } from "@/api/timeBlocks";
 
@@ -12,6 +12,15 @@ export function useTimeBlocks(day: string) {
     queryKey: keyFor(day),
     queryFn: () => listTimeBlocks(day),
     staleTime: 30_000,
+  });
+}
+
+/** Blocs des jours précédents (reprise du matin des non-terminés). */
+export function useTimeBlocksRange(from: string, to: string) {
+  return useQuery({
+    queryKey: ["time-blocks-range", from, to],
+    queryFn: () => listTimeBlocksRange(from, to),
+    staleTime: 60_000,
   });
 }
 

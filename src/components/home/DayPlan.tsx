@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { addDays } from "date-fns";
 import {
   ArrowRight, CalendarRange, CheckCircle2, Clock, Compass, FolderKanban,
-  Plus, Star, Target, Trash2,
+  History, Plus, Star, Target, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +19,8 @@ import { InboxPanel } from "@/components/home/InboxPanel";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { StreakBadge } from "@/components/todos/StreakBadge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useTimeBlocks, useCreateTimeBlock, useUpdateTimeBlock, useDeleteTimeBlock } from "@/hooks/useTimeBlocks";
+import { useTimeBlocks, useTimeBlocksRange, useCreateTimeBlock, useUpdateTimeBlock, useDeleteTimeBlock } from "@/hooks/useTimeBlocks";
+import { formatDateShort } from "@/lib/dateFormat";
 import { useAllSubtasks } from "@/hooks/useSubtasks";
 import { useProjects } from "@/contexts/ProjectsContext";
 import type { TimeBlock } from "@/api/timeBlocks";
@@ -119,6 +121,37 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
   const [schedTarget, setSchedTarget] = useState<{ item: TodayItem; block?: TimeBlock } | null>(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
 
+  // Reprise du matin : les blocs libres non terminés du dernier jour planifié
+  // (jusqu'à 3 jours en arrière) sont proposés en un tap — un bloc meurt avec
+  // sa journée, pas ce qu'il restait à faire. Les blocs liés à une tâche ne
+  // sont pas repris ici : la tâche, elle, reste engagée toute seule.
+  const { data: pastBlocks = [] } = useTimeBlocksRange(
+    toISODate(addDays(new Date(), -3)), toISODate(addDays(new Date(), -1)),
+  );
+  const [carryDismissed, setCarryDismissed] = useState(() => {
+    try { return localStorage.getItem(`koji-carryover-${toISODate(new Date())}`) === "1"; } catch { return false; }
+  });
+  const carryOver = useMemo(() => {
+    if (carryDismissed) return [];
+    const lastDay = [...new Set(pastBlocks.map((b) => b.day))].sort().pop();
+    if (!lastDay) return [];
+    const todayTitles = new Set(blocks.map((b) => b.title.trim().toLowerCase()));
+    return pastBlocks.filter((b) =>
+      b.day === lastDay && b.refKind == null && b.doneMin == null
+      && b.title.trim() !== "" && !todayTitles.has(b.title.trim().toLowerCase()),
+    );
+  }, [pastBlocks, blocks, carryDismissed]);
+
+  function dismissCarryOver() {
+    haptic("tap");
+    setCarryDismissed(true);
+    try { localStorage.setItem(`koji-carryover-${day}`, "1"); } catch { /* ignore */ }
+  }
+  function carryBlock(b: TimeBlock) {
+    haptic("tap");
+    createBlock.mutate({ day, startMin: b.startMin, endMin: b.endMin, title: b.title });
+  }
+
   const { timedRows, untimed } = useMemo(() => {
     const byKey = new Map<string, { item: TodayItem; done: boolean }>();
     flagged.forEach((i) => byKey.set(itemKey(i), { item: i, done: false }));
@@ -218,6 +251,46 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
           </div>
         )}
       </div>
+
+      {/* Pas terminé la veille — reprise en un tap, ignorable pour la journée */}
+      {carryOver.length > 0 && (
+        <div className="border-t border-border/60 bg-secondary/20 px-5 py-3">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="flex items-center gap-2">
+              <History size={13} className="text-muted-foreground/70" />
+              <h3 className="text-eyebrow">
+                Pas terminé {carryOver[0].day === toISODate(addDays(new Date(), -1)) ? "hier" : `le ${formatDateShort(carryOver[0].day)}`}
+              </h3>
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {carryOver.length}</span>
+            </div>
+            <button
+              onClick={dismissCarryOver}
+              aria-label="Ignorer pour aujourd'hui"
+              title="Ignorer pour aujourd'hui"
+              className="p-1 -mr-1 rounded-full text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          <ul className="space-y-1">
+            {carryOver.map((b) => (
+              <li key={b.id} className="flex items-center gap-2.5">
+                <span className="w-12 shrink-0 text-right text-[11px] font-mono tabular-nums text-muted-foreground/60">
+                  {minToHHMM(b.startMin)}
+                </span>
+                <span className="flex-1 min-w-0 text-[13px] font-body text-foreground/90 truncate">{b.title}</span>
+                <button
+                  onClick={() => carryBlock(b)}
+                  disabled={createBlock.isPending}
+                  className="inline-flex items-center gap-1 text-[11px] font-body font-medium rounded-full px-2 py-0.5 text-primary hover:bg-primary/10 transition-colors shrink-0"
+                >
+                  <Plus size={12} /> Reprendre
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Lane horaire — blocs libres + tâches planifiées, chronologique */}
       {timedRows.length > 0 && (

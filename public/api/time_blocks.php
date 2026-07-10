@@ -66,6 +66,18 @@ function refKindOrNull($v): ?string {
 }
 
 if ($method === 'GET') {
+    // Plage (reprise du matin : blocs non terminés des jours précédents)
+    $from = $_GET['from'] ?? null;
+    $to   = $_GET['to'] ?? null;
+    if ($from !== null || $to !== null) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$to)) {
+            fail('Invalid from/to (YYYY-MM-DD)');
+        }
+        $stmt = $pdo->prepare("SELECT * FROM time_block WHERE day BETWEEN ? AND ? ORDER BY day, start_min, end_min");
+        $stmt->execute([$from, $to]);
+        ok(array_map('mapBlock', $stmt->fetchAll()));
+    }
+
     $day = $_GET['day'] ?? '';
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) fail('Invalid or missing day (YYYY-MM-DD)');
     $stmt = $pdo->prepare("SELECT * FROM time_block WHERE day = ? ORDER BY start_min, end_min");
