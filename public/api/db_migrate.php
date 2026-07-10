@@ -64,7 +64,11 @@ foreach ($files as $path) {
             $pdo->exec($stmt);
         }
         $pdo->prepare('INSERT INTO migrations (filename) VALUES (?)')->execute([$filename]);
-        $pdo->commit();
+        // DDL implicitly commits on MySQL/MariaDB; PHP 8's mysqlnd tracks the
+        // real server transaction state, so an unguarded commit() here throws
+        // "There is no active transaction" AFTER everything already applied —
+        // reporting a phantom error and halting the queue.
+        if ($pdo->inTransaction()) $pdo->commit();
         $results[] = ['file' => $filename, 'status' => 'applied'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

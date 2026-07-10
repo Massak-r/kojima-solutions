@@ -2,40 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Compass, CalendarRange, CheckCircle2, Star, Target, FolderKanban,
-  ArrowRight, Plus, Repeat, CalendarClock, Flame, Sparkles, ListChecks, Sunrise,
+  CheckCircle2, Plus, Repeat, CalendarClock, Flame, Sparkles, Sunrise,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
-import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
 import { useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import {
   useTodaysSprint, type TodayItem, type TodaySuggestion, type SuggestionReason,
 } from "@/hooks/useTodaysSprint";
-import { DayBlocks } from "@/components/home/DayBlocks";
-import { InboxPanel } from "@/components/home/InboxPanel";
+import { useTimeBlocks } from "@/hooks/useTimeBlocks";
+import { DayPlan, itemTitle, itemSource } from "@/components/home/DayPlan";
 import { TomorrowPlanDialog } from "@/components/home/TomorrowPlanDialog";
 import { BriefDuJour } from "@/components/home/BriefDuJour";
-import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { haptic } from "@/lib/haptics";
 import { toISODate } from "@/lib/weekDates";
 import { Celebration } from "@/components/ui/celebration";
 import { StreakBadge } from "@/components/todos/StreakBadge";
-
-function itemTitle(item: TodayItem): string {
-  return item.kind === "subtask" ? item.subtask.text : item.task.title;
-}
-function itemSource(item: TodayItem): { label: string; Icon: typeof Target } {
-  if (item.kind === "subtask") return { label: item.objective?.text ?? "Objectif", Icon: Target };
-  return { label: item.project.title || "Projet", Icon: FolderKanban };
-}
-function itemIsMust(item: TodayItem): boolean {
-  const t = item.kind === "subtask" ? item.subtask.sprintTier : item.task.sprintTier;
-  return t === "must";
-}
 
 const REASON_META: Record<SuggestionReason, { label: string; Icon: typeof Repeat; cls: string }> = {
   recurring: { label: "Récurrent", Icon: Repeat,        cls: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-500/15" },
@@ -49,7 +32,9 @@ export function AujourdhuiTab() {
   const updateSubtask = useUpdateSubtask();
   const { updateProjectTask } = useProjects();
   const { flag: flagSubtask } = useFlagSubtask();
-  const isMobile = useIsMobile();
+  const day = toISODate(new Date());
+  // Même cache que le DayPlan — sert au bilan d'estimation du soir.
+  const { data: blocks = [] } = useTimeBlocks(day);
 
   // Celebrate clearing the day's sprint — fires once per day the moment the
   // last pending item is completed (not on a fresh load that's already empty).
@@ -70,9 +55,6 @@ export function AujourdhuiTab() {
     }
     prevPendingRef.current = counts.pending;
   }, [counts.pending, counts.done]);
-
-  const total = counts.pending + counts.done;
-  const progress = total === 0 ? 0 : Math.round((counts.done / total) * 100);
 
   function openItem(item: TodayItem) {
     if (item.kind === "subtask") {
@@ -97,7 +79,7 @@ export function AujourdhuiTab() {
   /** Close-the-day ritual: clear today's flag off everything already done so
    *  tomorrow starts clean (mirrors the daily sprint-cleanup), then flow straight
    *  into lining up tomorrow's 1-3 — the evening shutdown that kills the morning
-   *  blank page. */
+   *  blank page. Le bilan d'estimation (planifié vs fait) part avec le toast. */
   function closeDay() {
     if (done.length === 0) return;
     haptic("success");
@@ -105,8 +87,12 @@ export function AujourdhuiTab() {
       if (item.kind === "subtask") updateSubtask.mutate({ id: item.subtask.id, patch: { flaggedToday: false } });
       else updateProjectTask(item.project.id, item.task.id, { flaggedToday: false });
     });
+    const estimated = blocks.filter((b) => b.refKind && b.doneMin != null && b.endMin != null);
+    const onTime = estimated.filter((b) => (b.doneMin as number) <= (b.endMin as number)).length;
     toast.success("Journée close", {
-      description: `${done.length} tâche${done.length > 1 ? "s" : ""} bouclée${done.length > 1 ? "s" : ""} aujourd'hui — bravo.`,
+      description:
+        `${done.length} tâche${done.length > 1 ? "s" : ""} bouclée${done.length > 1 ? "s" : ""} aujourd'hui — bravo.` +
+        (estimated.length > 0 ? ` Estimations tenues : ${onTime}/${estimated.length}.` : ""),
     });
     setPlanOpen(true);
   }
@@ -116,98 +102,14 @@ export function AujourdhuiTab() {
       {/* L'essentiel — daily brief: start-here, money to collect, next deadline */}
       <BriefDuJour />
 
-      {/* Heartbeat hero */}
-      <section className="rounded-2xl border border-border bg-card shadow-card p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-eyebrow">Le plan du jour</p>
-            <p className="mt-1.5 font-display text-3xl font-bold text-foreground leading-none">
-              {counts.pending}
-              <span className="ml-2 text-base font-body font-medium text-muted-foreground">
-                à faire
-              </span>
-            </p>
-            <p className="mt-1.5 text-sm font-body text-muted-foreground tabular-nums">
-              {counts.must} must · {counts.nice} nice · {counts.done} fait
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_NEXT_ACTION_EVENT))}
-              className="inline-flex items-center gap-1.5 text-xs font-body font-semibold rounded-full px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Compass size={14} />
-              Et maintenant ?
-            </button>
-            <button
-              onClick={() => navigate("/sprint")}
-              className="inline-flex items-center gap-1.5 text-xs font-body font-medium rounded-full px-3.5 py-2 border border-border hover:bg-secondary transition-colors"
-            >
-              <CalendarRange size={14} />
-              Planifier
-            </button>
-          </div>
-        </div>
-
-        {total > 0 && (
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all", progress === 100 ? "bg-emerald-500" : "bg-primary/70")}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <span className="text-[11px] font-mono tabular-nums text-muted-foreground/70">{progress}%</span>
-          </div>
-        )}
-      </section>
-
-      {/* Inbox à trier — captures non triées ; se masque seule si rien en attente */}
-      <InboxPanel />
-
-      {/* Programme du jour — manual time-blocks */}
-      <DayBlocks />
-
-      {/* Sprint du jour */}
-      {flagged.length === 0 ? (
-        <EmptyDay done={counts.done} onPlan={() => navigate("/sprint")} />
-      ) : (
-        <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
-          <header className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border">
-            <div className="flex items-center gap-2">
-              <ListChecks size={15} className="text-primary" />
-              <h2 className="text-eyebrow">Sprint du jour</h2>
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {flagged.length}</span>
-            </div>
-            <span className={cn(
-              "text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-full",
-              counts.capReached ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "text-muted-foreground/60",
-            )}>
-              {counts.pending}/{counts.cap}
-            </span>
-          </header>
-          {isMobile && (
-            <p className="px-5 pt-2 text-[11px] font-body text-muted-foreground/55 italic">
-              Astuce : glisse une tâche vers la gauche pour la terminer.
-            </p>
-          )}
-          <ul className="divide-y divide-border/50">
-            {flagged.map((item) => (
-              <li key={`${item.kind}:${item.id}`}>
-                <SwipeableRow
-                  enabled={isMobile}
-                  onSwipe={() => completeItem(item)}
-                  actionLabel="Terminé"
-                  actionIcon={<CheckCircle2 size={16} />}
-                  contentClassName="bg-card"
-                >
-                  <PlanRow item={item} onComplete={() => completeItem(item)} onOpen={() => openItem(item)} />
-                </SwipeableRow>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* Le plan du jour — sprint + programme horaire + inbox, fusionnés */}
+      <DayPlan
+        flagged={flagged}
+        done={done}
+        counts={counts}
+        onComplete={completeItem}
+        onOpen={openItem}
+      />
 
       {/* Fait aujourd'hui + close ritual */}
       {done.length > 0 && (
@@ -316,36 +218,6 @@ export function AujourdhuiTab() {
   );
 }
 
-function PlanRow({ item, onComplete, onOpen }: { item: TodayItem; onComplete: () => void; onOpen: () => void }) {
-  const { label, Icon } = itemSource(item);
-  const must = itemIsMust(item);
-  return (
-    <div className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors group">
-      <Checkbox
-        checked={false}
-        onCheckedChange={onComplete}
-        aria-label="Marquer comme terminé"
-        className="shrink-0 h-[18px] w-[18px] rounded-md border-muted-foreground/40 transition-colors data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-      />
-      <button onClick={onOpen} className="flex-1 min-w-0 text-left">
-        <div className="flex items-center gap-2">
-          {must && (
-            <span className="inline-flex items-center gap-0.5 text-[9px] font-body font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 rounded-full px-1.5 py-0.5 shrink-0">
-              <Star size={8} className="fill-current" /> Must
-            </span>
-          )}
-          <span className="text-sm font-body font-medium text-foreground truncate">{itemTitle(item)}</span>
-          {item.kind === "subtask" && item.subtask.recurrence && <StreakBadge subtask={item.subtask} />}
-        </div>
-        <div className="mt-0.5 flex items-center gap-1 text-[11px] font-body text-muted-foreground/70 truncate">
-          <Icon size={11} className="shrink-0" /> <span className="truncate">{label}</span>
-        </div>
-      </button>
-      <ArrowRight size={14} className="shrink-0 text-muted-foreground/30 group-hover:text-foreground transition-colors" />
-    </div>
-  );
-}
-
 function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySuggestion; disabled: boolean; onAdd: () => void }) {
   const meta = REASON_META[suggestion.reason];
   return (
@@ -363,47 +235,5 @@ function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySugge
         <Plus size={12} /> Ajouter
       </button>
     </li>
-  );
-}
-
-function EmptyDay({ done, onPlan }: { done: number; onPlan: () => void }) {
-  // Finished everything that was flagged today → celebrate, don't nag.
-  if (done > 0) {
-    return (
-      <section className="rounded-2xl border border-emerald-200/60 dark:border-emerald-500/25 bg-emerald-50/50 dark:bg-emerald-500/8 shadow-card p-8 text-center">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
-          <CheckCircle2 size={22} className="text-emerald-600 dark:text-emerald-400" />
-        </div>
-        <p className="font-display text-base font-bold text-foreground mb-1">Sprint bouclé 🎉</p>
-        <p className="text-sm font-body text-muted-foreground mb-4 max-w-sm mx-auto">
-          Tu as terminé toutes tes tâches du jour. Profite — ou prends un peu d'avance.
-        </p>
-        <button
-          onClick={onPlan}
-          className="inline-flex items-center gap-1.5 text-xs font-body font-medium rounded-full px-4 py-2 border border-border hover:bg-secondary transition-colors"
-        >
-          <CalendarRange size={14} />
-          Planifier la suite
-        </button>
-      </section>
-    );
-  }
-  return (
-    <section className="rounded-2xl border border-border bg-card shadow-card p-8 text-center">
-      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-        <CalendarRange size={20} className="text-primary" />
-      </div>
-      <p className="font-display text-base font-bold text-foreground mb-1">Journée vierge</p>
-      <p className="text-sm font-body text-muted-foreground mb-4 max-w-sm mx-auto">
-        Rien dans le sprint du jour. Choisis quelques tâches pour t'engager sur la journée.
-      </p>
-      <button
-        onClick={onPlan}
-        className="inline-flex items-center gap-1.5 text-xs font-body font-semibold rounded-full px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        <CalendarRange size={14} />
-        Planifier ma journée
-      </button>
-    </section>
   );
 }

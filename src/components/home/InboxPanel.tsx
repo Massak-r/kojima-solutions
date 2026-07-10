@@ -47,11 +47,13 @@ type NoteTarget =
   | { kind: "project"; project: StoredProject }
   | { kind: "objective"; objective: UnifiedObjective };
 
-export function InboxPanel() {
+export function InboxPanel({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: objectives = [] } = useObjectives();
   const { projects } = useProjects();
+  // Embedded (plan du jour) : la ligne « Trier l'inbox » se déplie sur demande.
+  const [triageOpen, setTriageOpen] = useState(false);
 
   const { data, isLoading } = useQuery<InboxList>({
     queryKey: PENDING_KEY,
@@ -353,29 +355,12 @@ export function InboxPanel() {
   // Hide entirely when there's nothing pending, snoozed or legacy to recover.
   if (!isLoading && items.length === 0 && keptItems.length === 0 && snoozedItems.length === 0) return null;
 
-  return (
-    <section className="rounded-2xl border border-violet-200/60 dark:border-violet-500/25 bg-card shadow-card p-4 sm:p-5">
-      <header className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <Inbox size={14} className="text-violet-600 dark:text-violet-400" />
-          <h2 className="font-display text-xs font-bold text-foreground/75 uppercase tracking-wider">
-            Inbox à trier
-          </h2>
-          <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
-            · {items.length}
-          </span>
-        </div>
-        <span className="text-[10px] font-body text-muted-foreground/60 italic">
-          Convertit en étape · décision · note projet/objectif
-        </span>
-      </header>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 size={16} className="animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <>
+  const content = isLoading ? (
+    <div className="flex items-center justify-center py-6">
+      <Loader2 size={16} className="animate-spin text-muted-foreground" />
+    </div>
+  ) : (
+    <>
           {items.length > 0 && (
             <ul className="space-y-1.5">
               <AnimatePresence initial={false}>
@@ -426,8 +411,72 @@ export function InboxPanel() {
               onDelete={(id) => remove.mutate(id)}
             />
           )}
-        </>
-      )}
+    </>
+  );
+
+  // Variante embarquée (plan du jour) : trier l'inbox est une tâche comme une
+  // autre — une ligne dépliable qui révèle l'UI de triage complète. À zéro
+  // capture pendante la tâche n'existe plus ; les reportées/archivées restent
+  // accessibles via la carte de l'onglet Streams.
+  if (embedded) {
+    if (isLoading || items.length === 0) return null;
+    return (
+      <div className="border-t border-border/60">
+        <button
+          onClick={() => setTriageOpen((v) => !v)}
+          aria-expanded={triageOpen}
+          className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-violet-50/40 dark:hover:bg-violet-500/10 transition-colors"
+        >
+          <span className="h-[18px] w-[18px] rounded-md border border-dashed border-violet-400/70 flex items-center justify-center shrink-0">
+            <Inbox size={11} className="text-violet-600 dark:text-violet-400" />
+          </span>
+          <span className="flex-1 min-w-0 flex items-baseline gap-2">
+            <span className="text-sm font-body font-medium text-foreground">Trier l'inbox</span>
+            <span className="text-[11px] font-body text-muted-foreground/70 truncate">
+              {items.length} capture{items.length > 1 ? "s" : ""} en attente
+            </span>
+          </span>
+          <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 shrink-0">
+            {items.length}
+          </span>
+          {triageOpen
+            ? <ChevronUp size={14} className="text-muted-foreground/50 shrink-0" />
+            : <ChevronDown size={14} className="text-muted-foreground/50 shrink-0" />}
+        </button>
+        <AnimatePresence>
+          {triageOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 pt-0.5">{content}</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-violet-200/60 dark:border-violet-500/25 bg-card shadow-card p-4 sm:p-5">
+      <header className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Inbox size={14} className="text-violet-600 dark:text-violet-400" />
+          <h2 className="font-display text-xs font-bold text-foreground/75 uppercase tracking-wider">
+            Inbox à trier
+          </h2>
+          <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
+            · {items.length}
+          </span>
+        </div>
+        <span className="text-[10px] font-body text-muted-foreground/60 italic">
+          Convertit en étape · décision · note projet/objectif
+        </span>
+      </header>
+      {content}
     </section>
   );
 }
