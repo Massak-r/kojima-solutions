@@ -41,6 +41,7 @@ const QuoteNew              = lazy(() => import("./pages/QuoteNew"));
 const QuoteEdit             = lazy(() => import("./pages/QuoteEdit"));
 const QuotePrintPage        = lazy(() => import("./pages/QuotePrintPage"));
 const Home                  = lazy(() => import("./pages/Home"));
+const JourPage              = lazy(() => import("./pages/JourPage"));
 const ProjectSteps          = lazy(() => import("./pages/ProjectSteps"));
 const ClientDashboard       = lazy(() => import("./pages/ClientDashboard"));
 const ProjectDocuments      = lazy(() => import("./pages/ProjectDocuments"));
@@ -153,10 +154,12 @@ const App = () => (
 
                       {/* Protected admin routes */}
                       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+                      <Route path="/jour" element={<ProtectedRoute><JourPage /></ProtectedRoute>} />
                       <Route path="/cockpit" element={<ProtectedRoute><Cockpit /></ProtectedRoute>} />
                       <Route path="/relances" element={<ProtectedRoute><Relances /></ProtectedRoute>} />
                       <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
-                      <Route path="/space" element={<Navigate to="/home" replace />} />
+                      {/* /space = start_url du PWA : l'app installée s'ouvre sur le plan du jour */}
+                      <Route path="/space" element={<Navigate to="/jour" replace />} />
                       <Route path="/space-full" element={<Navigate to="/home?tab=objectives" replace />} />
                       <Route path="/quotes" element={<ProtectedRoute><QuotesList /></ProtectedRoute>} />
                       <Route path="/quotes/new" element={<ProtectedRoute><QuoteNew /></ProtectedRoute>} />

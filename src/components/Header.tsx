@@ -115,6 +115,7 @@ const Header = () => {
   // Mobile page title for admin pages
   const PAGE_TITLES: Record<string, string> = {
     "/home": "Accueil",
+    "/jour": "Aujourd'hui",
     "/space": "Kojima Space",
     "/sprint": "Planifier",
     "/quotes": "Devis",

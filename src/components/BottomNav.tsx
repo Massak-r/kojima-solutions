@@ -5,7 +5,7 @@ import {
   TrendingUp,
   Wallet,
   FileText,
-  CalendarRange,
+  Sun,
   Gauge,
   BellRing,
   Handshake,
@@ -16,11 +16,14 @@ import { useAnyFocusSessionActive } from "@/hooks/useAnyFocusSession";
 import { useAdminDocs } from "@/hooks/useAdminDocs";
 import { useInboxCount } from "@/hooks/useInboxCount";
 
+// « Aujourd'hui » ouvre le plan du jour (/jour) en premier — la surface
+// on-the-go. /sprint (vue planification profonde) reste accessible via le
+// bouton « Planifier » du plan, plus depuis la nav.
 const BOTTOM_NAV = [
+  { to: "/jour",       label: "Aujourd'hui", icon: Sun            },
   { to: "/home",       label: "Accueil",    icon: LayoutDashboard },
   { to: "/cockpit",    label: "Pilotage",   icon: Gauge           },
   { to: "/relances",   label: "Relances",   icon: BellRing        },
-  { to: "/sprint",     label: "Planifier",  icon: CalendarRange   },
   { to: "/pipeline",   label: "Leads",      icon: Handshake       },
   { to: "/quotes",     label: "Devis",      icon: FileText        },
   { to: "/accounting", label: "Finance",    icon: TrendingUp      },
@@ -29,7 +32,7 @@ const BOTTOM_NAV = [
 ];
 
 const ADMIN_PREFIXES = [
-  "/home", "/cockpit", "/relances", "/pipeline", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
+  "/home", "/jour", "/cockpit", "/relances", "/pipeline", "/space", "/sprint", "/projects", "/project/", "/quotes", "/quote/",
   "/clients", "/accounting", "/tresorerie", "/documents", "/settings",
   "/objective/",
 ];
@@ -85,9 +88,10 @@ export default function BottomNav() {
           {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
             const active =
               pathname === to ||
+              (to === "/jour" && pathname.startsWith("/sprint")) ||
               (to === "/home" && pathname.startsWith("/project/")) ||
               (to === "/quotes" && pathname.startsWith("/quote"));
-            const showBadge = to === "/sprint" && sprintActive;
+            const showBadge = to === "/jour" && sprintActive;
             const badgeCount = to === "/documents" ? pendingCount : to === "/home" ? inboxCount : 0;
             return (
               <Link
@@ -134,9 +138,10 @@ export default function BottomNav() {
         {BOTTOM_NAV.map(({ to, label, icon: Icon }) => {
           const active =
             pathname === to ||
+            (to === "/jour" && pathname.startsWith("/sprint")) ||
             (to === "/home" && pathname.startsWith("/project/")) ||
             (to === "/quotes" && pathname.startsWith("/quote"));
-          const showBadge = to === "/sprint" && sprintActive;
+          const showBadge = to === "/jour" && sprintActive;
           const badgeCount = to === "/documents" ? pendingCount : to === "/home" ? inboxCount : 0;
           return (
             <Link
@@ -144,7 +149,7 @@ export default function BottomNav() {
               to={to}
               aria-current={active ? "page" : undefined}
               aria-label={
-                sprintActive && to === "/sprint" ? `${label} · session en cours`
+                showBadge ? `${label} · session en cours`
                 : badgeCount > 0 ? `${label} · ${badgeCount} à trier`
                 : label
               }
@@ -153,7 +158,7 @@ export default function BottomNav() {
                   ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
-              title={sprintActive && to === "/sprint" ? `${label} · session en cours` : label}
+              title={showBadge ? `${label} · session en cours` : label}
             >
               {active && (
                 <motion.div

@@ -43,10 +43,10 @@
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Sprint du jour",
-      "short_name": "Sprint",
-      "description": "Tâches engagées aujourd'hui",
-      "url": "/sprint",
+      "name": "Plan du jour",
+      "short_name": "Aujourd'hui",
+      "description": "Tâches et blocs engagés aujourd'hui",
+      "url": "/jour",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {

@@ -33,6 +33,29 @@ interface MondayBriefDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** Auto-open du lundi matin, une fois par semaine ISO — partagé entre les
+ *  surfaces qui montent le brief (/home et /jour) ; la clé localStorage est
+ *  hebdo, donc la première page ouverte le lundi le montre et mute les autres. */
+export function useMondayBriefAutoOpen(): [boolean, (next: boolean) => void] {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const now = new Date();
+    if (now.getDay() !== 1) return; // 1 = Monday
+    const { year, week } = isoWeekOf(now);
+    try {
+      if (!localStorage.getItem(`monday-brief-${year}-${week}`)) setOpen(true);
+    } catch { /* localStorage unavailable — skip the brief */ }
+  }, []);
+  function handleChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      const { year, week } = isoWeekOf(new Date());
+      try { localStorage.setItem(`monday-brief-${year}-${week}`, "1"); } catch { /* ignore */ }
+    }
+  }
+  return [open, handleChange];
+}
+
 function formatDuration(sec: number): string {
   if (sec === 0) return "0min";
   if (sec < 60) return `${sec}s`;

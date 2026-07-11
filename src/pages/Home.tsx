@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LayoutDashboard, FolderKanban, Plus, FileText, BarChart3, Target, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,12 @@ import { StreamsList } from "@/components/home/StreamsList";
 import { ProjectStatusKanban } from "@/components/home/ProjectStatusKanban";
 import { OverviewTab } from "@/components/home/OverviewTab";
 import { ObjectivesSection } from "@/components/kojimaSpace/ObjectivesSection";
-import { MondayBriefDialog } from "@/components/home/MondayBriefDialog";
+import { MondayBriefDialog, useMondayBriefAutoOpen } from "@/components/home/MondayBriefDialog";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { AujourdhuiTab } from "@/components/home/AujourdhuiTab";
 import { HomeSearch } from "@/components/home/HomeSearch";
 import { haptic } from "@/lib/haptics";
 import { PendingDocsBanner } from "@/components/PendingDocsBanner";
-import { isoWeekOf } from "@/lib/recurrencePeriod";
 import { formatDateWithWeekday } from "@/lib/dateFormat";
 
 type Tab = "today" | "streams" | "kanban" | "overview" | "objectives";
@@ -69,27 +68,8 @@ export default function Home() {
 
   const today = formatDateWithWeekday(new Date());
 
-  // Monday morning brief: pops once per ISO week on Mondays. localStorage key
-  // is per-week so dismissing only mutes this week; next Monday it re-opens.
-  const [mondayBriefOpen, setMondayBriefOpen] = useState(false);
-  useEffect(() => {
-    const now = new Date();
-    if (now.getDay() !== 1) return; // 1 = Monday
-    const { year, week } = isoWeekOf(now);
-    const key = `monday-brief-${year}-${week}`;
-    try {
-      if (!localStorage.getItem(key)) {
-        setMondayBriefOpen(true);
-      }
-    } catch { /* localStorage unavailable — skip the brief */ }
-  }, []);
-  function handleMondayBriefChange(next: boolean) {
-    setMondayBriefOpen(next);
-    if (!next) {
-      const { year, week } = isoWeekOf(new Date());
-      try { localStorage.setItem(`monday-brief-${year}-${week}`, "1"); } catch { /* ignore */ }
-    }
-  }
+  // Monday morning brief: pops once per ISO week on Mondays (shared with /jour).
+  const [mondayBriefOpen, handleMondayBriefChange] = useMondayBriefAutoOpen();
 
   function handleNewProject() {
     openQuickCreate("project");
