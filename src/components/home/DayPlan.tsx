@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays } from "date-fns";
 import {
-  ArrowRight, CalendarRange, CheckCircle2, Clock, Compass, FolderKanban,
+  ArrowRight, CalendarRange, CheckCircle2, Clock, FolderKanban,
   History, Plus, Star, Target, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,6 @@ import {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader,
   ResponsiveDialogTitle, ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { OPEN_NEXT_ACTION_EVENT } from "@/components/now/NextActionDialog";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { StreakBadge } from "@/components/todos/StreakBadge";
@@ -90,6 +89,8 @@ interface DayPlanProps {
   done: TodayItem[];
   counts: TodaysSprint["counts"];
   onComplete: (item: TodayItem) => void;
+  /** Décoche : rouvre la tâche ET remet son bloc horaire à « à faire ». */
+  onUncomplete: (item: TodayItem) => void;
   onOpen: (item: TodayItem) => void;
 }
 
@@ -97,7 +98,7 @@ interface DayPlanProps {
  *  une seule carte où chaque tâche peut recevoir une heure, où les blocs
  *  libres structurent la journée, et où trier l'inbox est une tâche comme
  *  une autre. doneMin ⇄ endMin nourrit le feedback d'estimation. */
-export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanProps) {
+export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpen }: DayPlanProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const day = toISODate(new Date());
@@ -184,7 +185,7 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
           if (hit) return { type: "task" as const, block, item: hit.item, done: hit.done };
           return { type: "free" as const, block, orphan: true, ...ghostState(block) };
         }
-        return { type: "free" as const, block, orphan: false, done: false, doneMin: null };
+        return { type: "free" as const, block, orphan: false, done: block.doneMin != null, doneMin: block.doneMin };
       });
 
     const scheduled = new Set(
@@ -199,6 +200,12 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
   function completeTimed(row: Extract<TimedRow, { type: "task" }>) {
     onComplete(row.item);
     updateBlock.mutate({ id: row.block.id, patch: { doneMin: nowMin } });
+  }
+
+  /** Coche / décoche un bloc libre : doneMin porte à lui seul l'état « fait ». */
+  function toggleFreeBlock(block: TimeBlock, done: boolean) {
+    haptic(done ? "tap" : "success");
+    updateBlock.mutate({ id: block.id, patch: { doneMin: done ? null : nowMin } });
   }
 
   const total = counts.pending + counts.done;
@@ -222,22 +229,13 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
               </span>
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_NEXT_ACTION_EVENT))}
-              className="inline-flex items-center gap-1.5 text-xs font-body font-semibold rounded-full px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Compass size={14} />
-              Et maintenant ?
-            </button>
-            <button
-              onClick={() => navigate("/sprint")}
-              className="inline-flex items-center gap-1.5 text-xs font-body font-medium rounded-full px-3.5 py-2 border border-border hover:bg-secondary transition-colors"
-            >
-              <CalendarRange size={14} />
-              Planifier
-            </button>
-          </div>
+          <button
+            onClick={() => navigate("/sprint")}
+            className="inline-flex items-center gap-1.5 text-xs font-body font-semibold rounded-full px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <CalendarRange size={14} />
+            Planifier
+          </button>
         </div>
         {total > 0 && (
           <div className="mt-4 flex items-center gap-3">
@@ -312,19 +310,29 @@ export function DayPlan({ flagged, done, counts, onComplete, onOpen }: DayPlanPr
                       day={day}
                       past={(row.block.endMin ?? row.block.startMin) < nowMin}
                       onComplete={() => completeTimed(row)}
+                      onUncomplete={() => onUncomplete(row.item)}
                       onOpen={() => onOpen(row.item)}
                       onEditTime={() => setSchedTarget({ item: row.item, block: row.block })}
                     />
                   </SwipeableRow>
                 ) : (
-                  <FreeBlockRow
-                    block={row.block}
-                    orphan={row.orphan}
-                    done={row.done}
-                    doneMin={row.doneMin}
-                    past={(row.block.endMin ?? row.block.startMin) < nowMin}
-                    onDelete={() => { haptic("tap"); deleteBlock.mutate(row.block.id); }}
-                  />
+                  <SwipeableRow
+                    enabled={isMobile && !row.orphan && !row.done}
+                    onSwipe={() => toggleFreeBlock(row.block, row.done)}
+                    actionLabel="Terminé"
+                    actionIcon={<CheckCircle2 size={16} />}
+                    contentClassName="bg-card"
+                  >
+                    <FreeBlockRow
+                      block={row.block}
+                      orphan={row.orphan}
+                      done={row.done}
+                      doneMin={row.doneMin}
+                      past={(row.block.endMin ?? row.block.startMin) < nowMin}
+                      onToggle={row.orphan ? undefined : () => toggleFreeBlock(row.block, row.done)}
+                      onDelete={() => { haptic("tap"); deleteBlock.mutate(row.block.id); }}
+                    />
+                  </SwipeableRow>
                 )}
               </li>
             ))}
@@ -488,11 +496,12 @@ function EstimateChip({ block, doneMin }: { block: TimeBlock; doneMin: number | 
   );
 }
 
-function TimedTaskRow({ row, day, past, onComplete, onOpen, onEditTime }: {
+function TimedTaskRow({ row, day, past, onComplete, onUncomplete, onOpen, onEditTime }: {
   row: Extract<TimedRow, { type: "task" }>;
   day: string;
   past: boolean;
   onComplete: () => void;
+  onUncomplete: () => void;
   onOpen: () => void;
   onEditTime: () => void;
 }) {
@@ -507,16 +516,12 @@ function TimedTaskRow({ row, day, past, onComplete, onOpen, onEditTime }: {
         "flex-1 min-w-0 flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
         done ? "bg-emerald-50/50 dark:bg-emerald-500/8" : "bg-secondary/30 hover:bg-secondary/50",
       )}>
-        {done ? (
-          <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-        ) : (
-          <Checkbox
-            checked={false}
-            onCheckedChange={onComplete}
-            aria-label="Marquer comme terminé"
-            className="shrink-0 h-[18px] w-[18px] rounded-md border-muted-foreground/40 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-          />
-        )}
+        <Checkbox
+          checked={done}
+          onCheckedChange={(v) => (v ? onComplete() : onUncomplete())}
+          aria-label={done ? "Remettre à faire" : "Marquer comme terminé"}
+          className="shrink-0 h-[18px] w-[18px] rounded-md border-muted-foreground/40 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+        />
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-2">
             {must && !done && (
@@ -563,23 +568,35 @@ function TimedTaskRow({ row, day, past, onComplete, onOpen, onEditTime }: {
   );
 }
 
-function FreeBlockRow({ block, orphan, done, doneMin, past, onDelete }: {
+function FreeBlockRow({ block, orphan, done, doneMin, past, onToggle, onDelete }: {
   block: TimeBlock; orphan: boolean; done: boolean; doneMin: number | null;
-  past: boolean; onDelete: () => void;
+  past: boolean; onToggle?: () => void; onDelete: () => void;
 }) {
   return (
-    <div className={cn("flex items-stretch gap-3 group", (past || orphan) && "opacity-60")}>
+    <div className={cn("flex items-stretch gap-3 group", (past || orphan) && !done && "opacity-60")}>
       <TimeRail startMin={block.startMin} endMin={block.endMin} />
       <div className={cn(
         "w-1 rounded-full shrink-0",
         done ? "bg-emerald-500/70" : orphan ? "bg-muted-foreground/30" : "bg-primary/60",
       )} />
       <div
-        className="flex-1 min-w-0 flex items-center justify-between gap-2 rounded-lg bg-secondary/30 px-3 py-2"
+        className={cn(
+          "flex-1 min-w-0 flex items-center justify-between gap-2 rounded-lg px-3 py-2 transition-colors",
+          done ? "bg-emerald-50/50 dark:bg-emerald-500/8" : "bg-secondary/30",
+        )}
         title={orphan && !done ? "Cette tâche n'est plus dans le plan du jour" : undefined}
       >
-        <span className="flex items-center gap-2 min-w-0">
-          {done && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}
+        <span className="flex items-center gap-2.5 min-w-0">
+          {onToggle ? (
+            <Checkbox
+              checked={done}
+              onCheckedChange={onToggle}
+              aria-label={done ? "Remettre à faire" : "Marquer comme terminé"}
+              className="shrink-0 h-[18px] w-[18px] rounded-md border-muted-foreground/40 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+            />
+          ) : done ? (
+            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+          ) : null}
           <span className={cn(
             "text-sm font-body truncate",
             done ? "text-muted-foreground line-through" : "text-foreground",

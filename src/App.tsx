@@ -27,7 +27,6 @@ import { FocusRetroPrompt } from "@/components/objective/FocusRetroPrompt";
 import { SprintCapProvider } from "@/components/sprint/SprintCapProvider";
 import { SprintCapOverloadDialog } from "@/components/sprint/SprintCapOverloadDialog";
 import { QuickCreateProvider } from "@/contexts/QuickCreateContext";
-import { NextActionDialog } from "@/components/now/NextActionDialog";
 
 // Eager: small entry-point routes the user hits first.
 import Index from "./pages/Index";
@@ -121,7 +120,6 @@ const App = () => (
                   <BottomNav />
                   <QuickActionFAB />
                   <QuickCaptureFab />
-                  <NextActionDialog />
                   <InstallPrompt />
                   <UpdateBanner />
                   <ScrollToTop />

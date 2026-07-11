@@ -5,13 +5,15 @@ import {
   CheckCircle2, Plus, Repeat, CalendarClock, Flame, Sparkles, Sunrise,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useUpdateSubtask } from "@/hooks/useSubtasks";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useFlagSubtask } from "@/hooks/useFlagSubtask";
 import {
   useTodaysSprint, type TodayItem, type TodaySuggestion, type SuggestionReason,
 } from "@/hooks/useTodaysSprint";
-import { useTimeBlocks } from "@/hooks/useTimeBlocks";
+import { useTimeBlocks, useUpdateTimeBlock } from "@/hooks/useTimeBlocks";
+import { formatTime } from "@/lib/dateFormat";
 import { DayPlan, itemTitle, itemSource } from "@/components/home/DayPlan";
 import { TomorrowPlanDialog } from "@/components/home/TomorrowPlanDialog";
 import { BriefDuJour } from "@/components/home/BriefDuJour";
@@ -35,6 +37,7 @@ export function AujourdhuiTab() {
   const day = toISODate(new Date());
   // Même cache que le DayPlan — sert au bilan d'estimation du soir.
   const { data: blocks = [] } = useTimeBlocks(day);
+  const updateBlock = useUpdateTimeBlock(day);
 
   // Celebrate clearing the day's sprint — fires once per day the moment the
   // last pending item is completed (not on a fresh load that's already empty).
@@ -76,6 +79,22 @@ export function AujourdhuiTab() {
     }
   }
 
+  function uncompleteItem(item: TodayItem) {
+    haptic("tap");
+    if (item.kind === "subtask") {
+      updateSubtask.mutate({ id: item.subtask.id, patch: { completed: false } });
+    } else {
+      updateProjectTask(item.project.id, item.task.id, {
+        status: "open", completed: false, completedAt: undefined,
+      });
+    }
+    // Le bloc horaire lié redevient « à faire » lui aussi, sinon le bilan
+    // d'estimation compterait une tâche rouverte comme tenue.
+    blocks
+      .filter((b) => b.refKind === item.kind && b.refId === item.id && b.doneMin != null)
+      .forEach((b) => updateBlock.mutate({ id: b.id, patch: { doneMin: null } }));
+  }
+
   /** Close-the-day ritual: clear today's flag off everything already done so
    *  tomorrow starts clean (mirrors the daily sprint-cleanup), then flow straight
    *  into lining up tomorrow's 1-3 — the evening shutdown that kills the morning
@@ -87,7 +106,7 @@ export function AujourdhuiTab() {
       if (item.kind === "subtask") updateSubtask.mutate({ id: item.subtask.id, patch: { flaggedToday: false } });
       else updateProjectTask(item.project.id, item.task.id, { flaggedToday: false });
     });
-    const estimated = blocks.filter((b) => b.refKind && b.doneMin != null && b.endMin != null);
+    const estimated = blocks.filter((b) => b.doneMin != null && b.endMin != null);
     const onTime = estimated.filter((b) => (b.doneMin as number) <= (b.endMin as number)).length;
     toast.success("Journée close", {
       description:
@@ -108,6 +127,7 @@ export function AujourdhuiTab() {
         done={done}
         counts={counts}
         onComplete={completeItem}
+        onUncomplete={uncompleteItem}
         onOpen={openItem}
       />
 
@@ -131,12 +151,24 @@ export function AujourdhuiTab() {
           <ul className="divide-y divide-border/40">
             {done.map((item) => {
               const { label, Icon } = itemSource(item);
+              const doneAt = item.kind === "subtask" ? item.subtask.completedAt : item.task.completedAt;
               return (
                 <li key={`${item.kind}:${item.id}`} className="flex items-center gap-3 px-5 py-2.5">
-                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                  <Checkbox
+                    checked
+                    onCheckedChange={() => uncompleteItem(item)}
+                    aria-label="Remettre à faire"
+                    title="Remettre à faire"
+                    className="shrink-0 h-[18px] w-[18px] rounded-md data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                  />
                   <span className="flex-1 min-w-0 text-sm font-body text-muted-foreground line-through truncate">
                     {itemTitle(item)}
                   </span>
+                  {doneAt && (
+                    <span className="text-[11px] font-mono tabular-nums text-muted-foreground/60 shrink-0">
+                      {formatTime(doneAt)}
+                    </span>
+                  )}
                   <span className="hidden sm:flex items-center gap-1 text-[11px] font-body text-muted-foreground/60 truncate max-w-[160px]">
                     <Icon size={11} /> {label}
                   </span>
