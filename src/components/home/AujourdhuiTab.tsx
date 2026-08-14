@@ -21,7 +21,7 @@ import { BriefDuJour } from "@/components/home/BriefDuJour";
 import { haptic } from "@/lib/haptics";
 import { toISODate } from "@/lib/weekDates";
 import { Celebration } from "@/components/ui/celebration";
-import { StreakBadge } from "@/components/todos/StreakBadge";
+import { DoneCountBadge } from "@/components/todos/DoneCountBadge";
 
 const REASON_META: Record<SuggestionReason, { label: string; Icon: typeof Repeat; cls: string }> = {
   recurring: { label: "Récurrent", Icon: Repeat,        cls: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-500/15" },
@@ -269,7 +269,7 @@ function SuggestionRow({ suggestion, disabled, onAdd }: { suggestion: TodaySugge
         <meta.Icon size={9} /> {meta.label}
       </span>
       <span className="flex-1 min-w-0 text-[13px] font-body text-foreground/90 truncate">{suggestion.subtask.text}</span>
-      <StreakBadge subtask={suggestion.subtask} />
+      <DoneCountBadge subtask={suggestion.subtask} />
       <button
         onClick={onAdd}
         title={disabled ? "Plan du jour plein — termine ou retire une tâche d'abord" : "Ajouter au plan du jour"}

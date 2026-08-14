@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { InboxPanel } from "@/components/home/InboxPanel";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { StreakBadge } from "@/components/todos/StreakBadge";
+import { DoneCountBadge } from "@/components/todos/DoneCountBadge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTimeBlocks, useTimeBlocksRange, useCreateTimeBlock, useUpdateTimeBlock, useDeleteTimeBlock } from "@/hooks/useTimeBlocks";
 import { formatDateShort } from "@/lib/dateFormat";
@@ -675,7 +675,7 @@ function PlanRow({ item, onComplete, onOpen, onSchedule }: {
             </span>
           )}
           <span className="text-sm font-body font-medium text-foreground truncate">{itemTitle(item)}</span>
-          {item.kind === "subtask" && item.subtask.recurrence && <StreakBadge subtask={item.subtask} />}
+          {item.kind === "subtask" && item.subtask.recurrence && <DoneCountBadge subtask={item.subtask} />}
         </div>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] font-body text-muted-foreground/70 truncate">
           <Icon size={11} className="shrink-0" /> <span className="truncate">{label}</span>

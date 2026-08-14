@@ -17,6 +17,20 @@ function startOfDay(d: Date): Date {
  * Standalone (no JSX) so a compact streak badge can reuse it without pulling
  * in the full RecurrenceStreak chain UI.
  */
+/**
+ * Nombre total de fois où la tâche a été accomplie, depuis toujours.
+ *
+ * Contrairement à recurrenceStreakCount, ce compteur **ne redescend jamais** :
+ * rater un cycle ne retire rien de ce qui a déjà été fait. C'est ce qui
+ * distingue un record d'une chaîne à défendre — et ce qui évite qu'une
+ * mauvaise semaine s'affiche comme un échec.
+ *
+ * On déduplique par jour : deux enregistrements le même jour restent une fois.
+ */
+export function recurrenceDoneCount(completionDates: string[]): number {
+  return new Set(completionDates.map((d) => d.slice(0, 10))).size;
+}
+
 export function recurrenceStreakCount(
   recurrence: Recurrence,
   createdAtISO: string,
