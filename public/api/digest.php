@@ -250,17 +250,18 @@ try {
                 require_once __DIR__ . '/push_send.php';
                 $top   = $items[0];
                 $label = strlen($top['label']) > 80 ? substr($top['label'], 0, 77) . '…' : $top['label'];
-                $more  = count($items) - 1;
-                $tail  = $more > 0 ? " · +$more autre" . ($more > 1 ? 's' : '') : '';
+                $count = count($items);
+                // Finite framing, same language as the app: the countable number
+                // carries the title, and the body names the single next action.
+                // "+5 autres" tacked onto a warning read as a wall; "il te reste
+                // 6 choses" reads as something you can finish.
+                $title = $count === 1 ? 'Il te reste 1 chose' : "Il te reste $count choses";
                 if ($top['days'] < 0) {
-                    $title = 'Admin · en retard';
-                    $body  = "⚠️ $label (en retard de " . abs($top['days']) . " j)$tail";
+                    $body = "⚠️ $label — en retard de " . abs($top['days']) . " j";
                 } elseif ($top['days'] === 0) {
-                    $title = 'Admin du jour';
-                    $body  = "Aujourd'hui : $label$tail";
+                    $body = "$label — aujourd'hui";
                 } else {
-                    $title = 'Admin du jour';
-                    $body  = "Dans {$top['days']} j : $label$tail";
+                    $body = "$label — dans {$top['days']} j";
                 }
                 $res = sendPushNotifications($pdo, $title, $body, $top['link'] ?? '/documents');
                 $delivered    = (int)($res['sent'] ?? 0);

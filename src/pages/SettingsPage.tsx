@@ -3,6 +3,7 @@ import { EmailTemplates } from "@/components/EmailTemplates";
 import { RemindersManager } from "@/components/settings/RemindersManager";
 import { DeadlinesManager } from "@/components/settings/DeadlinesManager";
 import { AdminPulseSettings } from "@/components/settings/AdminPulseSettings";
+import { HapticsSettings } from "@/components/settings/HapticsSettings";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,9 @@ export default function SettingsPage() {
 
         {/* Daily admin pulse + quiet hours */}
         <AdminPulseSettings />
+
+        {/* Vibration on committing gestures */}
+        <HapticsSettings />
 
         {/* Scheduled push reminders */}
         <RemindersManager />

@@ -16,6 +16,7 @@ import { useTimeBlocks, useUpdateTimeBlock } from "@/hooks/useTimeBlocks";
 import { formatTime } from "@/lib/dateFormat";
 import { DayPlan, itemTitle, itemSource } from "@/components/home/DayPlan";
 import { TomorrowPlanDialog } from "@/components/home/TomorrowPlanDialog";
+import { MonthStrip } from "@/components/home/MonthStrip";
 import { BriefDuJour } from "@/components/home/BriefDuJour";
 import { haptic } from "@/lib/haptics";
 import { toISODate } from "@/lib/weekDates";
@@ -121,6 +122,9 @@ export function AujourdhuiTab() {
       {/* L'essentiel — daily brief: start-here, money to collect, next deadline */}
       <BriefDuJour />
 
+      {/* Le mois, en une ligne — la ligne d'arrivée, pas une liste de plus */}
+      <MonthStrip />
+
       {/* Le plan du jour — sprint + programme horaire + inbox, fusionnés */}
       <DayPlan
         flagged={flagged}
@@ -138,7 +142,7 @@ export function AujourdhuiTab() {
             <div className="flex items-center gap-2">
               <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400" />
               <h2 className="text-eyebrow">Fait aujourd'hui</h2>
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {done.length}</span>
+              <span className="text-[11px] tabular-nums text-muted-foreground">· {done.length}</span>
             </div>
             <button
               onClick={closeDay}
@@ -165,7 +169,7 @@ export function AujourdhuiTab() {
                     {itemTitle(item)}
                   </span>
                   {doneAt && (
-                    <span className="text-[11px] font-mono tabular-nums text-muted-foreground/60 shrink-0">
+                    <span className="text-[11px] tabular-nums text-muted-foreground/60 shrink-0">
                       {formatTime(doneAt)}
                     </span>
                   )}
@@ -184,7 +188,7 @@ export function AujourdhuiTab() {
         <section>
           <div className="flex items-center gap-2 mb-2 px-1">
             <h2 className="text-eyebrow">Aussi aujourd'hui</h2>
-            <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {suggestions.length}</span>
+            <span className="text-[11px] tabular-nums text-muted-foreground">· {suggestions.length}</span>
           </div>
           <ul className="space-y-1.5">
             {suggestions.slice(0, 8).map((s) => (
@@ -206,7 +210,7 @@ export function AujourdhuiTab() {
             <Sunrise size={15} className="text-primary" />
             <h2 className="text-eyebrow">Demain</h2>
             {plannedTomorrow.length > 0 && (
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">· {plannedTomorrow.length}</span>
+              <span className="text-[11px] tabular-nums text-muted-foreground">· {plannedTomorrow.length}</span>
             )}
           </div>
           <button
