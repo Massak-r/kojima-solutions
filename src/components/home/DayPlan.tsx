@@ -92,13 +92,16 @@ interface DayPlanProps {
   /** Décoche : rouvre la tâche ET remet son bloc horaire à « à faire ». */
   onUncomplete: (item: TodayItem) => void;
   onOpen: (item: TodayItem) => void;
+  /** False quand un en-tête de journée (DayHero) porte déjà le compte et la
+   *  progression juste au-dessus : les répéter ici fabriquait le fouillis. */
+  showHeadline?: boolean;
 }
 
 /** « Le plan du jour » — sprint, programme horaire et inbox fusionnés :
  *  une seule carte où chaque tâche peut recevoir une heure, où les blocs
  *  libres structurent la journée, et où trier l'inbox est une tâche comme
  *  une autre. doneMin ⇄ endMin nourrit le feedback d'estimation. */
-export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpen }: DayPlanProps) {
+export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpen, showHeadline = true }: DayPlanProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const day = toISODate(new Date());
@@ -213,21 +216,30 @@ export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpe
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
-      {/* En-tête — le heartbeat du jour */}
-      <div className="p-5 sm:p-6">
+      {/* En-tête — le heartbeat du jour. Réduit à une barre de titre quand un
+          DayHero porte déjà le compte et la progression juste au-dessus. */}
+      <div className={cn(showHeadline ? "p-5 sm:p-6" : "px-5 sm:px-6 py-3.5 border-b border-border/60")}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-eyebrow">Le plan du jour</p>
-            <p className="mt-1.5 font-display text-3xl font-bold text-foreground leading-none">
-              {counts.pending}
-              <span className="ml-2 text-base font-body font-medium text-muted-foreground">à faire</span>
-            </p>
-            <p className="mt-1.5 text-sm font-body text-muted-foreground tabular-nums">
-              {counts.must} must · {counts.nice} nice · {counts.done} fait ·{" "}
-              <span className={cn(counts.capReached && "text-amber-600 dark:text-amber-400 font-medium")}>
-                {counts.pending}/{counts.cap} engagées
-              </span>
-            </p>
+            {showHeadline && (
+              <>
+                <p className="mt-1.5 font-display text-3xl font-bold text-foreground leading-none">
+                  {counts.pending}
+                  <span className="ml-2 text-base font-body font-medium text-muted-foreground">à faire</span>
+                </p>
+                {/* Une journée vide affichait « 0 must · 0 nice · 0 fait · 0/5 » :
+                    quatre zéros qui n'apprennent rien et accueillent mal. */}
+                {total > 0 && (
+                  <p className="mt-1.5 text-sm font-body text-muted-foreground tabular-nums">
+                    {counts.must} must · {counts.nice} nice · {counts.done} fait ·{" "}
+                    <span className={cn(counts.capReached && "text-amber-600 dark:text-amber-400 font-medium")}>
+                      {counts.pending}/{counts.cap} engagées
+                    </span>
+                  </p>
+                )}
+              </>
+            )}
           </div>
           <button
             onClick={() => navigate("/sprint")}
@@ -237,15 +249,14 @@ export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpe
             Planifier
           </button>
         </div>
-        {total > 0 && (
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all", progress === 100 ? "bg-emerald-500" : "bg-primary/70")}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <span className="text-[11px] font-mono tabular-nums text-muted-foreground/70">{progress}%</span>
+        {showHeadline && total > 0 && (
+          <div className="mt-4 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+            {/* Le pourcentage chiffré doublait l'anneau du DayHero. La barre
+                seule suffit : on la lit d'un coup d'œil. */}
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", progress === 100 ? "bg-emerald-500" : "bg-primary/70")}
+              style={{ width: `${progress}%` }}
+            />
           </div>
         )}
       </div>

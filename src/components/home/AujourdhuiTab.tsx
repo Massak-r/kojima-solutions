@@ -29,7 +29,12 @@ const REASON_META: Record<SuggestionReason, { label: string; Icon: typeof Repeat
   urgent:    { label: "Urgent",    Icon: Flame,         cls: "text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-500/15" },
 };
 
-export function AujourdhuiTab() {
+interface AujourdhuiTabProps {
+  /** False quand un DayHero au-dessus porte déjà le compte du jour (page /jour). */
+  showPlanHeadline?: boolean;
+}
+
+export function AujourdhuiTab({ showPlanHeadline = true }: AujourdhuiTabProps = {}) {
   const navigate = useNavigate();
   const { flagged, done, suggestions, plannedTomorrow, counts } = useTodaysSprint();
   const updateSubtask = useUpdateSubtask();
@@ -133,6 +138,7 @@ export function AujourdhuiTab() {
         onComplete={completeItem}
         onUncomplete={uncompleteItem}
         onOpen={openItem}
+        showHeadline={showPlanHeadline}
       />
 
       {/* Fait aujourd'hui + close ritual */}
