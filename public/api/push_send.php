@@ -35,10 +35,15 @@ function sendPushNotifications(PDO $pdo, string $title, string $body, string $ur
         'badge' => '/icons/icon-192x192.png',
     ]);
 
-    $results = ['sent' => 0, 'failed' => 0, 'expired' => 0];
+    // 'codes' keeps a compact tally of the HTTP statuses the push services
+    // returned. Without it a failure is completely opaque, which is how a dead
+    // pipeline stayed invisible for months.
+    $results = ['sent' => 0, 'failed' => 0, 'expired' => 0, 'codes' => []];
 
     foreach ($subs as $sub) {
         $statusCode = sendSinglePush($sub['endpoint'], $sub['p256dh'], $sub['auth'], $payload);
+        $bucket = (string)$statusCode;
+        $results['codes'][$bucket] = ($results['codes'][$bucket] ?? 0) + 1;
 
         if ($statusCode >= 200 && $statusCode < 300) {
             $results['sent']++;
@@ -145,10 +150,14 @@ function encryptPayloadOpenssl(string $payload, string $userPublicKeyB64, string
     ]);
     if (!$localKey) return null;
 
-    $localDetails    = openssl_pkey_get_details($localKey);
-    $localPublicKey  = hex2bin(str_pad($localDetails['ec']['x'], 64, '0', STR_PAD_LEFT) .
-                               str_pad($localDetails['ec']['y'], 64, '0', STR_PAD_LEFT));
-    $localPublicKey  = "\x04" . $localPublicKey; // uncompressed point
+    $localDetails = openssl_pkey_get_details($localKey);
+    // openssl_pkey_get_details() returns the EC coordinates as RAW BINARY, not as
+    // a hex string. The previous hex2bin() therefore failed on every single send,
+    // leaving an empty local public key and breaking the ECDH exchange that
+    // follows — which is why no push has ever been delivered.
+    $localPublicKey = "\x04" // uncompressed point
+        . str_pad($localDetails['ec']['x'], 32, "\x00", STR_PAD_LEFT)
+        . str_pad($localDetails['ec']['y'], 32, "\x00", STR_PAD_LEFT);
 
     // Compute shared secret via ECDH
     $sharedSecret = computeEcdh($localKey, $userPublicKey);
@@ -183,7 +192,9 @@ function computeEcdh($localPrivKey, string $peerPublicKey): ?string {
     $peerKey = openssl_pkey_get_public($peerPem);
     if (!$peerKey) return null;
 
-    $shared = openssl_pkey_derive($localPrivKey, $peerKey, 256);
+    // openssl_pkey_derive() takes (public, private) in THAT order — they were
+    // swapped. The length is in bytes too, and P-256 yields exactly 32.
+    $shared = openssl_pkey_derive($peerKey, $localPrivKey, 32);
     return $shared ?: null;
 }
 

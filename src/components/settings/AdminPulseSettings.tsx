@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BellRing } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  getNotificationPrefs, updateNotificationPrefs, type NotificationPrefs,
+  getNotificationPrefs, updateNotificationPrefs, sendTestPush,
+  type NotificationPrefs,
 } from "@/api/notificationPrefs";
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -31,6 +33,32 @@ export function AdminPulseSettings() {
       await updateNotificationPrefs(patch);
     } catch {
       toast({ title: "Échec de l'enregistrement", variant: "destructive" });
+    }
+  }
+
+  // A test send is the only way to catch a subscription that silently died —
+  // otherwise a broken phone just looks like "nothing was due today".
+  const [testing, setTesting] = useState(false);
+  async function runTest() {
+    setTesting(true);
+    try {
+      const r = await sendTestPush();
+      toast(
+        r.sent > 0
+          ? {
+              title: `Test envoyé à ${r.sent} appareil${r.sent > 1 ? "s" : ""}`,
+              description: "Rien reçu ? Vérifie les notifications autorisées pour Kojima.",
+            }
+          : {
+              title: "Aucun appareil abonné",
+              description: "Ouvre Kojima sur ton téléphone et autorise les notifications.",
+              variant: "destructive",
+            },
+      );
+    } catch {
+      toast({ title: "Échec de l'envoi du test", variant: "destructive" });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -103,6 +131,26 @@ export function AdminPulseSettings() {
               {HOURS.map((h) => <option key={h} value={h}>{fmtH(h)}</option>)}
             </select>
           </div>
+        </div>
+
+        <div className="h-px bg-border/30" />
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-body font-medium text-foreground">Tester sur ce téléphone</p>
+            <p className="text-xs font-body text-muted-foreground/60">
+              Envoie une notification tout de suite, sans attendre le rappel du matin.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            disabled={testing}
+            onClick={runTest}
+          >
+            {testing ? "Envoi…" : "Envoyer un test"}
+          </Button>
         </div>
       </div>
     </div>

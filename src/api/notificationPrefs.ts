@@ -20,3 +20,15 @@ export function updateNotificationPrefs(patch: Partial<NotificationPrefs>) {
     body: JSON.stringify(patch),
   });
 }
+
+export interface PushSendResult {
+  /** Subscriptions the push was accepted for. 0 = no device is listening. */
+  sent: number;
+  failed: number;
+  expired: number;
+}
+
+/** Send one push right now, so a broken subscription shows up immediately. */
+export function sendTestPush() {
+  return apiFetch<PushSendResult>("push_test.php", { method: "POST" });
+}

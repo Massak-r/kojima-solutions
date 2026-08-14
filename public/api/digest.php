@@ -41,7 +41,7 @@ function adminPulseDue(array $s, DateTime $today): ?string {
 // Fires any reminder whose scheduled_at has passed, reusing the web-push path.
 // Runs before the notifications early-return so reminders go out even when
 // there's no client feedback pending.
-$reminderResults = ['sent' => 0];
+$reminderResults = ['sent' => 0, 'delivered' => 0, 'error' => null];
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS push_reminders (
@@ -60,9 +60,17 @@ try {
         require_once __DIR__ . '/push_send.php';
         $mark = $pdo->prepare("UPDATE push_reminders SET sent_at = NOW() WHERE id = ?");
         foreach ($due as $r) {
-            sendPushNotifications($pdo, $r['title'], (string)($r['body'] ?? ''), $r['url'] ?: '/home');
+            $res = sendPushNotifications($pdo, $r['title'], (string)($r['body'] ?? ''), $r['url'] ?: '/home');
+            // A systemic failure (VAPID unconfigured) must NOT burn the reminder:
+            // marking it sent regardless is what hid a completely dead push
+            // pipeline behind a reassuring "sent: 1" for months.
+            if (!empty($res['error'])) {
+                $reminderResults['error'] = $res['error'];
+                continue;
+            }
             $mark->execute([$r['id']]);
             $reminderResults['sent']++;
+            $reminderResults['delivered'] += (int)($res['sent'] ?? 0);
         }
     }
 } catch (Throwable $e) { /* reminders are best-effort; never break the digest */ }
@@ -250,8 +258,17 @@ try {
                     $title = 'Admin du jour';
                     $body  = "Dans {$top['days']} j : $label$tail";
                 }
-                sendPushNotifications($pdo, $title, $body, $top['link'] ?? '/documents');
-                $pulseResults = ['sent' => true, 'count' => count($items)];
+                $res = sendPushNotifications($pdo, $title, $body, $top['link'] ?? '/documents');
+                $delivered    = (int)($res['sent'] ?? 0);
+                $pulseResults = ['sent' => $delivered > 0, 'delivered' => $delivered, 'count' => count($items)];
+                // Release the once-per-day claim when the send failed systemically,
+                // otherwise a misconfiguration silences the pulse until tomorrow and
+                // reads exactly like "nothing was due today".
+                if (!empty($res['error'])) {
+                    $pulseResults['error'] = $res['error'];
+                    $pdo->prepare("DELETE FROM deadline_alerts WHERE alert_key = ?")
+                        ->execute(['admin_pulse:' . $locDate]);
+                }
             }
         }
     }

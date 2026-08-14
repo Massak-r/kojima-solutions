@@ -37,12 +37,20 @@ export async function subscribeToPush(): Promise<boolean> {
     if (permission !== 'granted') return false;
 
     const reg = await navigator.serviceWorker.ready;
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
 
-    // Check if already subscribed
     let sub = await reg.pushManager.getSubscription();
+
+    // A subscription is permanently bound to the VAPID key that created it, so
+    // after a server-side key rotation the old one only ever returns 403. Simply
+    // reusing whatever getSubscription() hands back would re-register that dead
+    // subscription on every attempt, with no way for the user to recover.
+    if (sub && !matchesServerKey(sub, applicationServerKey)) {
+      await sub.unsubscribe();
+      sub = null;
+    }
+
     if (!sub) {
-      // Convert VAPID key from base64url to Uint8Array
-      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey,
@@ -77,6 +85,19 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     console.error('Push unsubscribe failed:', err);
     return false;
   }
+}
+
+/**
+ * Whether an existing subscription was created with the VAPID key we sign with.
+ * Treats an unreadable key as a mismatch: re-subscribing costs one round trip,
+ * whereas keeping a stale subscription means silence.
+ */
+function matchesServerKey(sub: PushSubscription, expected: Uint8Array): boolean {
+  const current = sub.options?.applicationServerKey;
+  if (!current) return false;
+  const bytes = new Uint8Array(current);
+  if (bytes.length !== expected.length) return false;
+  return bytes.every((byte, i) => byte === expected[i]);
 }
 
 /**
