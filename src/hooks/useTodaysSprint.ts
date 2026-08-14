@@ -46,6 +46,10 @@ export interface TodaysSprint {
    *  The server auto-flags these into the sprint once that date arrives. */
   plannedTomorrow: TodaySubtaskItem[];
   counts: { pending: number; must: number; nice: number; done: number; cap: number; capReached: boolean };
+  /** Vrai tant que les sources n'ont pas répondu. Sans ce drapeau, une ouverture
+   *  à froid affiche « journée vide » pendant une fraction de seconde avant que
+   *  les tâches n'apparaissent — le pire accueil possible le matin. */
+  loading: boolean;
 }
 
 function tierOf(item: TodayItem): "must" | "nice" {
@@ -58,9 +62,10 @@ function priorityRank(item: TodayItem): number {
 }
 
 export function useTodaysSprint(): TodaysSprint {
-  const { data: allSubtasks = [] } = useAllSubtasks();
-  const { data: objectives = [] } = useObjectives();
-  const { projects } = useProjects();
+  const { data: allSubtasks = [], isLoading: subtasksLoading } = useAllSubtasks();
+  const { data: objectives = [], isLoading: objectivesLoading } = useObjectives();
+  const { projects, loading: projectsLoading } = useProjects();
+  const loading = subtasksLoading || objectivesLoading || projectsLoading;
 
   return useMemo(() => {
     const objById = new Map(objectives.map((o) => [o.id, o]));
@@ -146,6 +151,7 @@ export function useTodaysSprint(): TodaysSprint {
         cap: DAILY_SPRINT_CAP,
         capReached: flagged.length >= DAILY_SPRINT_CAP,
       },
+      loading,
     };
-  }, [allSubtasks, objectives, projects]);
+  }, [allSubtasks, objectives, projects, loading]);
 }

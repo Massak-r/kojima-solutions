@@ -29,7 +29,7 @@ function greeting(hour: number): string {
 }
 
 export function DayHero() {
-  const { counts } = useTodaysSprint();
+  const { counts, loading } = useTodaysSprint();
   const now = useMemo(() => new Date(), []);
   const reduceMotion = useReducedMotion();
 
@@ -62,17 +62,28 @@ export function DayHero() {
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 first-letter:uppercase">
             {formatDateWithWeekday(now)}
           </p>
-          <p className={cn(
-            "text-sm mt-2.5 font-medium",
-            cleared ? "text-emerald-700 dark:text-emerald-300" : "text-foreground/80",
-          )}>
-            {state}
-          </p>
+          {/* Tant qu'on ne sait pas, on ne prétend rien : annoncer « journée
+              libre » puis se dédire une demi-seconde plus tard est le pire
+              accueil du matin. */}
+          {loading ? (
+            <span className="mt-3 block h-4 w-44 max-w-full rounded bg-foreground/10 animate-pulse" />
+          ) : (
+            <p className={cn(
+              "text-sm mt-2.5 font-medium",
+              cleared ? "text-emerald-700 dark:text-emerald-300" : "text-foreground/80",
+            )}>
+              {state}
+            </p>
+          )}
         </div>
 
         {/* Aucun bouton ici : la carte du plan, juste dessous, porte déjà deux
             fois « Planifier ». Le héros informe, elle agit. */}
-        {total > 0 && (
+        {loading && (
+          <div className="h-[68px] w-[68px] shrink-0 rounded-full bg-foreground/10 animate-pulse" aria-hidden="true" />
+        )}
+
+        {!loading && total > 0 && (
           <div className="relative shrink-0" aria-hidden="true">
             <svg width="68" height="68" viewBox="0 0 68 68" className="-rotate-90">
               <circle

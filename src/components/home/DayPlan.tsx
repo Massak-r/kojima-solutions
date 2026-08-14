@@ -95,13 +95,15 @@ interface DayPlanProps {
   /** False quand un en-tête de journée (DayHero) porte déjà le compte et la
    *  progression juste au-dessus : les répéter ici fabriquait le fouillis. */
   showHeadline?: boolean;
+  /** Vrai tant que les tâches du jour n'ont pas répondu. */
+  loading?: boolean;
 }
 
 /** « Le plan du jour » — sprint, programme horaire et inbox fusionnés :
  *  une seule carte où chaque tâche peut recevoir une heure, où les blocs
  *  libres structurent la journée, et où trier l'inbox est une tâche comme
  *  une autre. doneMin ⇄ endMin nourrit le feedback d'estimation. */
-export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpen, showHeadline = true }: DayPlanProps) {
+export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpen, showHeadline = true, loading = false }: DayPlanProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const day = toISODate(new Date());
@@ -391,8 +393,24 @@ export function DayPlan({ flagged, done, counts, onComplete, onUncomplete, onOpe
         </div>
       )}
 
+      {/* Chargement — des lignes fantômes plutôt qu'un « Journée vierge »
+          affirmé avant d'avoir la réponse, puis démenti. */}
+      {loading && flagged.length === 0 && (
+        <div className="border-t border-border/60 divide-y divide-border/40">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-5 py-3.5">
+              <span className="h-4 w-4 shrink-0 rounded-full bg-foreground/10 animate-pulse" />
+              <span
+                className="h-3.5 rounded bg-foreground/10 animate-pulse"
+                style={{ width: `${62 - i * 12}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Journée sans tâches engagées — état vide slim (blocs et inbox restent) */}
-      {flagged.length === 0 && (
+      {!loading && flagged.length === 0 && (
         <div className="border-t border-border/60 px-5 py-6 text-center">
           {counts.done > 0 ? (
             <>

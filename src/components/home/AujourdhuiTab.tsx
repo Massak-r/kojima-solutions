@@ -36,7 +36,7 @@ interface AujourdhuiTabProps {
 
 export function AujourdhuiTab({ showPlanHeadline = true }: AujourdhuiTabProps = {}) {
   const navigate = useNavigate();
-  const { flagged, done, suggestions, plannedTomorrow, counts } = useTodaysSprint();
+  const { flagged, done, suggestions, plannedTomorrow, counts, loading } = useTodaysSprint();
   const updateSubtask = useUpdateSubtask();
   const { updateProjectTask } = useProjects();
   const { flag: flagSubtask } = useFlagSubtask();
@@ -139,6 +139,7 @@ export function AujourdhuiTab({ showPlanHeadline = true }: AujourdhuiTabProps = 
         onUncomplete={uncompleteItem}
         onOpen={openItem}
         showHeadline={showPlanHeadline}
+        loading={loading}
       />
 
       {/* Fait aujourd'hui + close ritual */}
