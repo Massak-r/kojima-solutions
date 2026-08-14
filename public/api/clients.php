@@ -56,6 +56,11 @@ if ($method === 'GET') {
         if (!$row) fail('Client not found', 404);
         ok(mapClient($row));
     } else {
+        // The unscoped directory is admin-only. It was fully public until
+        // 2026-08-14, exposing every client's name, email and postal address to
+        // anyone who knew the URL — and handing out the very address the client
+        // portal's email gate checks against. Same rule as quotes.php.
+        requireAdminSession(); // admin cookie OR X-API-Key; anonymous is refused
         $rows = $pdo->query('SELECT * FROM clients ORDER BY name ASC')->fetchAll();
         ok(array_map('mapClient', $rows));
     }

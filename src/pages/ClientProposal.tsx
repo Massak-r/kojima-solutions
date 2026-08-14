@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { useClients } from "@/contexts/ClientsContext";
-import { getClientAuth, setClientAuth } from "@/lib/auth";
+import { getClientAuth, setClientAuth, setClientSession } from "@/lib/auth";
+import { clientLogin } from "@/api/clientLogin";
 import { Input } from "@/components/ui/input";
 import { User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -72,18 +72,17 @@ export default function ClientProposal() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject, loading: projectsLoading } = useProjects();
-  const { clients, loading: clientsLoading } = useClients();
   const { toast } = useToast();
   const { t } = useLanguage();
   const project = getProject(id!);
 
-  // Email gate (same pattern as ClientDashboard)
-  const requiredEmail = project?.clientId
-    ? clients.find((c) => c.id === project.clientId)?.email?.toLowerCase() ?? null
-    : null;
+  // Email gate (same pattern as ClientDashboard): verified server-side by
+  // client_login.php, never by downloading the client directory to the browser.
+  const gated = !!project?.clientId;
   const [emailAuthed, setEmailAuthed] = useState<boolean | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [emailChecking, setEmailChecking] = useState(false);
 
   // Data
   const [funnel, setFunnel] = useState<ProjectFunnel | null>(null);
@@ -96,18 +95,36 @@ export default function ClientProposal() {
 
   // Email gate evaluation
   useEffect(() => {
-    if (clientsLoading) return;
-    if (!requiredEmail) { setEmailAuthed(true); return; }
-    setEmailAuthed(getClientAuth(id!) === requiredEmail);
-  }, [requiredEmail, id, clientsLoading]);
+    if (projectsLoading) return;
+    if (!gated) { setEmailAuthed(true); return; }
+    setEmailAuthed(!!getClientAuth(id!));
+  }, [gated, id, projectsLoading]);
 
-  function handleEmailSubmit(e: React.FormEvent) {
+  async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (emailInput.trim().toLowerCase() === requiredEmail) {
-      setClientAuth(id!, emailInput.trim());
+    const email = emailInput.trim();
+    if (!email || emailChecking) return;
+    setEmailChecking(true);
+    setEmailError("");
+    try {
+      const res = await clientLogin(email);
+      if (!res.projects.some((p) => p.id === id)) {
+        setEmailError(t("Email non reconnu pour ce projet.", "Email not recognized for this project."));
+        return;
+      }
+      setClientAuth(id!, email);
+      if (res.sessionToken) {
+        setClientSession({
+          token: res.sessionToken,
+          clientId: res.client.id,
+          expiresAt: res.sessionExpiresAt,
+        });
+      }
       setEmailAuthed(true);
-    } else {
+    } catch {
       setEmailError(t("Email non reconnu pour ce projet.", "Email not recognized for this project."));
+    } finally {
+      setEmailChecking(false);
     }
   }
 
@@ -149,7 +166,7 @@ export default function ClientProposal() {
 
   // ── Loading / Error states ─────────────────────────────────
 
-  if (projectsLoading || clientsLoading || emailAuthed === null) {
+  if (projectsLoading || emailAuthed === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-muted-foreground" />
@@ -194,7 +211,9 @@ export default function ClientProposal() {
               placeholder="votre@email.ch"
             />
             {emailError && <p className="text-xs text-destructive">{emailError}</p>}
-            <Button type="submit" className="w-full">{t("Accéder", "Access")}</Button>
+            <Button type="submit" className="w-full" disabled={emailChecking}>
+              {emailChecking ? t("Vérification…", "Checking…") : t("Accéder", "Access")}
+            </Button>
           </form>
         </div>
       </div>

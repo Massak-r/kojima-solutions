@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { useClients } from "@/contexts/ClientsContext";
-import { getClientAuth, setClientAuth } from "@/lib/auth";
+import { getClientAuth, setClientAuth, setClientSession } from "@/lib/auth";
+import { clientLogin } from "@/api/clientLogin";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,36 +33,55 @@ export default function ClientDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject, respondToFeedbackRequest, loading: projectsLoading } = useProjects();
-  const { clients, loading: clientsLoading } = useClients();
   const { toast } = useToast();
   const project = getProject(id!);
 
   // ── Email gate ─────────────────────────────────────────────
-  const requiredEmail = project?.clientId
-    ? clients.find((c) => c.id === project.clientId)?.email?.toLowerCase() ?? null
-    : null;
+  // Checked server-side by client_login.php (rate-limited). This page used to
+  // download the whole client directory just to compare one string locally,
+  // which is what made every client's email and postal address world-readable.
+  const gated = !!project?.clientId;
 
   // null = not yet evaluated (waiting for async data to load)
   const [emailAuthed, setEmailAuthed] = useState<boolean | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [emailChecking, setEmailChecking] = useState(false);
 
-  function handleEmailSubmit(e: React.FormEvent) {
+  async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (emailInput.trim().toLowerCase() === requiredEmail) {
-      setClientAuth(id!, emailInput.trim());
+    const email = emailInput.trim();
+    if (!email || emailChecking) return;
+    setEmailChecking(true);
+    setEmailError("");
+    try {
+      const res = await clientLogin(email);
+      if (!res.projects.some((p) => p.id === id)) {
+        setEmailError("Email non reconnu pour ce projet.");
+        return;
+      }
+      setClientAuth(id!, email);
+      if (res.sessionToken) {
+        setClientSession({
+          token: res.sessionToken,
+          clientId: res.client.id,
+          expiresAt: res.sessionExpiresAt,
+        });
+      }
       setEmailAuthed(true);
-    } else {
+    } catch {
       setEmailError("Email non reconnu pour ce projet.");
+    } finally {
+      setEmailChecking(false);
     }
   }
 
-  // Evaluate the gate once clients have finished loading
+  // Evaluate the gate once the project has loaded.
   useEffect(() => {
-    if (clientsLoading) return; // wait — clients array may still be empty
-    if (!requiredEmail) { setEmailAuthed(true); return; }
-    setEmailAuthed(getClientAuth(id!) === requiredEmail);
-  }, [requiredEmail, id, clientsLoading]);
+    if (projectsLoading) return;
+    if (!gated) { setEmailAuthed(true); return; }
+    setEmailAuthed(!!getClientAuth(id!));
+  }, [gated, id, projectsLoading]);
 
   // Stamp this visit (once authed) so the next visit can show "what's new".
   useEffect(() => {
@@ -129,8 +148,8 @@ export default function ClientDashboard() {
     }
   }, [id, respondToFeedbackRequest, toast]);
 
-  // Show spinner while projects/clients are loading OR while auth hasn't been evaluated yet
-  if (projectsLoading || clientsLoading || emailAuthed === null) {
+  // Show spinner while the project loads OR while auth hasn't been evaluated yet
+  if (projectsLoading || emailAuthed === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-muted-foreground" />
@@ -183,8 +202,8 @@ export default function ClientDashboard() {
             {emailError && (
               <p className="font-body text-sm text-destructive">{emailError}</p>
             )}
-            <Button type="submit" className="w-full font-body">
-              Continuer
+            <Button type="submit" className="w-full font-body" disabled={emailChecking}>
+              {emailChecking ? "Vérification…" : "Continuer"}
             </Button>
             <a
               href="/client/login"
