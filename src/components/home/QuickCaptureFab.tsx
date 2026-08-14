@@ -6,10 +6,12 @@ import { cn } from "@/lib/utils";
 import { addInboxCapture, type CaptureKind } from "@/api/inboxCaptures";
 import { CAPTURE_KINDS } from "@/lib/captureKinds";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { projectJournalSlug } from "@/api/projectJournal";
 import { useIsAdminPage } from "@/components/BottomNav";
+import { useQuickActions } from "@/hooks/useQuickActions";
+import { haptic } from "@/lib/haptics";
 
 interface QuickCaptureFabProps {
   /** Optional pre-filled project tag (slug or title) shown to the user as a chip. */
@@ -80,6 +82,8 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
   const { toast } = useToast();
   const isAdminPage = useIsAdminPage();
   const location = useLocation();
+  const navigate = useNavigate();
+  const quickActions = useQuickActions();
   const { projects } = useProjects();
 
   // Route-derived project context: on any /project/:id/* page, auto-tag the
@@ -213,7 +217,9 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "app-fab fixed right-4 z-40 bottom-44 md:bottom-28 md:right-6 no-print",
+          // bottom-24 : juste au-dessus de la barre d'onglets. Il siégeait à
+          // bottom-44 pour laisser passer le second bouton, qui n'existe plus ici.
+          "app-fab fixed right-4 z-40 bottom-24 md:bottom-28 md:right-6 no-print",
           "h-12 w-12 rounded-full bg-violet-600 text-white shadow-lg",
           "hover:bg-violet-700 hover:scale-105 active:scale-95 transition-all",
           "flex items-center justify-center group",
@@ -234,23 +240,32 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 bg-black/30 z-50"
+              className="fixed inset-0 bg-black/40 z-[55]"
               onClick={() => setOpen(false)}
             />
 
-            {/* Panel — bottom-sheet on mobile, popover on desktop */}
+            {/* Panel — real bottom sheet on mobile, popover on desktop.
+                It used to float mid-screen at bottom-44, pinned above the FAB:
+                far from the thumb, and unmistakably a web popover. Anchored to
+                the edge it covers the tab bar the way a native sheet does, which
+                also removes the navigation as a distraction while typing. */}
             <motion.div
-              initial={{ opacity: 0, y: 32 }}
+              initial={{ opacity: 0, y: "100%" }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              exit={{ opacity: 0, y: "100%" }}
+              transition={{ type: "spring", stiffness: 420, damping: 38 }}
               className={cn(
-                "fixed z-50",
-                "left-4 right-4 bottom-44 md:bottom-28 md:left-auto md:right-6 md:w-[420px]",
-                "rounded-2xl bg-card border border-border shadow-2xl overflow-hidden",
+                "fixed z-[60] bg-card shadow-2xl overflow-hidden",
+                "left-0 right-0 bottom-0 rounded-t-3xl border-t border-border",
+                "md:left-auto md:right-6 md:bottom-28 md:w-[420px] md:rounded-2xl md:border",
               )}
+              style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Grab handle — the affordance that says "sheet", mobile only. */}
+              <div className="flex justify-center pt-2.5 pb-0.5 md:hidden">
+                <span className="h-1 w-9 rounded-full bg-border" aria-hidden="true" />
+              </div>
               <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border/40 bg-gradient-to-br from-violet-50/40 to-card/40 dark:from-violet-500/10">
                 <div className="flex items-center gap-2">
                   <Inbox size={13} className="text-violet-600 dark:text-violet-400" />
@@ -352,7 +367,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                 )}
 
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-mono text-muted-foreground/40 tabular-nums">
+                  <span className="text-[10px] text-muted-foreground/40 tabular-nums">
                     {listening
                       ? "🎙 écoute…"
                       : text.trim().length > 0 && `${text.trim().length} car · ⌘↵ pour envoyer`}
@@ -370,6 +385,33 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                     {submitting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
                     {split ? `Capturer ${lines.length}` : "Capturer"}
                   </button>
+                </div>
+
+                {/* Créer — mobile only. Ces raccourcis vivaient dans un second
+                    bouton flottant qui se disputait le même coin ; ils sont
+                    désormais ici, à un seul geste, sans rien perdre. */}
+                <div className="md:hidden border-t border-border/40 pt-3">
+                  <p className="text-[10px] font-body font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">
+                    Créer
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickActions.map((a) => (
+                      <button
+                        key={a.label}
+                        type="button"
+                        onClick={() => {
+                          haptic("tap");
+                          setOpen(false);
+                          if (a.to) navigate(a.to);
+                          else a.action?.();
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-body font-medium rounded-full px-2.5 py-1.5 border border-border/60 text-foreground/80 hover:bg-secondary active:scale-95 transition-all"
+                      >
+                        <a.icon size={12} className="shrink-0" />
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </motion.div>

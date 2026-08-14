@@ -1,87 +1,26 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Plus, FolderKanban, FileText, Building2, Target, X, NotebookPen } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useIsAdminPage } from "@/components/BottomNav";
-import { useQuickCreate } from "@/contexts/QuickCreateContext";
-import { OPEN_MEETING_NOTES_EVENT } from "@/components/MeetingNoteDrawer";
-
-interface Action {
-  label: string;
-  icon: typeof Plus;
-  color: string;
-  to?: string;
-  action?: () => void;
-}
+import { useQuickActions } from "@/hooks/useQuickActions";
 
 export function QuickActionFAB() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
   const isAdminPage = useIsAdminPage();
-  const { open: openQuickCreate } = useQuickCreate();
-
-  // Match Home's Objectifs tab specifically — when already there, scroll
-  // to the inline input instead of round-tripping through navigation.
-  const isOnObjectivesView =
-    location.pathname === "/home" && location.search.includes("tab=objectives");
-  // Project sub-pages get an extra action so the meeting-notes drawer
-  // (which used to have its own overlapping FAB at bottom-24 right-4)
-  // is reachable from the unified "+" menu.
-  const isOnProjectPage = location.pathname.startsWith("/project/");
-
-  const ACTIONS: Action[] = [
-    // Meeting note — only on project pages, surfaced first because the
-    // operator is mid-context and likely wants it more than create-anything.
-    ...(isOnProjectPage ? [{
-      label: "Note de réunion",
-      icon: NotebookPen,
-      color: "bg-primary",
-      action: () => {
-        window.dispatchEvent(new CustomEvent(OPEN_MEETING_NOTES_EVENT));
-      },
-    } satisfies Action] : []),
-    {
-      label: "Nouvel objectif",
-      icon: Target,
-      color: "bg-violet-500",
-      action: () => {
-        if (isOnObjectivesView) {
-          const input = document.getElementById("new-objective-input");
-          if (input) {
-            input.scrollIntoView({ behavior: "smooth", block: "center" });
-            setTimeout(() => input.focus(), 400);
-          }
-        } else {
-          navigate("/home?tab=objectives&focus=new-objective");
-        }
-      },
-    },
-    {
-      label: "Nouveau projet",
-      icon: FolderKanban,
-      color: "bg-blue-500",
-      action: () => openQuickCreate("project"),
-    },
-    {
-      label: "Nouveau devis",
-      icon: FileText,
-      color: "bg-emerald-500",
-      to: "/quotes/new",
-    },
-    {
-      label: "Nouveau client",
-      icon: Building2,
-      color: "bg-amber-500",
-      action: () => openQuickCreate("client"),
-    },
-  ];
+  const ACTIONS = useQuickActions();
 
   if (!isAdminPage) return null;
 
   return (
-    <div className="app-fab fixed bottom-24 sm:bottom-8 right-4 sm:right-6 z-40 flex flex-col-reverse items-end gap-2.5 no-print">
+    // Desktop only. On mobile these actions live inside the capture sheet, so
+    // a single floating button owns the corner instead of two stacked ones.
+    // md: et pas sm:, pour coïncider avec le « md:hidden » de la section Créer
+    // dans la feuille de capture — sinon les mêmes actions s'affichent deux
+    // fois sur les largeurs intermédiaires.
+    <div className="app-fab hidden md:flex fixed bottom-8 right-6 z-40 flex-col-reverse items-end gap-2.5 no-print">
       {/* Action items */}
       <AnimatePresence>
         {open && ACTIONS.map((action, i) => (
