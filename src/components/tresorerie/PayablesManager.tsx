@@ -1,3 +1,4 @@
+import { MonthMoneyBreakdown } from "@/components/tresorerie/MonthMoneyBreakdown";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -424,6 +425,9 @@ export function PayablesManager() {
 
   return (
     <div className="space-y-6">
+      {/* Où part l'argent ce mois, avant la liste ligne à ligne. */}
+      <MonthMoneyBreakdown />
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-display text-lg font-semibold flex items-center gap-2">

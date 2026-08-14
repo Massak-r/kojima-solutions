@@ -43,6 +43,9 @@ export interface Quote {
   discountValue?: number;
   discountLabel?: string;
   docType?: "quote" | "invoice";
+  /** Date d'encaissement, posée par le serveur quand la facture passe à « paid ».
+   *  L'API la renvoyait déjà ; elle manquait seulement au type. */
+  paidAt?: string | null;
   invoiceStatus?: "draft" | "to-validate" | "validated" | "paid" | "on-hold";
   paymentTerms?: string;
 
