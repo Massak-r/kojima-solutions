@@ -19,9 +19,10 @@ import { listPayables } from "@/api/payables";
 import { listNotes, type ObjectiveNote } from "@/api/objectiveNotes";
 import { getAdminComplianceSignal } from "@/api/sorobanSnapshot";
 import {
-  ADMIN_CHECKLIST_OBJECTIVE_ID, computeGauges, buildTimeline, summarize, assignDomain,
+  ADMIN_CHECKLIST_OBJECTIVE_ID, computeGauges, buildTimeline, summarize, assignDomain, monthProgress, isoOf,
   type Gauge, type GaugeStatus, type DomainKey, type TimelineItem, type ComplianceSummary,
 } from "@/lib/adminCompliance";
+import { MonthQuest } from "./MonthQuest";
 
 interface Props {
   /** Switch to a sibling tab within AdminSpace (triage / documents). */
@@ -287,6 +288,7 @@ function Shortcut({ icon: Icon, label, count }: { icon: typeof Banknote; label: 
 export function AdminOverviewTab({ onNavigateTab }: Props) {
   const today = useMemo(() => new Date(), []);
   const [focus, setFocus] = useState(false);
+  const [showLater, setShowLater] = useState(false);
 
   const { data: objectives, isLoading: objLoading } = useObjectives();
   const adminObj = objectives?.find(
@@ -318,6 +320,24 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
 
   const gauges = useMemo(() => computeGauges({ subtasks, payables, today, signal: signal ?? undefined }), [subtasks, payables, today, signal]);
   const timeline = useMemo(() => buildTimeline({ subtasks, payables, today }), [subtasks, payables, today]);
+  const month = useMemo(() => monthProgress({ subtasks, payables, today }), [subtasks, payables, today]);
+
+  // Everything the month card already covers is dropped here: showing the same
+  // obligation twice is exactly what made this page feel like a wall.
+  const monthEndISO = useMemo(
+    () => isoOf(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+    [today],
+  );
+  const laterBuckets = useMemo(
+    () => timeline
+      .map((b) => ({ ...b, items: b.items.filter((it) => it.dueISO > monthEndISO) }))
+      .filter((b) => b.items.length > 0),
+    [timeline, monthEndISO],
+  );
+  const laterCount = useMemo(
+    () => laterBuckets.reduce((sum, b) => sum + b.items.length, 0),
+    [laterBuckets],
+  );
   const summary = useMemo(() => summarize(gauges), [gauges]);
   const pinned = useMemo(() => notes.filter((n) => n.pinned), [notes]);
 
@@ -373,6 +393,9 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
 
       {!focus && (
         <>
+          {/* Le mois — la même charge, mais finie et comptable */}
+          <MonthQuest progress={month} />
+
           {/* Raccourcis */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <button type="button" onClick={() => onNavigateTab?.("triage")} className="block text-left">
@@ -399,16 +422,35 @@ export function AdminOverviewTab({ onNavigateTab }: Props) {
             </div>
           </SectionCard>
 
-          {/* Timeline */}
-          <SectionCard icon={CalendarClock} title="À faire" subtitle="échéances">
-            {timeline.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic text-center py-6">Aucune échéance à venir. 🎉</p>
+          {/* Plus tard — replié par défaut : c'est le mur qui écrasait la page */}
+          <SectionCard
+            icon={CalendarClock}
+            title="Plus tard"
+            subtitle={laterCount > 0 ? `après ${month.monthLabel}` : undefined}
+            action={laterCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowLater((v) => !v)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-primary transition shrink-0"
+              >
+                {showLater ? "Replier" : `Voir les ${laterCount}`}
+              </button>
+            ) : undefined}
+          >
+            {laterCount === 0 ? (
+              <p className="text-sm text-muted-foreground italic text-center py-6">
+                Rien après {month.monthLabel}. 🎉
+              </p>
+            ) : !showLater ? (
+              <p className="text-sm text-muted-foreground py-1">
+                {laterCount} échéance{laterCount > 1 ? "s" : ""} au-delà du mois. Rien à en faire aujourd'hui.
+              </p>
             ) : (
               <div className="space-y-4">
-                {timeline.map((bucket) => (
+                {laterBuckets.map((bucket) => (
                   <div key={bucket.key}>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <h3 className={cn("text-eyebrow", bucket.key === "overdue" && "text-destructive")}>{bucket.label}</h3>
+                      <h3 className="text-eyebrow">{bucket.label}</h3>
                       <span className="text-[10px] text-muted-foreground">{bucket.items.length}</span>
                     </div>
                     <ul className="space-y-1.5">

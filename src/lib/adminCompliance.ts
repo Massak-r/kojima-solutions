@@ -395,3 +395,66 @@ export function summarize(gauges: Gauge[]): ComplianceSummary {
     worst,
   };
 }
+
+// ── month progress ───────────────────────────────────────────────────────
+//
+// The timeline is an open-ended list, and an open-ended list has no finish
+// line — which is precisely what makes admin work feel bottomless. A calendar
+// month does have one. This reframes the same obligations as a finite,
+// countable, closable set: "3 left before the 31st", not "here is everything
+// you will ever owe". Nothing here invents progress: `done` counts only
+// obligations actually settled this month, so the bar can never flatter.
+
+const MONTH_NAMES = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+];
+
+export interface MonthProgress {
+  /** French month name, lowercase (e.g. "août"). */
+  monthLabel: string;
+  /** Obligations actually settled during this calendar month. */
+  done: number;
+  /** Still open and due on or before month end — overdue ones included. */
+  remaining: Obligation[];
+  /** done + remaining.length: the month's whole workload. */
+  total: number;
+  /** CHF still to move before month end. */
+  remainingAmount: number;
+  /** Open obligations already past their due date. */
+  overdue: number;
+  /** Calendar days left in the month, today included. */
+  daysLeft: number;
+  /** Genuinely nothing left to settle this month (and there was something). */
+  cleared: boolean;
+}
+
+export function monthProgress(input: ComplianceInput): MonthProgress {
+  const { today } = input;
+  const obligations = buildObligations(input);
+
+  // Day 0 of next month === last day of this one.
+  const lastISO = isoOf(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+
+  // Settled *this month*, whatever the due date: paying a July invoice in
+  // August is August's win. Cancelled rows carry no timestamp, so they never
+  // silently pad the count.
+  const done = obligations.filter(
+    (o) => o.completed && o.completedAtISO && sameMonth(o.completedAtISO.slice(0, 10), today),
+  ).length;
+
+  const remaining = obligations
+    .filter((o) => !o.completed && o.dueISO && o.dueISO <= lastISO)
+    .sort((a, b) => a.dueISO!.localeCompare(b.dueISO!));
+
+  return {
+    monthLabel: MONTH_NAMES[today.getMonth()],
+    done,
+    remaining,
+    total: done + remaining.length,
+    remainingAmount: remaining.reduce((sum, o) => sum + (o.amount ?? 0), 0),
+    overdue: remaining.filter((o) => (o.daysUntil ?? 0) < 0).length,
+    daysLeft: daysUntilISO(lastISO, today) + 1,
+    cleared: done + remaining.length > 0 && remaining.length === 0,
+  };
+}

@@ -5,6 +5,7 @@ import {
   computeGauges,
   buildTimeline,
   summarize,
+  monthProgress,
   type ComplianceInput,
 } from "./adminCompliance";
 import type { SubtaskItem } from "@/api/todoSubtasks";
@@ -155,5 +156,53 @@ describe("buildTimeline", () => {
     expect(map.later).toEqual(["ag"]);
     // completed obligation never appears
     expect(buckets.flatMap((b) => b.items.map((i) => i.id))).not.toContain("done");
+  });
+});
+
+describe("monthProgress", () => {
+  const input = (over: Partial<ComplianceInput> = {}): ComplianceInput => ({
+    subtasks: [], payables: [], today: TODAY, ...over,
+  });
+
+  it("counts what was settled this month and what is still due before month end", () => {
+    const m = monthProgress(input({
+      payables: [
+        payable({ id: "a", label: "Loyer",    amount: 888, dueDate: "2026-06-27" }),
+        payable({ id: "b", label: "Sunrise",  amount: 80,  dueDate: "2026-06-10" }), // overdue
+        payable({ id: "c", label: "Serafe",   amount: 335, dueDate: "2026-06-05",
+                  status: "paid", paidAt: "2026-06-05 10:00:00" }),
+        payable({ id: "d", label: "Impôts",   amount: 2300, dueDate: "2026-10-01" }), // next months
+      ],
+    }));
+    expect(m.monthLabel).toBe("juin");
+    expect(m.done).toBe(1);
+    expect(m.remaining.map((o) => o.id)).toEqual(["b", "a"]); // soonest first
+    expect(m.total).toBe(3);
+    expect(m.remainingAmount).toBe(968);
+    expect(m.overdue).toBe(1);
+    expect(m.cleared).toBe(false);
+  });
+
+  it("credits a July invoice paid in June to June, and never counts cancelled rows", () => {
+    const m = monthProgress(input({
+      payables: [
+        payable({ id: "late", dueDate: "2026-07-20", status: "paid", paidAt: "2026-06-02 09:00:00" }),
+        payable({ id: "void", dueDate: "2026-06-20", status: "cancelled" }), // no paidAt
+      ],
+    }));
+    expect(m.done).toBe(1);
+    expect(m.remaining).toHaveLength(0);
+    expect(m.cleared).toBe(true);
+  });
+
+  it("is not 'cleared' when the month is simply empty", () => {
+    const m = monthProgress(input());
+    expect(m.total).toBe(0);
+    expect(m.cleared).toBe(false);
+  });
+
+  it("counts the days left including today", () => {
+    expect(monthProgress(input()).daysLeft).toBe(7); // 24 → 30 June
+    expect(monthProgress(input({ today: new Date(2026, 5, 30) })).daysLeft).toBe(1);
   });
 });
