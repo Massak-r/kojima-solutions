@@ -88,7 +88,9 @@ if ($method === 'POST') {
     if (strlen($text) > 2000) fail('text too long (max 2000 chars)');
     if (!in_array($source, ['admin', 'personal'], true)) fail('Invalid source');
     if ($hint !== null && strlen($hint) > 255) fail('projectHint too long');
-    if ($kind !== null && !in_array($kind, ['idea', 'todo', 'note', 'urgent'], true)) $kind = null;
+    // 'claude' = a note the founder left for the assistant to pick up at the
+    // start of its next session, rather than something he means to triage himself.
+    if ($kind !== null && !in_array($kind, ['idea', 'todo', 'note', 'urgent', 'claude'], true)) $kind = null;
     if ($context !== null) $context = substr($context, 0, 40);
 
     $id = uuid();

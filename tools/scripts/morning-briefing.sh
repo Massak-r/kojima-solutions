@@ -30,6 +30,40 @@ mkdir -p "$MARKER_DIR"
 
 PARTS=()
 
+# ── Notes laissées pour Claude ──────────────────────────────────────
+# Capturées depuis le téléphone via la capture rapide (type « claude »). Pas de
+# marqueur journalier : contrairement au brief, ceci doit remonter à CHAQUE
+# session, sinon une note écrite l'après-midi attendrait le lendemain.
+# On interroge l'API pour ne rien dire quand il n'y a rien — un rappel qui parle
+# dans le vide finit par être ignoré. Hors ligne ou API muette : on se tait.
+ENV_FILE="tools/mcp-server/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  API_KEY="$(sed -n 's/^KOJIMA_API_KEY=//p' "$ENV_FILE" | tr -d '"\r' | head -1)"
+  API_BASE="$(sed -n 's/^KOJIMA_API_BASE=//p' "$ENV_FILE" | tr -d '"\r' | head -1)"
+  API_BASE="${API_BASE:-https://kojima-solutions.ch}"
+  if [[ -n "$API_KEY" ]]; then
+    CLAUDE_NOTES="$(curl -s -m 8 -H "X-API-Key: ${API_KEY}" \
+      "${API_BASE}/api/inbox.php?status=pending&limit=100" 2>/dev/null \
+      | node -e '
+        let raw = "";
+        process.stdin.on("data", (d) => { raw += d; }).on("end", () => {
+          try {
+            const payload = JSON.parse(raw);
+            const items = Array.isArray(payload) ? payload : (payload.items || []);
+            const mine = items.filter((c) => c && c.kind === "claude");
+            if (!mine.length) return;
+            process.stdout.write(mine.map((c) =>
+              "- (" + c.id + ") " + String(c.text || "").replace(/\s+/g, " ").trim()
+            ).join("\n"));
+          } catch (e) { /* API indisponible : silence */ }
+        });
+      ' 2>/dev/null || true)"
+    if [[ -n "$CLAUDE_NOTES" ]]; then
+      PARTS+=("NOTES QUE L'UTILISATEUR T'A LAISSÉES DEPUIS SON TÉLÉPHONE"$'\n'"$CLAUDE_NOTES"$'\n\n'"Traite-les au début de cette session, avant le reste du brief. Quand une note est traitée, ferme-la avec l'outil MCP mark_capture_triaged en lui passant l'id indiqué entre parenthèses, pour qu'elle ne revienne pas la session suivante.")
+    fi
+  fi
+fi
+
 # ── Daily morning briefing ──────────────────────────────────────────
 if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && ! -f "$DAILY_MARKER" ]]; then
   DAILY=$'Bonjour. Voici ton brief du jour. Utilise les outils MCP kojima (list_objectives, get_week_stats, et les subtasks flaggées du jour via list_objectives + get_objective) pour me donner :\n  1) sur quoi me focaliser aujourd\'hui,\n  2) ce qui est à risque,\n  3) un fait surprenant si tu en vois un dans les stats,\n  4) la liste complète des subtasks flaggées pour aujourd\'hui, regroupées par objectif. Demande-moi ensuite si je veux ajouter, modifier ou retirer des tâches du sprint du jour.'

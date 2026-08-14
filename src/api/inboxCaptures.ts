@@ -1,7 +1,8 @@
 import { apiFetch } from "./client";
 
 /** Optional 1-tap capture type, set at capture time to pre-seed triage. */
-export type CaptureKind = "idea" | "todo" | "note" | "urgent";
+/** 'claude' is a message left for the assistant, not something to triage yourself. */
+export type CaptureKind = "idea" | "todo" | "note" | "urgent" | "claude";
 
 export interface InboxCapture {
   id: string;
