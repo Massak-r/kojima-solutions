@@ -197,7 +197,7 @@ try {
 
     if ((int)$prefs['admin_pulse_enabled'] === 1 && !$quietNow && $hour >= (int)$prefs['pulse_hour']) {
         $daysTo = fn(string $due) => (int)(new DateTime($locDate))->diff(new DateTime($due))->format('%r%a');
-        $items  = []; // [label, days]
+        $items  = []; // [label, days, link]
 
         // (a) Admin checklist subtasks not done this period (recurring reset monthly).
         $objId = '96c0b590-8edf-45b2-a93f-9aff24c2ffd2';
@@ -212,16 +212,21 @@ try {
             $due = adminPulseDue($s, $nowLocal);
             if ($due === null) continue;
             $days = $daysTo($due);
-            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days];
+            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days, 'link' => '/documents'];
         }
 
-        // (b) Entreprise payables (pending/scheduled) with a due date.
+        // (b) Payables (pending/scheduled) with a due date, whatever the account.
+        // This used to require a.type = 'entreprise', which silently dropped every
+        // personal bill — loyer, Serafe, Sunrise, assurances all sit on a 'perso'
+        // account or on no account at all — so none of them ever reached the phone.
+        // Forecast rows stay out: they are projections, not bills to pay.
         foreach ($pdo->query("SELECT p.label, p.due_date
-            FROM payables p LEFT JOIN accounts a ON a.id = p.account_id
+            FROM payables p
             WHERE p.direction = 'out' AND p.status IN ('pending','scheduled')
-              AND p.due_date IS NOT NULL AND a.type = 'entreprise'")->fetchAll() as $p) {
+              AND p.commitment = 'committed'
+              AND p.due_date IS NOT NULL")->fetchAll() as $p) {
             $days = $daysTo(substr((string)$p['due_date'], 0, 10));
-            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days];
+            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days, 'link' => '/tresorerie'];
         }
 
         if (!empty($items)) {
@@ -245,7 +250,7 @@ try {
                     $title = 'Admin du jour';
                     $body  = "Dans {$top['days']} j : $label$tail";
                 }
-                sendPushNotifications($pdo, $title, $body, '/documents');
+                sendPushNotifications($pdo, $title, $body, $top['link'] ?? '/documents');
                 $pulseResults = ['sent' => true, 'count' => count($items)];
             }
         }
