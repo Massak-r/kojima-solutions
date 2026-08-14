@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useMemo, useRef } from "react";
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateWithWeekday } from "@/lib/dateFormat";
 import { useTodaysSprint } from "@/hooks/useTodaysSprint";
+import { useWeekRhythm } from "@/hooks/useWeekRhythm";
 
 /**
  * The opening of the day, on the mobile landing screen.
@@ -30,8 +31,24 @@ function greeting(hour: number): string {
 
 export function DayHero() {
   const { counts, loading } = useTodaysSprint();
+  const rhythm = useWeekRhythm();
   const now = useMemo(() => new Date(), []);
   const reduceMotion = useReducedMotion();
+
+  // Terminer une tâche doit se voir, pas seulement se sentir : l'anneau
+  // tressaille au moment où le compteur bouge. C'est le battement du jeu,
+  // et il ne se déclenche que sur une complétion réelle.
+  const ringControls = useAnimationControls();
+  const prevDone = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevDone.current !== null && counts.done > prevDone.current && !reduceMotion) {
+      void ringControls.start({
+        scale: [1, 1.14, 1],
+        transition: { duration: 0.45, ease: "easeOut" },
+      });
+    }
+    prevDone.current = counts.done;
+  }, [counts.done, ringControls, reduceMotion]);
 
   const total = counts.pending + counts.done;
   const cleared = total > 0 && counts.pending === 0;
@@ -84,7 +101,7 @@ export function DayHero() {
         )}
 
         {!loading && total > 0 && (
-          <div className="relative shrink-0" aria-hidden="true">
+          <motion.div animate={ringControls} className="relative shrink-0" aria-hidden="true">
             <svg width="68" height="68" viewBox="0 0 68 68" className="-rotate-90">
               <circle
                 cx="34" cy="34" r={RADIUS}
@@ -113,9 +130,54 @@ export function DayHero() {
                 </span>
               )}
             </span>
-          </div>
+          </motion.div>
         )}
       </div>
+
+      {/* Le rythme de la semaine — une histoire, pas une série. Un jour creux
+          est un fait, rien ne se casse et rien ne repart à zéro. Masqué tant
+          que la semaine n'a rien produit, pour ne pas ouvrir sur sept vides. */}
+      {!loading && rhythm.total > 0 && (
+        <div className="mt-4 pt-3 border-t border-primary/10">
+          <div className="flex items-end gap-1">
+            {rhythm.days.map((d, i) => {
+              // Barre étroite dans un rail de hauteur fixe : c'est ce qui rend
+              // l'écart entre les jours lisible. En pleine largeur, les barres
+              // se lisaient comme des pastilles toutes semblables.
+              const h = d.count === 0 ? 3 : 4 + Math.round((d.count / rhythm.best) * 20);
+              return (
+                <div key={d.iso} className="flex flex-1 flex-col items-center gap-1.5">
+                  <span className="flex h-6 w-full items-end justify-center">
+                    <motion.span
+                      initial={reduceMotion ? false : { height: 3 }}
+                      animate={{ height: h }}
+                      transition={reduceMotion ? { duration: 0 } : { duration: 0.5, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
+                      className={cn(
+                        "w-[6px] rounded-full",
+                        d.isFuture ? "bg-border/40"
+                          : d.isToday ? "bg-primary"
+                          : d.count === 0 ? "bg-border"
+                          : "bg-primary/40",
+                      )}
+                    />
+                  </span>
+                  <span className={cn(
+                    "text-[10px] leading-none",
+                    d.isToday ? "font-bold text-primary"
+                      : d.isWeekend ? "text-muted-foreground/40"
+                      : "text-muted-foreground/70",
+                  )}>
+                    {d.letter}
+                  </span>
+                </div>
+              );
+            })}
+            <span className="ml-2 shrink-0 pb-4 text-[11px] text-muted-foreground tabular-nums">
+              {rhythm.total} cette semaine
+            </span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
