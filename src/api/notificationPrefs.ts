@@ -8,6 +8,8 @@ export interface NotificationPrefs {
   /** Quiet-hours window (local hours): no pushed notifications in [quietStart, quietEnd). */
   quietStart: number;
   quietEnd: number;
+  /** How many days before its due date an obligation starts being announced. */
+  pulseLeadDays: number;
 }
 
 export function getNotificationPrefs() {

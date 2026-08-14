@@ -10,6 +10,12 @@ try {
     if (!in_array('hourly_rate', $cols)) {
         $pdo->exec("ALTER TABLE clients ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL");
     }
+    // Archiving (2026-08-14): a finished client stays in the books for history
+    // but must stop being proposed for follow-up. Until now nothing could ever
+    // be retired, so /relances kept suggesting clients whose work was long done.
+    if (!in_array('archived', $cols)) {
+        $pdo->exec("ALTER TABLE clients ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0");
+    }
 } catch (Throwable $e) {}
 
 // __ Helper ______________________________________________
@@ -24,6 +30,7 @@ function mapClient(array $row): array {
         'address'      => $row['address'] ?? null,
         'notes'        => $row['notes'] ?? null,
         'hourlyRate'   => isset($row['hourly_rate']) && $row['hourly_rate'] !== null ? (float)$row['hourly_rate'] : null,
+        'archived'     => (bool)($row['archived'] ?? false),
         'createdAt'    => $row['created_at'],
     ];
 }
@@ -60,8 +67,8 @@ if ($method === 'POST') {
     $data  = body();
     $newId = !empty($data['id']) ? $data['id'] : uuid();
     $pdo->prepare('
-        INSERT INTO clients (id, name, organization, email, phone, address, notes, hourly_rate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clients (id, name, organization, email, phone, address, notes, hourly_rate, archived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ')->execute([
         $newId,
         $data['name']         ?? '',
@@ -71,6 +78,7 @@ if ($method === 'POST') {
         $data['address']      ?? null,
         $data['notes']        ?? null,
         normalizeRate($data['hourlyRate'] ?? null),
+        !empty($data['archived']) ? 1 : 0,
     ]);
     $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
     $stmt->execute([$newId]);
@@ -82,20 +90,32 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     if (!$id) fail('Missing id');
     $data = body();
-    $pdo->prepare('
-        UPDATE clients SET
-            name = ?, organization = ?, email = ?, phone = ?, address = ?, notes = ?, hourly_rate = ?
-        WHERE id = ?
-    ')->execute([
-        $data['name']         ?? '',
-        $data['organization'] ?? null,
-        $data['email']        ?? null,
-        $data['phone']        ?? null,
-        $data['address']      ?? null,
-        $data['notes']        ?? null,
-        normalizeRate($data['hourlyRate'] ?? null),
-        $id,
-    ]);
+
+    // Partial update. The context's updateClient() sends only the keys that
+    // changed — the archive toggle sends nothing but `archived` — whereas this
+    // used to be a blanket full-row UPDATE with `$data['name'] ?? ''`, which
+    // blanked every omitted field. Only touch what the caller actually sent.
+    $fields = [];
+    $values = [];
+    foreach (['name', 'organization', 'email', 'phone', 'address', 'notes'] as $col) {
+        if (array_key_exists($col, $data)) {
+            $fields[] = "$col = ?";
+            $values[] = $data[$col];
+        }
+    }
+    if (array_key_exists('hourlyRate', $data)) {
+        $fields[] = 'hourly_rate = ?';
+        $values[] = normalizeRate($data['hourlyRate']);
+    }
+    if (array_key_exists('archived', $data)) {
+        $fields[] = 'archived = ?';
+        $values[] = !empty($data['archived']) ? 1 : 0;
+    }
+
+    if ($fields) {
+        $values[] = $id;
+        $pdo->prepare('UPDATE clients SET ' . implode(', ', $fields) . ' WHERE id = ?')->execute($values);
+    }
     $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();

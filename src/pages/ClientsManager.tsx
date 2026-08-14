@@ -8,20 +8,22 @@ import { formatCHF } from "@/components/accounting/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Building2, Mail, Phone, MapPin, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Mail, Phone, MapPin, Search, Archive, ArchiveRestore } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useUndoableDelete } from "@/hooks/useUndoableDelete";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import type { Client } from "@/types/client";
+import { cn } from "@/lib/utils";
 
 export default function ClientsManager() {
   const navigate = useNavigate();
-  const { clients, deleteClient, restoreClient } = useClients();
+  const { clients, deleteClient, restoreClient, updateClient } = useClients();
   const { projects } = useProjects();
   const { quotes } = useQuotes();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogClient, setDialogClient] = useState<Client | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
   const { deleteWithUndo } = useUndoableDelete<Client>({
     hardDelete: (id) => deleteClient(id),
@@ -29,13 +31,16 @@ export default function ClientsManager() {
     message: (c) => `Client « ${c.name} » supprimé`,
   });
 
+  const archivedCount = useMemo(() => clients.filter((c) => c.archived).length, [clients]);
+
   const filteredClients = useMemo(() => {
-    if (!searchQuery.trim()) return clients;
+    const base = showArchived ? clients : clients.filter((c) => !c.archived);
+    if (!searchQuery.trim()) return base;
     const q = searchQuery.toLowerCase();
-    return clients.filter((c) =>
+    return base.filter((c) =>
       [c.name, c.organization, c.email, c.phone].some((f) => f?.toLowerCase().includes(q))
     );
-  }, [clients, searchQuery]);
+  }, [clients, searchQuery, showArchived]);
 
   // Per-client value for the list: encaissé (paid quotes) + active project count.
   const statsByClient = useMemo(() => {
@@ -113,6 +118,20 @@ export default function ClientsManager() {
           </div>
         )}
 
+        {archivedCount > 0 && (
+          <div className="flex justify-end mb-4 -mt-1">
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-body text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Archive size={12} />
+              {showArchived
+                ? "Masquer les clients archivés"
+                : `Afficher les ${archivedCount} client${archivedCount > 1 ? "s" : ""} archivé${archivedCount > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        )}
+
         {/* Client list */}
         {clients.length === 0 ? (
           <EmptyState
@@ -132,7 +151,10 @@ export default function ClientsManager() {
               return (
               <div
                 key={client.id}
-                className="bg-card border border-border rounded-xl p-4 flex items-start justify-between gap-4"
+                className={cn(
+                  "bg-card border border-border rounded-xl p-4 flex items-start justify-between gap-4",
+                  client.archived && "opacity-60",
+                )}
               >
                 <button
                   onClick={() => navigate(`/clients/${client.id}`)}
@@ -145,6 +167,11 @@ export default function ClientsManager() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <p className="font-display text-sm font-semibold text-foreground">{client.name}</p>
+                      {client.archived && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/30">
+                          Archivé
+                        </Badge>
+                      )}
                       {client.organization && (
                         <Badge variant="outline" className="text-[10px] text-muted-foreground">
                           {client.organization}
@@ -193,6 +220,14 @@ export default function ClientsManager() {
                     aria-label={`Modifier ${client.name}`}
                   >
                     <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => updateClient(client.id, { archived: !client.archived })}
+                    className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                    title={client.archived ? "Désarchiver" : "Archiver"}
+                    aria-label={`${client.archived ? "Désarchiver" : "Archiver"} ${client.name}`}
+                  >
+                    {client.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                   </button>
                   <button
                     onClick={() => deleteWithUndo(client)}

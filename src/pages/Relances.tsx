@@ -28,7 +28,7 @@ function RelanceRow({ item }: { item: RelanceItem }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           {item.ref && (
-            <span className="text-xs font-mono text-muted-foreground/60">{item.ref}</span>
+            <span className="text-xs tabular-nums text-muted-foreground/60">{item.ref}</span>
           )}
           <span className={cn("text-[10px] font-semibold px-1.5 py-0 rounded-full leading-relaxed", DAY_BADGE[item.tone])}>
             {item.days}j
@@ -88,7 +88,7 @@ export default function Relances() {
           </div>
           <h1 className="font-display text-3xl md:text-4xl font-bold leading-tight">À relancer</h1>
           <p className="font-body text-primary-foreground/65 mt-1 text-sm">
-            Argent à encaisser, devis en attente, clients à reprendre — au même endroit.
+            Argent à encaisser, devis en attente, clients à reprendre, au même endroit.
           </p>
         </div>
       </header>

@@ -47,7 +47,7 @@ export interface RelancesResult {
   toInvoice: RelanceItem[];
   /** Validated invoices past their échéance. */
   overdueInvoices: RelanceItem[];
-  /** Engaged-then-silent clients with no open thread. */
+  /** Engaged-then-silent clients with no open thread, archived ones excluded. */
   coldClients: RelanceItem[];
   /** Money the operator can act to collect now: to-invoice remaining + overdue. */
   atStake: number;
@@ -61,6 +61,8 @@ export interface RelanceClientLike {
   name: string;
   organization?: string;
   email?: string;
+  /** Archived clients are deliberately retired and never worth chasing. */
+  archived?: boolean;
 }
 
 /** Minimal project shape the engine needs (StoredProject satisfies it). */
@@ -190,6 +192,10 @@ export function computeRelances(
   }
 
   const coldClients: RelanceItem[] = clients
+    // A completed project does not retire a client — only in-progress counts as
+    // active below — so without this the list would keep proposing clients whose
+    // work is deliberately finished. Archiving is the explicit way out.
+    .filter((c) => !c.archived)
     .map((c) => {
       const cEmail = normalize(c.email);
       const cName = normalize(c.name);

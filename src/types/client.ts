@@ -8,5 +8,7 @@ export interface Client {
   notes?: string;
   /** Per-client hourly rate (CHF). Falls back to company default when null/undefined. */
   hourlyRate?: number | null;
+  /** Retired client: kept for history, but never proposed for follow-up again. */
+  archived?: boolean;
   createdAt: string;
 }

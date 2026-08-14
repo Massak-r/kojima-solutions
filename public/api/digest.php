@@ -186,13 +186,14 @@ try {
         pulse_hour TINYINT NOT NULL DEFAULT 8,
         quiet_start TINYINT NOT NULL DEFAULT 21,
         quiet_end TINYINT NOT NULL DEFAULT 8,
+        pulse_lead_days TINYINT NOT NULL DEFAULT 3,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS deadline_alerts (
         alert_key VARCHAR(191) NOT NULL PRIMARY KEY, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    $prefs = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8];
+    $prefs = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3];
     $row = $pdo->query("SELECT * FROM notification_prefs WHERE id = 1")->fetch();
     if ($row) $prefs = array_merge($prefs, $row);
 
@@ -205,6 +206,9 @@ try {
 
     if ((int)$prefs['admin_pulse_enabled'] === 1 && !$quietNow && $hour >= (int)$prefs['pulse_hour']) {
         $daysTo = fn(string $due) => (int)(new DateTime($locDate))->diff(new DateTime($due))->format('%r%a');
+        // How many days ahead an obligation starts being announced. Configurable
+        // because 3 days is far too late for anything needing a bank transfer.
+        $lead   = max(1, min(30, (int)($prefs['pulse_lead_days'] ?? 3)));
         $items  = []; // [label, days, link]
 
         // (a) Admin checklist subtasks not done this period (recurring reset monthly).
@@ -220,7 +224,7 @@ try {
             $due = adminPulseDue($s, $nowLocal);
             if ($due === null) continue;
             $days = $daysTo($due);
-            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days, 'link' => '/documents'];
+            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days, 'link' => '/documents'];
         }
 
         // (b) Payables (pending/scheduled) with a due date, whatever the account.
@@ -234,7 +238,7 @@ try {
               AND p.commitment = 'committed'
               AND p.due_date IS NOT NULL")->fetchAll() as $p) {
             $days = $daysTo(substr((string)$p['due_date'], 0, 10));
-            if ($days <= 3 && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days, 'link' => '/tresorerie'];
+            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days, 'link' => '/tresorerie'];
         }
 
         if (!empty($items)) {

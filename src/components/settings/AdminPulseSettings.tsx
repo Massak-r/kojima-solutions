@@ -107,6 +107,27 @@ export function AdminPulseSettings() {
 
         <div className="flex items-center justify-between gap-4">
           <div>
+            <p className="text-sm font-body font-medium text-foreground">Prévenir à l'avance</p>
+            <p className="text-xs font-body text-muted-foreground/60">
+              Combien de jours avant l'échéance une facture commence à être annoncée.
+            </p>
+          </div>
+          <select
+            className={selectCls}
+            value={p?.pulseLeadDays ?? 3}
+            disabled={!p}
+            onChange={(e) => save({ pulseLeadDays: Number(e.target.value) })}
+          >
+            {[3, 5, 7, 10, 14, 21, 30].map((d) => (
+              <option key={d} value={d}>{d} jours</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="h-px bg-border/30" />
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
             <p className="text-sm font-body font-medium text-foreground">Heures silencieuses</p>
             <p className="text-xs font-body text-muted-foreground/60">
               Aucune notification poussée pendant cette plage (elles partent après).
