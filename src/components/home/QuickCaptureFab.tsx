@@ -110,9 +110,28 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
     setListening(false);
   }
 
-  function startDictation() {
+  async function startDictation() {
     const SR = getSpeechRecognition();
     if (!SR) return;
+
+    // SpeechRecognition n'ouvre pas lui-même la demande d'autorisation dans une
+    // PWA installée : Chrome échoue directement en « not-allowed », d'où un
+    // message qui demandait d'autoriser un micro que rien ne proposait jamais.
+    // getUserMedia, lui, déclenche bien la boîte de dialogue système ; on relâche
+    // la piste aussitôt et la dictée démarre sur une permission déjà accordée.
+    try {
+      const stream = await navigator.mediaDevices?.getUserMedia({ audio: true });
+      stream?.getTracks().forEach((t) => t.stop());
+    } catch {
+      toast({
+        title: "Micro refusé",
+        description:
+          "Autorise le micro pour Kojima (icône 🔒 dans la barre d'adresse, ou Réglages du téléphone → Applications → Kojima → Autorisations), puis réessaie.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const rec = new SR();
     rec.lang = "fr-FR";
     rec.interimResults = true;
@@ -131,7 +150,12 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
     };
     rec.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        toast({ title: "Micro indisponible", description: "Autorise l'accès au micro pour dicter.", variant: "destructive" });
+        toast({
+          title: "Micro indisponible",
+          description:
+            "Le micro est autorisé mais la dictée a été refusée — réessaie, ou vérifie les autorisations de Kojima dans les réglages du téléphone.",
+          variant: "destructive",
+        });
       }
       setListening(false);
       recRef.current = null;
@@ -305,7 +329,7 @@ export function QuickCaptureFab({ projectHint }: QuickCaptureFabProps) {
                   />
                   {srSupported && (
                     <button
-                      onClick={listening ? stopDictation : startDictation}
+                      onClick={listening ? stopDictation : () => void startDictation()}
                       className={cn(
                         "absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full transition-colors",
                         listening

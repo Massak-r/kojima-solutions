@@ -40,8 +40,11 @@ RewriteRule ^favicon\.ico$ /favicon.svg [L,T=image/svg+xml]
   Header always set X-Frame-Options "SAMEORIGIN"
   # Don't leak referrers across origins (only send same-origin path).
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
-  # Drop access to powerful APIs we don't use.
-  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+  # Drop access to powerful APIs we don't use. `microphone=(self)` and not `()` :
+  # la dictée de la capture rapide passe par le micro, et une politique fermée
+  # la faisait échouer en « not-allowed » sans jamais afficher de demande
+  # d'autorisation — l'app réclamait un accès que le navigateur refusait d'offrir.
+  Header always set Permissions-Policy "geolocation=(), microphone=(self), camera=(), payment=(), usb=()"
   # CSP: allow only same-origin + the inline scripts/styles the SPA needs.
   # `unsafe-inline` is unavoidable for Vite-injected runtime + Tailwind preflight,
   # but everything else (scripts, frames, connect targets) is locked down.

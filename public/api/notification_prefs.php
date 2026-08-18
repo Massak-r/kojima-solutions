@@ -11,27 +11,33 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS notification_prefs (
     quiet_start TINYINT NOT NULL DEFAULT 21,
     quiet_end TINYINT NOT NULL DEFAULT 8,
     pulse_lead_days TINYINT NOT NULL DEFAULT 3,
+    pulse_style VARCHAR(16) NOT NULL DEFAULT 'digest',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-// Auto-migration (2026-08-14): the lead time used to be hardcoded to 3 days in
+// Auto-migrations. (2026-08-14) the lead time used to be hardcoded to 3 days in
 // digest.php, which is far too late for an invoice that needs a transfer.
+// (2026-08-18) pulse_style chooses between one grouped push and one per item.
 try {
     $cols = $pdo->query('SHOW COLUMNS FROM notification_prefs')->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('pulse_lead_days', $cols)) {
         $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN pulse_lead_days TINYINT NOT NULL DEFAULT 3");
     }
+    if (!in_array('pulse_style', $cols)) {
+        $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN pulse_style VARCHAR(16) NOT NULL DEFAULT 'digest'");
+    }
 } catch (Throwable $e) {}
 
 function loadPrefs(PDO $pdo): array {
-    $row = $pdo->query("SELECT admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days FROM notification_prefs WHERE id = 1")->fetch();
-    if (!$row) $row = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3];
+    $row = $pdo->query("SELECT admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days, pulse_style FROM notification_prefs WHERE id = 1")->fetch();
+    if (!$row) $row = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3, 'pulse_style' => 'digest'];
     return [
         'adminPulseEnabled' => (bool)$row['admin_pulse_enabled'],
         'pulseHour'  => (int)$row['pulse_hour'],
         'quietStart' => (int)$row['quiet_start'],
         'quietEnd'   => (int)$row['quiet_end'],
         'pulseLeadDays' => (int)($row['pulse_lead_days'] ?? 3),
+        'pulseStyle' => ($row['pulse_style'] ?? 'digest') === 'per_task' ? 'per_task' : 'digest',
     ];
 }
 
@@ -50,13 +56,17 @@ if ($method === 'GET') {
     $lead       = array_key_exists('pulseLeadDays', $d) && is_numeric($d['pulseLeadDays'])
         ? max(1, min(30, (int)$d['pulseLeadDays']))
         : $cur['pulseLeadDays'];
-    $pdo->prepare("INSERT INTO notification_prefs (id, admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days)
-                   VALUES (1, ?, ?, ?, ?, ?)
+    $style      = array_key_exists('pulseStyle', $d)
+        ? ($d['pulseStyle'] === 'per_task' ? 'per_task' : 'digest')
+        : $cur['pulseStyle'];
+    $pdo->prepare("INSERT INTO notification_prefs (id, admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days, pulse_style)
+                   VALUES (1, ?, ?, ?, ?, ?, ?)
                    ON DUPLICATE KEY UPDATE admin_pulse_enabled = VALUES(admin_pulse_enabled),
                        pulse_hour = VALUES(pulse_hour), quiet_start = VALUES(quiet_start),
                        quiet_end = VALUES(quiet_end), pulse_lead_days = VALUES(pulse_lead_days),
+                       pulse_style = VALUES(pulse_style),
                        updated_at = NOW()")
-        ->execute([$enabled, $pulseHour, $quietStart, $quietEnd, $lead]);
+        ->execute([$enabled, $pulseHour, $quietStart, $quietEnd, $lead, $style]);
     ok(loadPrefs($pdo));
 } else {
     fail('Method not allowed', 405);

@@ -21,9 +21,11 @@ import { ForecastTab } from "@/components/tresorerie/ForecastTab";
 import { BankPasteTab } from "@/components/tresorerie/BankPasteTab";
 
 const TABS = [
+  // `short` : le libellé servi sous 640 px. « Prévisionnel » à lui seul mangeait
+  // la largeur qui manquait aux trois onglets pour tenir avec le bouton « Plus ».
   { value: "accounts",   label: "Comptes",       icon: Banknote },
   { value: "payables",   label: "À payer",       icon: CalendarClock },
-  { value: "forecast",   label: "Prévisionnel",  icon: TrendingUp },
+  { value: "forecast",   label: "Prévisionnel",  icon: TrendingUp, short: "Prévu" },
   { value: "ledger",     label: "Historique",    icon: History },
   { value: "budget",     label: "Budget",        icon: PiggyBank },
   { value: "tresorerie", label: "Plans",         icon: Wallet },
@@ -71,9 +73,19 @@ export default function Tresorerie() {
                 toujours à l'écran quelle que soit la largeur. */}
             <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
               <TabsList className="font-body w-max">
-                {shown.map(({ value, label, icon: Icon }) => (
-                  <TabsTrigger key={value} value={value} className="text-xs sm:text-sm flex items-center gap-1.5">
-                    <Icon size={13} /> {label}
+                {shown.map(({ value, label, icon: Icon, short }) => (
+                  <TabsTrigger
+                    key={value}
+                    value={value}
+                    className="text-xs sm:text-sm flex items-center gap-1.5 px-2 sm:px-3"
+                  >
+                    <Icon size={13} />
+                    {short ? (
+                      <>
+                        <span className="sm:hidden">{short}</span>
+                        <span className="hidden sm:inline">{label}</span>
+                      </>
+                    ) : label}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -86,14 +98,19 @@ export default function Tresorerie() {
                 aria-expanded={moreOpen}
                 aria-label={`Plus · ${secondary.length} autres sections`}
                 className={cn(
-                  "shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-body font-medium border transition-colors",
+                  "shrink-0 max-w-[45%] inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-body font-medium border transition-colors",
                   activeSecondary
                     ? "border-primary/40 bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:text-foreground",
                 )}
               >
                 {activeSecondary ? (
-                  <><activeSecondary.icon size={13} /> {activeSecondary.label}</>
+                  <>
+                    <activeSecondary.icon size={13} className="shrink-0" />
+                    {/* « Rapprochement » repoussait les onglets hors de l'écran
+                        dès qu'il devenait le libellé du bouton. */}
+                    <span className="truncate">{activeSecondary.label}</span>
+                  </>
                 ) : (
                   <><MoreHorizontal size={14} /> Plus</>
                 )}

@@ -96,7 +96,9 @@ export function SafeToSpendCard() {
             Ce que l'entreprise peut dépenser sans toucher aux provisions.
           </p>
         </div>
-        <div className="text-right">
+        {/* w-full quand ça passe à la ligne : sinon le montant, une fois replié
+            sous le titre, s'aligne à gauche et la carte perd son axe. */}
+        <div className="text-right w-full sm:w-auto">
           <div className={cn(
             "font-display text-3xl font-semibold tabular-nums leading-none",
             negative ? "text-destructive" : "text-palette-sage",
@@ -106,7 +108,12 @@ export function SafeToSpendCard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
+      {/* Trois colonnes sur un téléphone laissaient ~75 px par montant : au-delà
+          de mille francs, « CHF 19'694.87 » débordait de sa case et se
+          superposait à la voisine. En dessous de 640 px les trois deviennent des
+          lignes — libellé à gauche, montant à droite —, une forme qui ne peut
+          pas se chevaucher quelle que soit la somme. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:text-center">
         <Cell label="Solde entreprise" value={chf(m.balance)} />
         <Cell label="− Engagé sous 30j" value={chf(m.outflowsSoon)} />
         <Cell label="− À provisionner" value={chf(m.setAside.total)} tone={m.setAside.total > 0 ? "amber" : undefined} />
@@ -125,10 +132,10 @@ export function SafeToSpendCard() {
 
 function Cell({ label, value, tone }: { label: string; value: string; tone?: "amber" }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+    <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 sm:p-3 flex items-center justify-between gap-3 sm:block">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground sm:mb-1">{label}</div>
       <div className={cn(
-        "font-display text-sm sm:text-base font-semibold tabular-nums",
+        "font-display text-sm sm:text-base font-semibold tabular-nums whitespace-nowrap",
         tone === "amber" ? "text-palette-amber" : "text-foreground",
       )}>
         {value}

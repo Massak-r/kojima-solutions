@@ -19,6 +19,15 @@ if (defined('CRON_KEY') && CRON_KEY !== '' && $key !== CRON_KEY) {
     exit;
 }
 
+// ── Dry run: compose tomorrow's pulse without sending or claiming ─────
+// A pulse can only be observed once a day, at 8am, on a phone — a terrible loop
+// for checking that it says something useful. `?preview=pulse` returns exactly
+// what would be pushed, ignoring quiet hours and the once-a-day claim, and sends
+// nothing. Admin-only: the cron endpoint itself is open, and the body of a pulse
+// is the list of everything you owe.
+$previewPulse = (($_GET['preview'] ?? '') === 'pulse');
+if ($previewPulse) requireAdminSession();
+
 /** Effective due date (YYYY-MM-DD) for an admin checklist subtask, resolving a
  *  monthly recurrence to its next on/after-today occurrence. Null = no date
  *  (group headers, weekly/daily — not surfaced in the daily admin pulse). */
@@ -193,7 +202,13 @@ try {
         alert_key VARCHAR(191) NOT NULL PRIMARY KEY, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    $prefs = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3];
+    // 'digest' (one push naming what's next) vs 'per_task' (one push per item).
+    // Added here as well as in notification_prefs.php so the cron alone can bring
+    // an existing install up to date — it usually runs long before the settings
+    // screen is opened.
+    try { $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN pulse_style VARCHAR(16) NOT NULL DEFAULT 'digest'"); } catch (Throwable $e) {}
+
+    $prefs = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3, 'pulse_style' => 'digest'];
     $row = $pdo->query("SELECT * FROM notification_prefs WHERE id = 1")->fetch();
     if ($row) $prefs = array_merge($prefs, $row);
 
@@ -204,12 +219,12 @@ try {
     $qs = (int)$prefs['quiet_start']; $qe = (int)$prefs['quiet_end'];
     $quietNow = ($qs === $qe) ? false : (($qs < $qe) ? ($hour >= $qs && $hour < $qe) : ($hour >= $qs || $hour < $qe));
 
-    if ((int)$prefs['admin_pulse_enabled'] === 1 && !$quietNow && $hour >= (int)$prefs['pulse_hour']) {
+    if ($previewPulse || ((int)$prefs['admin_pulse_enabled'] === 1 && !$quietNow && $hour >= (int)$prefs['pulse_hour'])) {
         $daysTo = fn(string $due) => (int)(new DateTime($locDate))->diff(new DateTime($due))->format('%r%a');
         // How many days ahead an obligation starts being announced. Configurable
         // because 3 days is far too late for anything needing a bank transfer.
         $lead   = max(1, min(30, (int)($prefs['pulse_lead_days'] ?? 3)));
-        $items  = []; // [label, days, link]
+        $items  = []; // [label, days, link, kind]
 
         // (a) Admin checklist subtasks not done this period (recurring reset monthly).
         $objId = '96c0b590-8edf-45b2-a93f-9aff24c2ffd2';
@@ -224,7 +239,7 @@ try {
             $due = adminPulseDue($s, $nowLocal);
             if ($due === null) continue;
             $days = $daysTo($due);
-            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days, 'link' => '/documents'];
+            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$s['text'], 'days' => $days, 'link' => '/documents', 'kind' => 'admin'];
         }
 
         // (b) Payables (pending/scheduled) with a due date, whatever the account.
@@ -238,39 +253,127 @@ try {
               AND p.commitment = 'committed'
               AND p.due_date IS NOT NULL")->fetchAll() as $p) {
             $days = $daysTo(substr((string)$p['due_date'], 0, 10));
-            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days, 'link' => '/tresorerie'];
+            if ($days <= $lead && $days >= -60) $items[] = ['label' => (string)$p['label'], 'days' => $days, 'link' => '/tresorerie', 'kind' => 'money'];
+        }
+
+        // (c) Today's sprint — subtasks flagged for today, still open. The pulse
+        // read the Sàrl checklist and the payables only, so the one list the app
+        // itself calls « aujourd'hui » was the single thing that never reached
+        // the phone. Flagged for today means due today: days = 0.
+        foreach ($pdo->query("SELECT text FROM todo_subtasks
+            WHERE flagged_today = 1 AND completed = 0
+            ORDER BY sort_order ASC, created_at ASC")->fetchAll() as $s) {
+            $items[] = ['label' => (string)$s['text'], 'days' => 0, 'link' => '/jour', 'kind' => 'sprint'];
+        }
+
+        // Silence is a legitimate answer, and the preview has to be able to say so.
+        if ($previewPulse && empty($items)) {
+            ok([
+                'preview'  => true,
+                'count'    => 0,
+                'title'    => null,
+                'body'     => null,
+                'lines'    => [],
+                'enabled'  => (int)$prefs['admin_pulse_enabled'] === 1,
+                'nextHour' => (int)$prefs['pulse_hour'],
+            ]);
         }
 
         if (!empty($items)) {
+            // The same obligation can arrive twice (a checklist step that is also
+            // flagged for today). Keep the most urgent copy of each.
+            $byLabel = [];
+            foreach ($items as $it) {
+                $k = mb_strtolower(trim($it['label']));
+                if (!isset($byLabel[$k]) || $it['days'] < $byLabel[$k]['days']) $byLabel[$k] = $it;
+            }
+            $items = array_values($byLabel);
             usort($items, fn($a, $b) => $a['days'] <=> $b['days']);
+
+            // Then one domain at a time — aujourd'hui, argent, admin — instead of
+            // strict most-overdue-first. Sorted purely by lateness, a CHF 25
+            // electricity line that has been overdue for fifty-two days wins every
+            // morning and the day's actual work never appears: the fastest way to
+            // teach someone to swipe the notification away without reading it.
+            $queues = ['sprint' => [], 'money' => [], 'admin' => []];
+            foreach ($items as $it) $queues[$it['kind'] ?? 'admin'][] = $it;
+            $ordered = [];
+            while (array_filter($queues)) {
+                foreach ($queues as $k => $q) if ($q) $ordered[] = array_shift($queues[$k]);
+            }
+            $items = $ordered;
+
+            // One line per obligation, in the app's own language.
+            $line = function (array $it): string {
+                $label = mb_strlen($it['label']) > 70 ? mb_substr($it['label'], 0, 67) . '…' : $it['label'];
+                if ($it['days'] < 0)   return "⚠️ $label — en retard de " . abs($it['days']) . ' j';
+                if ($it['days'] === 0) return "$label — aujourd'hui";
+                return "$label — dans {$it['days']} j";
+            };
+
+            $count   = count($items);
+            $perTask = ($prefs['pulse_style'] ?? 'digest') === 'per_task';
+
+            if ($previewPulse) {
+                $digestTitle = $count === 1 ? 'Il te reste 1 chose' : "Il te reste $count choses";
+                $digestBody  = implode("\n", array_map($line, array_slice($items, 0, 3)));
+                if ($count > 3) $digestBody .= "\n+ " . ($count - 3) . ' autre' . ($count - 3 > 1 ? 's' : '');
+                ok([
+                    'preview'  => true,
+                    'style'    => $perTask ? 'per_task' : 'digest',
+                    'count'    => $count,
+                    'title'    => $perTask ? $line($items[0]) : $digestTitle,
+                    'body'     => $perTask ? 'Rappel du jour' : $digestBody,
+                    'lines'    => array_map($line, $items),
+                    'enabled'  => (int)$prefs['admin_pulse_enabled'] === 1,
+                    'nextHour' => (int)$prefs['pulse_hour'],
+                ]);
+            }
+
             // Claim once-per-day; only push if we win the claim.
             $claim = $pdo->prepare("INSERT IGNORE INTO deadline_alerts (alert_key) VALUES (?)");
             $claim->execute(['admin_pulse:' . $locDate]);
             if ($claim->rowCount() > 0 && file_exists(__DIR__ . '/push_send.php')) {
                 require_once __DIR__ . '/push_send.php';
-                $top   = $items[0];
-                $label = strlen($top['label']) > 80 ? substr($top['label'], 0, 77) . '…' : $top['label'];
-                $count = count($items);
-                // Finite framing, same language as the app: the countable number
-                // carries the title, and the body names the single next action.
-                // "+5 autres" tacked onto a warning read as a wall; "il te reste
-                // 6 choses" reads as something you can finish.
-                $title = $count === 1 ? 'Il te reste 1 chose' : "Il te reste $count choses";
-                if ($top['days'] < 0) {
-                    $body = "⚠️ $label — en retard de " . abs($top['days']) . " j";
-                } elseif ($top['days'] === 0) {
-                    $body = "$label — aujourd'hui";
+                $delivered = 0;
+                $error     = null;
+
+                if ($perTask) {
+                    // One notification per obligation: they stack in the tray and
+                    // get dismissed one at a time, which is what "une par tâche"
+                    // is for. Capped at five — past that a morning pulse stops
+                    // being a list and becomes a wall.
+                    foreach (array_slice($items, 0, 5) as $i => $it) {
+                        $rest = $count - 5;
+                        $sub  = ($rest > 0 && $i === 4) ? "+ $rest autre" . ($rest > 1 ? 's' : '') . ' à voir' : 'Rappel du jour';
+                        $res  = sendPushNotifications($pdo, $line($it), $sub, $it['link'] ?? '/jour');
+                        if (!empty($res['error'])) { $error = $res['error']; break; }
+                        $delivered += (int)($res['sent'] ?? 0);
+                    }
                 } else {
-                    $body = "$label — dans {$top['days']} j";
+                    // Finite framing, same language as the app: the countable number
+                    // carries the title, and the body names what's next. Three lines
+                    // rather than one — naming a single item hid everything behind it,
+                    // which is precisely how the day's tasks stayed invisible.
+                    $title = $count === 1 ? 'Il te reste 1 chose' : "Il te reste $count choses";
+                    $body  = implode("\n", array_map($line, array_slice($items, 0, 3)));
+                    if ($count > 3) $body .= "\n+ " . ($count - 3) . ' autre' . ($count - 3 > 1 ? 's' : '');
+                    $res       = sendPushNotifications($pdo, $title, $body, $items[0]['link'] ?? '/jour');
+                    $error     = $res['error'] ?? null;
+                    $delivered = (int)($res['sent'] ?? 0);
                 }
-                $res = sendPushNotifications($pdo, $title, $body, $top['link'] ?? '/documents');
-                $delivered    = (int)($res['sent'] ?? 0);
-                $pulseResults = ['sent' => $delivered > 0, 'delivered' => $delivered, 'count' => count($items)];
+
+                $pulseResults = [
+                    'sent'      => $delivered > 0,
+                    'delivered' => $delivered,
+                    'count'     => $count,
+                    'style'     => $perTask ? 'per_task' : 'digest',
+                ];
                 // Release the once-per-day claim when the send failed systemically,
                 // otherwise a misconfiguration silences the pulse until tomorrow and
                 // reads exactly like "nothing was due today".
-                if (!empty($res['error'])) {
-                    $pulseResults['error'] = $res['error'];
+                if ($error) {
+                    $pulseResults['error'] = $error;
                     $pdo->prepare("DELETE FROM deadline_alerts WHERE alert_key = ?")
                         ->execute(['admin_pulse:' . $locDate]);
                 }

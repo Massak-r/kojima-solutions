@@ -24,7 +24,12 @@ function sendPushNotifications(PDO $pdo, string $title, string $body, string $ur
 
     $subs = $pdo->query('SELECT * FROM push_subscriptions')->fetchAll();
     if (empty($subs)) {
-        return ['sent' => 0, 'failed' => 0, 'expired' => 0];
+        // Logged like any other attempt: "no phone is listening" is the single
+        // most likely reason a reminder never arrived, and it used to leave no
+        // trace at all.
+        $none = ['sent' => 0, 'failed' => 0, 'expired' => 0, 'codes' => ['no-subscription' => 1]];
+        logPushSend($pdo, $title, $body, $url, $none);
+        return $none;
     }
 
     $payload = json_encode([
@@ -56,7 +61,54 @@ function sendPushNotifications(PDO $pdo, string $title, string $body, string $ur
         }
     }
 
+    logPushSend($pdo, $title, $body, $url, $results);
+
     return $results;
+}
+
+/**
+ * Append one row per send to `push_log`.
+ *
+ * "When did the last push actually go out?" had no answer anywhere: the pulse
+ * left only a once-per-day claim in deadline_alerts, and a delivery that failed
+ * on every endpoint looked exactly like a day with nothing due. One append-only
+ * row per send makes the pipeline's history readable — and is what
+ * push_health.php reads back. Best-effort: a logging failure must never stop a
+ * notification from going out.
+ */
+function logPushSend(PDO $pdo, string $title, string $body, string $url, array $results): void {
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS push_log (
+            id         VARCHAR(36) NOT NULL PRIMARY KEY,
+            title      VARCHAR(255) NOT NULL,
+            body       TEXT NULL,
+            url        VARCHAR(512) NULL,
+            sent       INT NOT NULL DEFAULT 0,
+            failed     INT NOT NULL DEFAULT 0,
+            expired    INT NOT NULL DEFAULT 0,
+            codes      VARCHAR(191) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // push_send.php is include-only and can be pulled in before _bootstrap's
+        // uuid() exists, so keep a local fallback rather than fataling here.
+        $id = function_exists('uuid') ? uuid() : bin2hex(random_bytes(18));
+        $codes = json_encode($results['codes'] ?? [], JSON_UNESCAPED_SLASHES);
+
+        $pdo->prepare('INSERT INTO push_log (id, title, body, url, sent, failed, expired, codes)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([
+                $id,
+                mb_substr($title, 0, 255),
+                $body,
+                mb_substr($url, 0, 512),
+                (int)($results['sent'] ?? 0),
+                (int)($results['failed'] ?? 0),
+                (int)($results['expired'] ?? 0),
+                mb_substr((string)$codes, 0, 191),
+            ]);
+    } catch (Throwable $e) { /* logging is never worth a lost notification */ }
 }
 
 /**

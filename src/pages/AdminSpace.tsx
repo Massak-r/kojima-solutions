@@ -48,25 +48,35 @@ export default function AdminSpace() {
         <PendingDocsBanner className="mb-6" />
 
         <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview" className="font-body gap-1.5">
-              <Gauge size={14} /> Vue d'ensemble
-            </TabsTrigger>
-            <TabsTrigger value="triage" className="font-body gap-1.5">
-              <ScanLine size={14} /> À trier
-              {pendingCount > 0 && (
-                <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold inline-flex items-center justify-center leading-none">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="font-body gap-1.5">
-              <FileText size={14} /> Documents
-            </TabsTrigger>
-            <TabsTrigger value="registre" className="font-body gap-1.5">
-              <Archive size={14} /> Registre
-            </TabsTrigger>
-          </TabsList>
+          {/* Quatre onglets à taille desktop débordaient de l'écran d'un téléphone
+              sans rien pour défiler : « Registre » tombait hors cadre et devenait
+              introuvable. Libellés courts et retrait resserré sur mobile pour que
+              les quatre tiennent, plus un défilement de sécurité si jamais. */}
+          <div className="mb-6 -mx-4 px-4 overflow-x-auto scrollbar-hide sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="overview" className="font-body gap-1.5 px-2 sm:px-3 text-xs sm:text-sm">
+                <Gauge size={14} />
+                <span className="sm:hidden">Vue</span>
+                <span className="hidden sm:inline">Vue d'ensemble</span>
+              </TabsTrigger>
+              <TabsTrigger value="triage" className="font-body gap-1.5 px-2 sm:px-3 text-xs sm:text-sm">
+                <ScanLine size={14} /> À trier
+                {pendingCount > 0 && (
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold inline-flex items-center justify-center leading-none">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="font-body gap-1.5 px-2 sm:px-3 text-xs sm:text-sm">
+                <FileText size={14} />
+                <span className="sm:hidden">Docs</span>
+                <span className="hidden sm:inline">Documents</span>
+              </TabsTrigger>
+              <TabsTrigger value="registre" className="font-body gap-1.5 px-2 sm:px-3 text-xs sm:text-sm">
+                <Archive size={14} /> Registre
+              </TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent value="overview"><AdminOverviewTab onNavigateTab={(t) => changeTab(t)} /></TabsContent>
           <TabsContent value="triage"><TriageTab /></TabsContent>
           <TabsContent value="documents"><DocumentsTab defaultFolder={defaultFolder} /></TabsContent>
