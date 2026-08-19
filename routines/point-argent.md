@@ -109,7 +109,9 @@ Contraintes de rédaction, non négociables :
 ## Étape 5 — livrer
 
 Une ligne poussée, seulement si « en jeu » dépasse zéro ou si une facture est
-échue depuis plus de 30 jours :
+échue depuis plus de 30 jours. Elle parle de ce qu'on **encaisse**, jamais des
+sorties : les grosses sorties ont déjà leur propre alerte automatique, et le
+répéter ici ferait sonner le téléphone deux fois pour une seule facture.
 
 > `4 850 CHF en jeu · Anne Rist échue depuis 31 j · 2 devis sans réponse`
 

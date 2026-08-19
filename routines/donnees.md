@@ -43,7 +43,7 @@ Pas de clé, pas de brief : on s'arrête et on le dit. Voir règle 3 du README.
 | `admin_deadlines.php` | Échéances admin et fiscales, triées `completed ASC, due_date ASC`. |
 | `admin_docs.php` | Documents classés (factures fournisseurs, contrats, assurances). |
 | `notifications.php?limit=50` | File de notifications in-app. |
-| `push_reminders.php?status=upcoming` | Rappels poussés programmés, pas encore partis. |
+| `push_reminders.php?status=upcoming` | Rappels poussés programmés, pas encore partis. `source_type` renseigné = alerte posée automatiquement (voir plus bas), `null` = créé à la main. |
 | `project_profitability.php?project_id=<id>` | Rentabilité d'un projet. |
 | `renewals.php` | Renouvellements (vide aujourd'hui). |
 | `quotes.php` | **Tous** les devis et factures. `?project_id=<id>` pour un projet, `?id=<id>` pour un document. |
@@ -158,6 +158,22 @@ confiance dans tout le dispositif.
 
 Interdit sans demande explicite : flagger ou déflagger, créer ou terminer une
 sous-tâche, modifier un devis, marquer un payable payé, envoyer un email.
+
+## Les alertes de paiement sont déjà prises en charge
+
+Depuis le 19.08.2026, le serveur pose lui-même une notification dédiée par
+grosse sortie d'argent : une à J-lead (« à préparer »), une le jour même
+(« à payer »). Elles se retirent seules quand la ligne passe en payé ou annulé,
+et une échéance admin doublonnée par un payable est écartée au profit de ce
+dernier, qui porte le montant.
+
+**Une routine n'a donc pas à annoncer les gros paiements dans sa ligne poussée.**
+Le faire produirait deux notifications pour la même chose, et c'est exactement
+ce que ce dispositif cherche à éviter. Le point argent peut les mentionner dans
+son texte long — c'est un récapitulatif, pas une alerte.
+
+Réglable dans Réglages → Pulse admin : activation, seuil en CHF, délai de
+préparation.
 
 ## Dates et fuseau
 

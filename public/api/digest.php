@@ -46,6 +46,192 @@ function adminPulseDue(array $s, DateTime $today): ?string {
     return null;
 }
 
+// ── Alertes de paiement dédiées ──────────────────────────────
+// Le pulse quotidien met tout sur le même plan : une facture d'électricité de
+// 25 CHF y voisine avec un acompte d'impôts de 3 000 CHF, et le plafond de cinq
+// items peut évincer le second. Une grosse sortie mérite sa propre notification,
+// à son propre rythme : une à J-lead pour préparer le virement, une le jour même.
+//
+// Ces alertes vivent dans push_reminders — donc dans Réglages → Rappels, listées
+// et supprimables une par une — et se retirent toutes seules dès que la ligne
+// passe en payé ou annulé. Aucun nouvel étage : la provenance (source_type,
+// source_id, source_slot) suffit à les reconnaître et à les réconcilier.
+//
+// Règle qui évite le pire : on ne rattrape jamais le passé. Un créneau déjà
+// écoulé au moment de la synchro ne déclenche rien. Sans ça, activer la fonction
+// un matin ferait tomber dix notifications d'un coup, ce qui n'apprend qu'une
+// chose : les balayer sans les lire.
+$payAlertResults = ['created' => 0, 'cancelled' => 0];
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS deadline_alerts (
+        alert_key VARCHAR(191) NOT NULL PRIMARY KEY, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS push_reminders (
+        id VARCHAR(36) PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NULL,
+        url VARCHAR(512) NOT NULL DEFAULT '/home', scheduled_at DATETIME NOT NULL,
+        sent_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_due (sent_at, scheduled_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // Créée ici aussi : le bloc pulse plus bas la crée déjà, mais il s'exécute
+    // après, et les préférences seraient ignorées au tout premier passage.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS notification_prefs (
+        id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+        admin_pulse_enabled TINYINT NOT NULL DEFAULT 1,
+        pulse_hour TINYINT NOT NULL DEFAULT 8,
+        quiet_start TINYINT NOT NULL DEFAULT 21,
+        quiet_end TINYINT NOT NULL DEFAULT 8,
+        pulse_lead_days TINYINT NOT NULL DEFAULT 3,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    foreach ([
+        "ALTER TABLE push_reminders ADD COLUMN source_type VARCHAR(32) NULL",
+        "ALTER TABLE push_reminders ADD COLUMN source_id VARCHAR(36) NULL",
+        "ALTER TABLE push_reminders ADD COLUMN source_slot VARCHAR(16) NULL",
+        "CREATE UNIQUE INDEX uniq_reminder_source ON push_reminders (source_type, source_id, source_slot)",
+        "ALTER TABLE notification_prefs ADD COLUMN payment_alert_enabled TINYINT NOT NULL DEFAULT 1",
+        "ALTER TABLE notification_prefs ADD COLUMN payment_alert_min_amount INT NOT NULL DEFAULT 300",
+        "ALTER TABLE notification_prefs ADD COLUMN payment_alert_lead_days TINYINT NOT NULL DEFAULT 7",
+    ] as $ddl) { try { $pdo->exec($ddl); } catch (Throwable $e) { /* déjà en place */ } }
+
+    $pa = ['payment_alert_enabled' => 1, 'payment_alert_min_amount' => 300, 'payment_alert_lead_days' => 7];
+    try {
+        $row = $pdo->query("SELECT * FROM notification_prefs WHERE id = 1")->fetch();
+        if ($row) $pa = array_merge($pa, array_intersect_key($row, $pa));
+    } catch (Throwable $e) {}
+
+    $tz    = new DateTimeZone('Europe/Zurich');
+    $now   = new DateTime('now', $tz);
+    $utc   = function (DateTime $d): string { $c = clone $d; $c->setTimezone(new DateTimeZone('UTC')); return $c->format('Y-m-d H:i:s'); };
+    $slot  = function (string $date, int $minusDays) use ($tz): DateTime {
+        $d = new DateTime($date . ' 08:00:00', $tz);
+        if ($minusDays > 0) $d->modify('-' . $minusDays . ' days');
+        return $d;
+    };
+    $short = fn(string $s) => mb_strlen($s) > 60 ? mb_substr($s, 0, 57) . '…' : $s;
+
+    // Une même obligation existe souvent deux fois : la sortie d'argent dans la
+    // trésorerie et l'échéance dans le Centre admin. Sans rapprochement, l'OCAS
+    // envoie quatre notifications pour une seule chose à faire — le meilleur
+    // moyen d'apprendre à les ignorer. On compare le libellé nettoyé à date
+    // d'échéance égale : c'est assez strict pour ne pas fusionner deux
+    // obligations distinctes, assez souple pour reconnaître « OCAS - cotisations
+    // sociales 2025 » et « OCAS - cotisations sociales 2025 (1 146 CHF) ».
+    $norm = function (string $s): string {
+        $s = mb_strtolower($s);
+        $s = preg_replace('/\([^)]*\)/u', ' ', $s);
+        $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s);
+        return trim(preg_replace('/\s+/u', ' ', $s));
+    };
+    $payableByDue = [];   // 'YYYY-MM-DD' => [libellés normalisés]
+
+    // Horizon : au-delà, l'alerte n'aide personne et transforme la liste des
+    // rappels en mur. Une échéance lointaine y entrera d'elle-même le jour où
+    // elle passe la barre — la synchro tourne toutes les heures.
+    $horizon = (clone $now)->modify('+120 days')->format('Y-m-d');
+
+    $wanted = [];   // "type:id:slot" => [title, body, url, at]
+
+    if ((int)$pa['payment_alert_enabled'] === 1) {
+        $minAmount = max(0, (int)$pa['payment_alert_min_amount']);
+        $lead      = max(1, min(60, (int)$pa['payment_alert_lead_days']));
+
+        // (a) Sorties engagées avec une échéance et un montant qui compte.
+        // Les forecast restent dehors : une projection ne se paie pas.
+        try {
+            $st = $pdo->prepare("SELECT id, label, amount, currency, due_date FROM payables
+                                 WHERE direction = 'out' AND status IN ('pending','scheduled')
+                                   AND commitment = 'committed' AND due_date IS NOT NULL
+                                   AND amount >= ?");
+            $st->execute([$minAmount]);
+            foreach ($st->fetchAll() as $p) {
+                $due  = substr((string)$p['due_date'], 0, 10);
+                if ($due > $horizon) continue;
+                $cur  = $p['currency'] ?: 'CHF';
+                $amt  = number_format((float)$p['amount'], 2, '.', "'");
+                $amt  = str_ends_with($amt, '.00') ? substr($amt, 0, -3) : $amt;
+                $lbl  = $short((string)$p['label']);
+                $when = (new DateTime($due))->format('d.m');
+                $payableByDue[$due][] = $norm((string)$p['label']);
+                $wanted['payable:' . $p['id'] . ':lead'] = [
+                    'title' => "À préparer : $lbl - $amt $cur le $when",
+                    'body'  => 'Virement à anticiper.',
+                    'url'   => '/tresorerie',
+                    'at'    => $slot($due, $lead),
+                ];
+                $wanted['payable:' . $p['id'] . ':due'] = [
+                    'title' => "À payer aujourd'hui : $lbl - $amt $cur",
+                    'body'  => "Échéance du $when.",
+                    'url'   => '/tresorerie',
+                    'at'    => $slot($due, 0),
+                ];
+            }
+        } catch (Throwable $e) {}
+
+        // (b) Échéances admin non terminées. Leur fenêtre d'alerte est déjà dans
+        // la donnée (remind_days) : on la respecte au lieu d'imposer la nôtre.
+        try {
+            foreach ($pdo->query("SELECT id, title, due_date, remind_days FROM admin_deadlines WHERE completed = 0")->fetchAll() as $d) {
+                $due  = substr((string)$d['due_date'], 0, 10);
+                if ($due > $horizon) continue;
+                $nt   = $norm((string)$d['title']);
+                $seen = false;
+                foreach ($payableByDue[$due] ?? [] as $np) {
+                    if ($np !== '' && ($np === $nt || str_contains($nt, $np) || str_contains($np, $nt))) { $seen = true; break; }
+                }
+                if ($seen) continue;   // la trésorerie porte déjà le montant, elle gagne
+                $rd   = max(1, min(90, (int)$d['remind_days']));
+                $lbl  = $short((string)$d['title']);
+                $when = (new DateTime($due))->format('d.m');
+                $wanted['deadline:' . $d['id'] . ':lead'] = [
+                    'title' => "À préparer : $lbl - échéance le $when",
+                    'body'  => "Dans $rd jours.",
+                    'url'   => '/admin',
+                    'at'    => $slot($due, $rd),
+                ];
+                $wanted['deadline:' . $d['id'] . ':due'] = [
+                    'title' => "Échéance aujourd'hui : $lbl",
+                    'body'  => 'Dernier jour.',
+                    'url'   => '/admin',
+                    'at'    => $slot($due, 0),
+                ];
+            }
+        } catch (Throwable $e) {}
+    }
+
+    // Pas de rattrapage, et pas de résurrection de ce qui a été écarté à la main.
+    foreach ($wanted as $k => $w) { if ($w['at'] <= $now) unset($wanted[$k]); }
+    try {
+        foreach ($pdo->query("SELECT alert_key FROM deadline_alerts WHERE alert_key LIKE 'payalert_off:%'")->fetchAll(PDO::FETCH_COLUMN) as $key) {
+            unset($wanted[substr($key, 13)]);
+        }
+    } catch (Throwable $e) {}
+
+    // Réconciliation : ce qui n'est plus voulu (réglé, annulé, date déplacée)
+    // disparaît, ce qui manque est posé. Les rappels envoyés ne bougent pas.
+    $existing = [];
+    foreach ($pdo->query("SELECT id, source_type, source_id, source_slot, scheduled_at
+                          FROM push_reminders
+                          WHERE sent_at IS NULL AND source_type IS NOT NULL")->fetchAll() as $r) {
+        $existing[$r['source_type'] . ':' . $r['source_id'] . ':' . $r['source_slot']] = $r;
+    }
+    $del = $pdo->prepare("DELETE FROM push_reminders WHERE id = ?");
+    foreach ($existing as $k => $r) {
+        if (isset($wanted[$k]) && $utc($wanted[$k]['at']) === substr((string)$r['scheduled_at'], 0, 19)) continue;
+        $del->execute([$r['id']]);
+        $payAlertResults['cancelled']++;
+        unset($existing[$k]);
+    }
+    $ins = $pdo->prepare("INSERT IGNORE INTO push_reminders
+        (id, title, body, url, scheduled_at, source_type, source_id, source_slot)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    foreach ($wanted as $k => $w) {
+        if (isset($existing[$k])) continue;
+        [$type, $sid, $sslot] = explode(':', $k, 3);
+        $ins->execute([uuid(), mb_substr($w['title'], 0, 255), $w['body'], $w['url'], $utc($w['at']), $type, $sid, $sslot]);
+        $payAlertResults['created'] += $ins->rowCount();
+    }
+} catch (Throwable $e) { $payAlertResults['error'] = $e->getMessage(); }
+
 // ── Scheduled push reminders due now ─────────────────────────
 // Fires any reminder whose scheduled_at has passed, reusing the web-push path.
 // Runs before the notifications early-return so reminders go out even when
@@ -387,7 +573,7 @@ $stmt    = $pdo->query('SELECT * FROM notifications WHERE sent = 0 ORDER BY crea
 $pending = $stmt->fetchAll();
 
 if (empty($pending)) {
-    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults, 'deadlines' => $deadlineResults, 'pulse' => $pulseResults]);
+    ok(['sent' => false, 'reason' => 'No pending notifications', 'reminders' => $reminderResults, 'snooze' => $snoozeResults, 'deadlines' => $deadlineResults, 'pulse' => $pulseResults, 'payAlerts' => $payAlertResults]);
 }
 
 $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'chraiti.massaki@gmail.com';

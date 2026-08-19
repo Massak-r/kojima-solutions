@@ -26,11 +26,27 @@ try {
     if (!in_array('pulse_style', $cols)) {
         $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN pulse_style VARCHAR(16) NOT NULL DEFAULT 'digest'");
     }
+    // (2026-08-19) alertes de paiement dédiées : les grosses sorties sortent du
+    // pulse et reçoivent leur propre notification, à J-lead puis le jour même.
+    if (!in_array('payment_alert_enabled', $cols)) {
+        $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN payment_alert_enabled TINYINT NOT NULL DEFAULT 1");
+    }
+    if (!in_array('payment_alert_min_amount', $cols)) {
+        $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN payment_alert_min_amount INT NOT NULL DEFAULT 300");
+    }
+    if (!in_array('payment_alert_lead_days', $cols)) {
+        $pdo->exec("ALTER TABLE notification_prefs ADD COLUMN payment_alert_lead_days TINYINT NOT NULL DEFAULT 7");
+    }
 } catch (Throwable $e) {}
 
 function loadPrefs(PDO $pdo): array {
-    $row = $pdo->query("SELECT admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days, pulse_style FROM notification_prefs WHERE id = 1")->fetch();
-    if (!$row) $row = ['admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8, 'pulse_lead_days' => 3, 'pulse_style' => 'digest'];
+    $defaults = [
+        'admin_pulse_enabled' => 1, 'pulse_hour' => 8, 'quiet_start' => 21, 'quiet_end' => 8,
+        'pulse_lead_days' => 3, 'pulse_style' => 'digest',
+        'payment_alert_enabled' => 1, 'payment_alert_min_amount' => 300, 'payment_alert_lead_days' => 7,
+    ];
+    $row = $pdo->query("SELECT * FROM notification_prefs WHERE id = 1")->fetch();
+    $row = $row ? array_merge($defaults, array_intersect_key($row, $defaults)) : $defaults;
     return [
         'adminPulseEnabled' => (bool)$row['admin_pulse_enabled'],
         'pulseHour'  => (int)$row['pulse_hour'],
@@ -38,6 +54,9 @@ function loadPrefs(PDO $pdo): array {
         'quietEnd'   => (int)$row['quiet_end'],
         'pulseLeadDays' => (int)($row['pulse_lead_days'] ?? 3),
         'pulseStyle' => ($row['pulse_style'] ?? 'digest') === 'per_task' ? 'per_task' : 'digest',
+        'paymentAlertEnabled'   => (bool)($row['payment_alert_enabled'] ?? 1),
+        'paymentAlertMinAmount' => (int)($row['payment_alert_min_amount'] ?? 300),
+        'paymentAlertLeadDays'  => (int)($row['payment_alert_lead_days'] ?? 7),
     ];
 }
 
@@ -59,14 +78,27 @@ if ($method === 'GET') {
     $style      = array_key_exists('pulseStyle', $d)
         ? ($d['pulseStyle'] === 'per_task' ? 'per_task' : 'digest')
         : $cur['pulseStyle'];
-    $pdo->prepare("INSERT INTO notification_prefs (id, admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days, pulse_style)
-                   VALUES (1, ?, ?, ?, ?, ?, ?)
+    $payOn      = array_key_exists('paymentAlertEnabled', $d) ? (int)(bool)$d['paymentAlertEnabled'] : (int)$cur['paymentAlertEnabled'];
+    // Seuil borné à 100'000 : au-delà on ne filtre plus rien, on éteint. Le 0 est
+    // permis et veut dire « toutes les sorties engagées », ce qui est un choix,
+    // pas une erreur de saisie.
+    $payMin     = array_key_exists('paymentAlertMinAmount', $d) && is_numeric($d['paymentAlertMinAmount'])
+        ? max(0, min(100000, (int)$d['paymentAlertMinAmount']))
+        : $cur['paymentAlertMinAmount'];
+    $payLead    = array_key_exists('paymentAlertLeadDays', $d) && is_numeric($d['paymentAlertLeadDays'])
+        ? max(1, min(60, (int)$d['paymentAlertLeadDays']))
+        : $cur['paymentAlertLeadDays'];
+    $pdo->prepare("INSERT INTO notification_prefs (id, admin_pulse_enabled, pulse_hour, quiet_start, quiet_end, pulse_lead_days, pulse_style, payment_alert_enabled, payment_alert_min_amount, payment_alert_lead_days)
+                   VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON DUPLICATE KEY UPDATE admin_pulse_enabled = VALUES(admin_pulse_enabled),
                        pulse_hour = VALUES(pulse_hour), quiet_start = VALUES(quiet_start),
                        quiet_end = VALUES(quiet_end), pulse_lead_days = VALUES(pulse_lead_days),
                        pulse_style = VALUES(pulse_style),
+                       payment_alert_enabled = VALUES(payment_alert_enabled),
+                       payment_alert_min_amount = VALUES(payment_alert_min_amount),
+                       payment_alert_lead_days = VALUES(payment_alert_lead_days),
                        updated_at = NOW()")
-        ->execute([$enabled, $pulseHour, $quietStart, $quietEnd, $lead, $style]);
+        ->execute([$enabled, $pulseHour, $quietStart, $quietEnd, $lead, $style, $payOn, $payMin, $payLead]);
     ok(loadPrefs($pdo));
 } else {
     fail('Method not allowed', 405);

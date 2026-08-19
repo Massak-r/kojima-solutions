@@ -12,6 +12,12 @@ export interface NotificationPrefs {
   pulseLeadDays: number;
   /** `digest` = one grouped push; `per_task` = one push per obligation (max 5). */
   pulseStyle: "digest" | "per_task";
+  /** Dedicated push for a big outgoing payment, outside the pulse's 5-item cap. */
+  paymentAlertEnabled: boolean;
+  /** CHF floor above which a payable earns its own alert. 0 = every committed one. */
+  paymentAlertMinAmount: number;
+  /** Days before the due date the "à préparer" alert fires. */
+  paymentAlertLeadDays: number;
 }
 
 export function getNotificationPrefs() {

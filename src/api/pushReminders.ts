@@ -8,6 +8,11 @@ export interface PushReminder {
   scheduled_at: string;
   sent_at: string | null;
   created_at: string;
+  /** `payable` / `deadline` when the alert was posted automatically, else null. */
+  source_type: string | null;
+  source_id: string | null;
+  /** `lead` (à préparer) or `due` (le jour même). */
+  source_slot: string | null;
 }
 
 /** Upcoming (not-yet-sent) reminders by default, soonest first. */

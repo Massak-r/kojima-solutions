@@ -249,6 +249,66 @@ export function AdminPulseSettings() {
 
         <div className="h-px bg-border/30" />
 
+        {/* Gros paiements — hors du pulse, donc jamais évincés par son plafond. */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-body font-medium text-foreground">Alertes gros paiements</p>
+            <p className="text-xs font-body text-muted-foreground/60">
+              Une notification dédiée par grosse sortie : une pour préparer le virement, une le jour
+              même. Elle disparaît dès que la ligne est réglée.
+            </p>
+          </div>
+          <Switch
+            checked={p?.paymentAlertEnabled ?? true}
+            onCheckedChange={(v) => save({ paymentAlertEnabled: v })}
+            disabled={!p}
+          />
+        </div>
+
+        {p?.paymentAlertEnabled !== false && (
+          <>
+            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/40">
+              <div>
+                <p className="text-sm font-body font-medium text-foreground">À partir de</p>
+                <p className="text-xs font-body text-muted-foreground/60">
+                  En dessous, la sortie reste dans le rappel groupé.
+                </p>
+              </div>
+              <select
+                className={selectCls}
+                value={p?.paymentAlertMinAmount ?? 300}
+                disabled={!p}
+                onChange={(e) => save({ paymentAlertMinAmount: Number(e.target.value) })}
+              >
+                {[0, 100, 200, 300, 500, 1000, 2000, 5000].map((a) => (
+                  <option key={a} value={a}>{a === 0 ? "toutes" : `${a} CHF`}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/40">
+              <div>
+                <p className="text-sm font-body font-medium text-foreground">Préparer le virement</p>
+                <p className="text-xs font-body text-muted-foreground/60">
+                  Combien de jours avant l'échéance part la première alerte.
+                </p>
+              </div>
+              <select
+                className={selectCls}
+                value={p?.paymentAlertLeadDays ?? 7}
+                disabled={!p}
+                onChange={(e) => save({ paymentAlertLeadDays: Number(e.target.value) })}
+              >
+                {[3, 5, 7, 10, 14, 21, 30].map((d) => (
+                  <option key={d} value={d}>{d} jours</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        <div className="h-px bg-border/30" />
+
         {/* Aperçu — composé par le serveur, avec le code qui envoie réellement. */}
         <div>
           <p className="text-sm font-body font-medium text-foreground">Prochain rappel</p>

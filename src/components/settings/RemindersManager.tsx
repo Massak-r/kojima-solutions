@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, BellRing, Plus, Trash2, Loader2 } from "lucide-react";
+import { CalendarClock, BellRing, Plus, Trash2, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,15 @@ function formatWhen(utc: string): string {
   return new Intl.DateTimeFormat("fr-CH", {
     weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
   }).format(d);
+}
+
+/** Why an alert is there, in one word. Posted automatically by the payment-alert
+ *  sync, so the delete button needs to read as "je l'écarte", not "je casse un
+ *  réglage" — and an écarté ne revient pas : la suppression pose une pierre
+ *  tombale côté serveur. */
+function sourceLabel(r: PushReminder): string {
+  const what = r.source_type === "deadline" ? "échéance admin" : "paiement";
+  return r.source_slot === "due" ? `${what}, le jour même` : `${what}, à préparer`;
 }
 
 /** datetime-local min = now (local wall clock). */
@@ -112,10 +121,17 @@ export function RemindersManager() {
           <ul className="divide-y divide-border/30">
             {items.map((r) => (
               <li key={r.id} className="flex items-center gap-3 py-2.5">
-                <BellRing size={14} className="text-accent shrink-0" />
+                {r.source_type ? (
+                  <Wallet size={14} className="text-amber-500 shrink-0" />
+                ) : (
+                  <BellRing size={14} className="text-accent shrink-0" />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-body font-medium text-foreground/90 truncate">{r.title}</p>
-                  <p className="text-[11px] font-body text-muted-foreground/70 tabular-nums">{formatWhen(r.scheduled_at)}</p>
+                  <p className="text-[11px] font-body text-muted-foreground/70">
+                    <span className="tabular-nums">{formatWhen(r.scheduled_at)}</span>
+                    {r.source_type && <span className="ml-1.5">· {sourceLabel(r)}</span>}
+                  </p>
                 </div>
                 <button
                   onClick={() => remove.mutate(r.id)}
