@@ -12,43 +12,40 @@ implicite. **Tout ce qui lui manque est ici.**
 
 ## Le prompt d'une routine
 
-Il tient en deux lignes. Il ne décrit pas le travail, il pointe ici :
+Une routine planifiée démarre dans un conteneur **vide** : ni dépôt monté, ni
+mémoire, ni MCP. Constaté le 19.08.2026 — `/home/user` vide, aucun `routines/`
+nulle part. Le prompt commence donc par aller chercher son propre mode d'emploi.
 
 ```
 Tu es l'assistant d'organisation de Massaki (Kojima Solutions).
-Lis ~/routines/README.md, ~/routines/contexte.md et ~/routines/donnees.md,
-puis exécute ~/routines/brief-quotidien.md.
+
+Le dépôt n'est pas monté dans cet environnement. Récupère d'abord ton mode
+d'emploi, il est public :
+
+mkdir -p ~/routines/lib && for f in contexte.md donnees.md brief-quotidien.md lib/kojima.sh; do curl -fsSL "https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/$f" -o ~/routines/"$f" || echo "ECHEC: $f"; done
+
+Si un fichier manque, dis-le et arrête-toi : sans mode d'emploi, pas de brief.
+
+Lis ensuite ~/routines/contexte.md et ~/routines/donnees.md, puis exécute
+~/routines/brief-quotidien.md.
 ```
 
-Remplacer le dernier fichier selon la routine voulue. Rien d'autre à écrire
-dans le prompt : si une consigne mérite d'être répétée à chaque exécution,
-c'est qu'elle a sa place dans un fichier de ce dossier, pas dans le prompt.
+Pour une autre routine, remplacer `brief-quotidien.md` aux deux endroits.
+Rien d'autre à écrire dans le prompt : une consigne qui mérite d'être répétée à
+chaque exécution a sa place dans un fichier du pack, pas dans le prompt.
 
-### Où la routine trouve ces fichiers
-
-Un environnement cloud n'a **pas** de dépôt attaché : constaté le 19.08.2026,
-`/home/user` vide, aucun clone nulle part sur le système. Le conteneur tourne
-chez Anthropic et n'a évidemment aucun accès à la machine de Massaki.
-
-Le script de démarrage (`lib/setup.sh`) résout ça : il télécharge le pack depuis
-le dépôt public dans `~/routines`. La routine lit donc de vrais fichiers, avec
-les outils habituels, sans avoir à deviner une URL.
-
-C'est le chemin qu'utilise le prompt ci-dessus.
-
-Si le dépôt *est* monté, `setup.sh` le détecte et ne télécharge rien : le pack
-du dépôt fait foi, et la routine lit `routines/` depuis la racine du dépôt.
-Le script annonce le chemin retenu à chaque démarrage.
-
-En dernier recours, les fichiers restent lisibles en HTTP :
-`https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/<fichier>.md`
+**Ni dépôt attaché ni connecteur Google Drive ne sont nécessaires.** Un agent
+qui ne trouve pas ses fichiers a tendance à réclamer l'un ou l'autre — c'est une
+fausse piste : le dépôt est public, `curl` suffit. Attacher le dépôt reste plus
+propre si la plateforme le permet, et `lib/setup.sh` le détecte alors tout seul.
 
 Ces fichiers ne contiennent aucun secret — c'est une contrainte de conception,
 pas un hasard, et elle doit le rester : les clés arrivent par l'environnement
 de la routine, jamais par le dépôt.
 
 **Si tu ajoutes un fichier au pack**, ajoute-le à la liste `FILES` de
-`lib/setup.sh`, sinon il n'atterrira jamais dans le conteneur.
+`lib/setup.sh` et à la boucle ci-dessus, sinon il n'atterrira jamais dans le
+conteneur.
 
 ## Ce qu'il faut fournir à la routine
 
