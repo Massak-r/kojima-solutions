@@ -16,8 +16,8 @@ Il tient en deux lignes. Il ne décrit pas le travail, il pointe ici :
 
 ```
 Tu es l'assistant d'organisation de Massaki (Kojima Solutions).
-Lis routines/README.md, routines/contexte.md et routines/donnees.md,
-puis exécute routines/brief-quotidien.md.
+Lis ~/routines/README.md, ~/routines/contexte.md et ~/routines/donnees.md,
+puis exécute ~/routines/brief-quotidien.md.
 ```
 
 Remplacer le dernier fichier selon la routine voulue. Rien d'autre à écrire
@@ -34,13 +34,7 @@ Le script de démarrage (`lib/setup.sh`) résout ça : il télécharge le pack d
 le dépôt public dans `~/routines`. La routine lit donc de vrais fichiers, avec
 les outils habituels, sans avoir à deviner une URL.
 
-Le prompt référence ce chemin :
-
-```
-Tu es l'assistant d'organisation de Massaki (Kojima Solutions).
-Lis ~/routines/README.md, ~/routines/contexte.md et ~/routines/donnees.md,
-puis exécute ~/routines/brief-quotidien.md.
-```
+C'est le chemin qu'utilise le prompt ci-dessus.
 
 Si le dépôt *est* monté, `setup.sh` le détecte et ne télécharge rien : le pack
 du dépôt fait foi, et la routine lit `routines/` depuis la racine du dépôt.
