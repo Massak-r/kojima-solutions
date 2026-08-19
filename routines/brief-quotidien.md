@@ -118,6 +118,15 @@ Règles de coupe, dans l'ordre où on les applique :
 
 ## Étape 4 — livrer
 
+**Le canal, c'est Kojima — pas l'outil de push de la plateforme.**
+Un agent planifié dispose d'un outil `PushNotification` qui envoie vers
+l'application Claude. Ne pas s'en servir : Massaki ne l'a pas installée, l'outil
+répond « Mobile push requested » sans confirmer quoi que ce soit, et le message
+n'arrive nulle part — un envoi qui se croit réussi est pire qu'un envoi absent.
+Le canal qui marche est le push de Kojima : il arrive sur le téléphone, il est
+tracé dans `push_log`, et il ouvre `/jour` d'un tap. Vérifié le 19.08.2026, les
+deux côte à côte : l'un reçu, l'autre jamais.
+
 Pousser **une seule ligne** sur le téléphone :
 
 ```sh

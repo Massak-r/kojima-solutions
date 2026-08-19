@@ -118,8 +118,13 @@ Une routine produit du texte dans sa propre session. Personne ne va le lire
 spontanément. Pour que ça atterrisse quelque part :
 
 - **Sur le téléphone** — `POST /api/push_reminders.php` avec un titre ≤ 255
-  caractères. Le cron le pousse à l'heure ronde suivante (observé : envois à
-  08:00 et 12:00, quelques secondes après l'heure). Une ligne, la plus utile.
+  caractères. Le cron le pousse à l'heure ronde suivante, à la seconde près
+  (rappel de 13:00 parti à 13:00:14, pulse de 08:00 à 08:00:11). Une ligne, la
+  plus utile.
+  **Ne jamais utiliser l'outil `PushNotification` de la plateforme** : il vise
+  l'application Claude, que Massaki n'a pas, et il répond « Mobile push
+  requested » sans confirmer la réception. Les deux ont été comparés le
+  19.08.2026 : celui de Kojima est arrivé, l'autre non.
 - **Dans l'app** — `POST /api/weekly_recap.php` (hebdo uniquement) s'affiche en
   haut du brief du lundi. Voir `recap-hebdo.md`.
 - Il n'existe pas encore de surface *quotidienne* dans l'app pour un brief
