@@ -101,7 +101,17 @@ function mapProject(array $row): array {
  * (client portal + public print pages). Keys are kept (values blanked) so the
  * client-facing frontend shape stays intact and nothing reads `undefined`.
  */
-function stripProjectForClient(array $project): array {
+function stripProjectForClient(array $project, ?string $sessionClientId = null): array {
+    // Le jeton de partage n'est pas une donnée du projet : c'est la clé qui
+    // ouvre sa page. Le laisser dans une liste lisible sans authentification
+    // revient à publier le mot de passe à côté de la porte — n'importe qui
+    // pouvait construire /project/s/<token> et entrer. Seul le client
+    // propriétaire, connecté, le voit : c'est lui qui le transmet ensuite à ses
+    // parties prenantes (StakeholderShareCard).
+    $ownsIt = $sessionClientId !== null
+        && ($project['clientId'] ?? null) === $sessionClientId;
+    if (!$ownsIt) $project['shareToken'] = null;
+
     $project['notes']         = '';
     $project['initialQuote']  = '';
     $project['revisedQuote']  = '';
@@ -301,6 +311,9 @@ if ($method === 'GET') {
     // false, financials blanked — so a briefing agent could never see its own
     // sprint.
     $isAdmin = validateAdminSession() !== null || hasApiKey();
+    // Résolu une fois pour toute la requête : la liste peut contenir plusieurs
+    // projets et on ne va pas revalider la session à chaque ligne.
+    $sessionClientId = $isAdmin ? null : (validateClientSession()['clientId'] ?? null);
     // Auto-archivage du sprint : une tâche projet complétée un jour précédent
     // n'a plus rien à faire dans le sprint du jour — on la déflague (miroir de
     // runDailyRefresh dans todo_subtasks.php). Idempotent, gardé par date.
@@ -314,7 +327,7 @@ if ($method === 'GET') {
         if (!$project) fail('Project not found', 404);
         if (!$isAdmin) {
             if (($project['kind'] ?? 'client') !== 'client') fail('Project not found', 404);
-            $project = stripProjectForClient($project);
+            $project = stripProjectForClient($project, $sessionClientId);
         }
         ok($project);
     } else {
@@ -324,7 +337,7 @@ if ($method === 'GET') {
         $projects = [];
         foreach ($rows as $row) {
             $p = loadFullProject($pdo, $row['id']);
-            if ($p) $projects[] = $isAdmin ? $p : stripProjectForClient($p);
+            if ($p) $projects[] = $isAdmin ? $p : stripProjectForClient($p, $sessionClientId);
         }
         ok($projects);
     }
