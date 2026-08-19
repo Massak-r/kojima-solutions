@@ -137,6 +137,14 @@ Le titre est le brief compressé à ce qui déclenche une action :
 `url` pointe sur `/jour`, l'atterrissage mobile. Le brief long reste dans la
 session de la routine.
 
+**Ne jamais viser une heure entre 21h et 8h.** Les rappels programmés ignorent
+délibérément les heures silencieuses — c'est voulu pour un rappel qu'on s'est
+posé soi-même, mais un brief du matin qui arrive à 21h00 est au mieux inutile,
+au pire il réveille. Si la prochaine heure ronde tombe dans cette plage, viser
+**8h00 le lendemain** : un brief se lit au début d'une journée, pas à la fin
+d'une autre. Et si la routine tourne le soir, c'est probablement son horaire qui
+est à corriger, pas le brief.
+
 **Ne pas pousser** si : le sprint est vide *et* rien n'est à risque *et*
 l'inbox est vide. Il n'y a alors rien à dire, et une notification vide est ce
 qui apprend à ignorer les suivantes.
