@@ -96,7 +96,12 @@ if ($method === 'GET') {
     } else {
         // The unscoped list (every client's quotes) is admin-only. Client-facing
         // pages read scoped via ?id= or ?project_id=, which stay public.
-        if (validateAdminSession() === null) fail('Unauthorized', 401);
+        // requireAdminSession() rather than a bare session check: the session
+        // cookie is one way in, the API key is the other. Refusing the key
+        // locked out the MCP server and the scheduled routines — i.e. every
+        // caller that reads the quote list on the operator's behalf — while
+        // leaving anonymous callers exactly as rejected as before.
+        requireAdminSession();
         $rows = $pdo->query('SELECT * FROM quotes ORDER BY created_at DESC')->fetchAll();
         ok(array_map('mapQuote', $rows));
     }

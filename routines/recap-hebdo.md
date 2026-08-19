@@ -31,6 +31,13 @@ Se relire après coup : `GET weekly_recap.php?year=<Y>&week=<W>` doit répondre
 `exists: true`. Si ce n'est pas le cas, le récap n'existe pas, quoi qu'ait
 renvoyé le POST.
 
+Depuis le 19.08.2026 le serveur amortit l'erreur : quand aucun récap n'existe
+pour la semaine courante, la lecture `?week=current` accepte le récap le plus
+récent publié dans les 4 derniers jours. Un décalage d'une semaine ne fait donc
+plus disparaître le travail. Ce n'est pas une raison pour se tromper de clé :
+la lecture explicite `?year=&week=`, elle, reste stricte, et c'est par elle
+qu'on vérifie.
+
 ## Étape 1 — lire
 
 ```sh
@@ -45,8 +52,8 @@ GET payables.php?status=pending
 GET inbox.php?status=pending&limit=100
 ```
 
-Pour l'argent, le détour par projet de `point-argent.md` si le récap doit
-chiffrer quelque chose. Sinon, s'en passer : un récap n'a pas à tout couvrir.
+Ajouter `GET quotes.php` et `GET clients.php` si le récap doit chiffrer
+quelque chose. Sinon s'en passer : un récap n'a pas à tout couvrir.
 
 Rappel : lire les sous-tâches déclenche le ménage quotidien, donc « ce qui a
 été terminé cette semaine » ne se lit pas dans le sprint. Il se lit dans

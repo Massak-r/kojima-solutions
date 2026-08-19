@@ -15,22 +15,14 @@ aucune.
 
 ## Étape 1 — lire
 
-La liste globale des devis est fermée à la clé API (401). Le chemin qui marche
-passe par les projets :
-
 ```sh
-GET projects.php                      # récupérer les id
-GET quotes.php?project_id=<id>        # un appel par projet
+GET quotes.php                        # devis ET factures, même table
 GET clients.php
+GET projects.php                      # rattachement des documents
 GET payables.php                      # toutes, on filtrera par statut
 GET accounts.php
 GET personal_costs.php                # charges fixes, pour le contexte du mois
 ```
-
-**Angle mort à annoncer** : les devis et factures non rattachés à un projet
-n'apparaissent pas par ce chemin. Si le total présenté peut être incomplet, la
-dernière ligne du point le dit. Un chiffre présenté comme exhaustif alors qu'il
-ne l'est pas est pire qu'un chiffre annoncé partiel.
 
 Ignorer partout les documents `isTemplate: true`.
 
@@ -93,8 +85,6 @@ qui est à mettre de côté (TVA + provision d'impôt).
 Dont à mettre de côté : TVA collectée + provision d'impôt, non calculées ici.
 
 **Clients refroidis** — 2 : Kaleido (74 j), Unitec (91 j)
-
-_Devis non rattachés à un projet non couverts par ce point._
 ```
 
 Règles de coupe : trois lignes maximum par liste, la plus ancienne d'abord.
@@ -127,8 +117,9 @@ Une ligne poussée, seulement si « en jeu » dépasse zéro ou si une facture e
 
 ## Si ça casse
 
-- `projects.php` indisponible : pas de devis lisibles du tout. Écrire
-  `Point argent impossible : les devis ne sont pas accessibles.` et livrer
-  quand même la partie payables et comptes, qui, elle, fonctionne.
-- Un `quotes.php?project_id=` échoue : exclure ce projet et le nommer en fin de
-  point.
+- `quotes.php` indisponible : aucune des quatre listes n'est calculable. Écrire
+  `Point argent impossible : les devis ne sont pas accessibles (<code>).` et
+  livrer quand même les payables et les soldes, qui ne dépendent pas de lui.
+- `clients.php` indisponible : les trois premières listes restent valables,
+  seule celle des clients refroidis saute. Le dire, ne pas la remplacer par une
+  approximation tirée des devis.

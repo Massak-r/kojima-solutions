@@ -93,6 +93,24 @@ function requireAuth(): void {
 }
 
 /**
+ * True when the caller presents the shared API key.
+ *
+ * Same check as requireAuth(), but it answers a question instead of ending the
+ * request — endpoints that serve a reduced view to anonymous callers need to
+ * *ask* whether the caller is trusted, not to bail out. Without it the MCP
+ * server and the scheduled routines, which have no session cookie, silently
+ * received the client-facing view of their own data.
+ *
+ * Deliberately false when API_SECRET is unset: an unconfigured install grants
+ * no elevated view.
+ */
+function hasApiKey(): bool {
+    if (!defined('API_SECRET') || API_SECRET === '') return false;
+    $key = $_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? '';
+    return is_string($key) && hash_equals(API_SECRET, $key);
+}
+
+/**
  * Require API key only for write operations (POST/PUT/DELETE).
  * GET requests pass through for public read access.
  */

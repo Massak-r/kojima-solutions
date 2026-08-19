@@ -295,7 +295,12 @@ $id     = $_GET['id'] ?? null;
 // hour tracking, private notes) stripped. The admin app — authed by the
 // HttpOnly session cookie — gets every project, fully.
 if ($method === 'GET') {
-    $isAdmin = validateAdminSession() !== null;
+    // Two ways to be the operator: the HttpOnly session cookie (the SPA) or the
+    // shared API key (MCP server, scheduled routines). Checking only the cookie
+    // handed the key-authed callers the client view — flaggedToday forced to
+    // false, financials blanked — so a briefing agent could never see its own
+    // sprint.
+    $isAdmin = validateAdminSession() !== null || hasApiKey();
     // Auto-archivage du sprint : une tâche projet complétée un jour précédent
     // n'a plus rien à faire dans le sprint du jour — on la déflague (miroir de
     // runDailyRefresh dans todo_subtasks.php). Idempotent, gardé par date.

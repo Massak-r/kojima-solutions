@@ -18,13 +18,14 @@ pousser sur le téléphone. Un brief muet est lisible ; un brief inventé, non.
 
 ## Étape 1 — lire
 
-Six appels, tous en lecture, parallélisables :
+Sept appels, tous en lecture, parallélisables :
 
 ```sh
 GET admin_todos.php
 GET personal_todos.php
 GET todo_subtasks.php?source=admin
 GET todo_subtasks.php?source=personal
+GET projects.php                 # pour les tâches projet flaggées
 GET admin_deadlines.php
 GET inbox.php?status=pending&limit=100
 ```
@@ -32,20 +33,26 @@ GET inbox.php?status=pending&limit=100
 Deux appels de plus, seulement s'ils servent une section qu'on gardera :
 
 ```sh
-GET payables.php?status=pending          # sorties d'argent proches
+GET payables.php?status=pending                 # sorties d'argent proches
 GET objective_sessions.php?summary=week&all=1   # tendance de la semaine
 ```
 
-Ne pas appeler `projects.php` ni `quotes.php` pour le brief du matin : la vue
-disponible avec la clé API est amputée (voir `donnees.md`) et le détour coûte
-plus qu'il ne rapporte. L'argent, c'est `point-argent.md`.
+Ne pas appeler `quotes.php` pour le brief du matin : l'argent bouge trop
+lentement pour un point quotidien, et c'est le sujet de `point-argent.md`.
 
 ## Étape 2 — calculer
 
-**Le sprint du jour** = les sous-tâches où `flaggedToday === true` et
-`completed === false`, admin et perso confondus, réparties en `must` puis
-`nice`. Rattacher chaque item à son objectif via `parentId` : une tâche sans son
-contexte ne veut rien dire.
+**Le sprint du jour** est **transversal** : il additionne deux sources, et un
+brief qui n'en lit qu'une raconte une demi-journée.
+
+- les sous-tâches d'objectifs (`todo_subtasks.php`) où `flaggedToday === true`
+  et `completed === false`, admin et perso confondus ;
+- les tâches de projet (`projects.php` → `tasks[]`) où `flaggedToday === true`
+  et `status !== "completed"`.
+
+Les deux portent `sprintTier` (`must` / `nice`) et comptent dans le même
+plafond de 5. Rattacher chaque item à son porteur — l'objectif via `parentId`,
+le projet via son titre : une tâche sans son contexte ne veut rien dire.
 
 **L'état du sprint**, à qualifier tout de suite :
 

@@ -91,11 +91,12 @@ the organizing role: who the user is, the priority model, the tone, the data
 map, and one file per routine (daily brief, money, admin deadlines, weekly
 recap). A routine's prompt is two lines pointing at those files.
 
-Start at `routines/README.md`. Key constraint documented there: a remote
-routine authenticates with `X-API-Key` only, which locks it out of the three
-cookie-session endpoints (`quotes.php` unscoped, admin view of `projects.php`)
-and out of `leads.php` (fatal in prod). The workarounds are in
-`routines/donnees.md`.
+Start at `routines/README.md`. A remote routine authenticates with `X-API-Key`
+only — never a session cookie. Endpoints must therefore gate on
+`requireAdminSession()` (cookie **or** key) and branch on `hasApiKey()`, never
+on `validateAdminSession()` alone: doing so served the routines the *client*
+view of their own data, silently. `routines/donnees.md` documents the symptom
+so the next occurrence is recognised rather than rediscovered.
 
 Manual test (bypasses gates, uses temp marker dir):
 ```sh

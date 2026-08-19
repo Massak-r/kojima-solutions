@@ -5,9 +5,16 @@ requireAdminSession();
 // Sales pipeline — leads/prospects before they become clients. The top of the
 // funnel the rest of the app (clients → projects → quotes → invoices) lacks.
 // Auto-migrate on first hit. Idempotent.
+//
+// `lead` is backticked everywhere: unquoted it is a reserved word on MySQL 8,
+// so the CREATE failed, the failure was swallowed by the catch below, and every
+// subsequent query died on a missing table — surfacing as an uncaught PHP fatal
+// (HTML, HTTP 200) that no JSON client could read. Hence also $leadTableError:
+// a migration that fails silently costs more than one that says so.
+$leadTableError = null;
 try {
     $pdo->exec("
-        CREATE TABLE IF NOT EXISTS lead (
+        CREATE TABLE IF NOT EXISTS `lead` (
             id              VARCHAR(36) PRIMARY KEY,
             name            VARCHAR(255) NOT NULL,
             company         VARCHAR(255) NULL,
@@ -24,7 +31,7 @@ try {
             INDEX idx_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
-} catch (Throwable $e) {}
+} catch (Throwable $e) { $leadTableError = $e->getMessage(); }
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = $_GET['id'] ?? null;
@@ -50,7 +57,13 @@ function mapLead(array $r): array {
 }
 
 if ($method === 'GET') {
-    $rows = $pdo->query("SELECT * FROM lead ORDER BY updated_at DESC")->fetchAll();
+    try {
+        $rows = $pdo->query("SELECT * FROM `lead` ORDER BY updated_at DESC")->fetchAll();
+    } catch (Throwable $e) {
+        // Admin-gated endpoint, so the real cause is safe to return — and it is
+        // the only way to tell "no leads yet" apart from "the table is missing".
+        fail('Table lead indisponible : ' . ($leadTableError ?: $e->getMessage()), 503);
+    }
     ok(array_map('mapLead', $rows));
 }
 
@@ -61,7 +74,7 @@ if ($method === 'POST') {
     $status = in_array($b['status'] ?? 'new', LEAD_STATUSES, true) ? $b['status'] : 'new';
     $newId  = uuid();
     $pdo->prepare(
-        "INSERT INTO lead (id, name, company, email, phone, source, status, value, notes, next_follow_up)
+        "INSERT INTO `lead` (id, name, company, email, phone, source, status, value, notes, next_follow_up)
          VALUES (?,?,?,?,?,?,?,?,?,?)"
     )->execute([
         $newId, $name,
@@ -74,7 +87,7 @@ if ($method === 'POST') {
         trim((string)($b['notes'] ?? '')) ?: null,
         ($b['nextFollowUp'] ?? null) ?: null,
     ]);
-    $row = $pdo->prepare("SELECT * FROM lead WHERE id=?");
+    $row = $pdo->prepare("SELECT * FROM `lead` WHERE id=?");
     $row->execute([$newId]);
     ok(mapLead($row->fetch()));
 }
@@ -102,15 +115,15 @@ if ($method === 'PUT' && $id) {
     if (empty($fields)) fail('Nothing to update');
     $fields[] = 'updated_at = NOW()';
     $params[] = $id;
-    $pdo->prepare("UPDATE lead SET " . implode(', ', $fields) . " WHERE id=?")->execute($params);
-    $row = $pdo->prepare("SELECT * FROM lead WHERE id=?");
+    $pdo->prepare("UPDATE `lead` SET " . implode(', ', $fields) . " WHERE id=?")->execute($params);
+    $row = $pdo->prepare("SELECT * FROM `lead` WHERE id=?");
     $row->execute([$id]);
     ok(mapLead($row->fetch()));
 }
 
 if ($method === 'DELETE' && $id) {
     if (!preg_match('/^[0-9a-f-]{36}$/i', $id)) fail('Invalid id');
-    $pdo->prepare("DELETE FROM lead WHERE id=?")->execute([$id]);
+    $pdo->prepare("DELETE FROM `lead` WHERE id=?")->execute([$id]);
     ok();
 }
 

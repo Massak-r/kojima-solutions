@@ -46,24 +46,31 @@ Pas de clé, pas de brief : on s'arrête et on le dit. Voir règle 3 du README.
 | `push_reminders.php?status=upcoming` | Rappels poussés programmés, pas encore partis. |
 | `project_profitability.php?project_id=<id>` | Rentabilité d'un projet. |
 | `renewals.php` | Renouvellements (vide aujourd'hui). |
-| `quotes.php?project_id=<id>` | Devis et factures **d'un projet**. |
-| `quotes.php?id=<id>` | Un devis précis. |
+| `quotes.php` | **Tous** les devis et factures. `?project_id=<id>` pour un projet, `?id=<id>` pour un document. |
+| `projects.php` | Projets avec leurs `tasks[]`, `phases[]`, `feedbacks[]`. Vue complète : tous les `kind` (`client`, `internal`, `personal`), `flaggedToday` réel, montants réels. |
+| `leads.php` | Pipeline commercial. `nextFollowUp` porte la date de relance. |
 | `push_health.php` | État du pipeline de push : abonnements, derniers envois. |
 
-## Ce qui ne répond PAS à la clé API, et le contournement
+## Comment reconnaître un endpoint qui se ferme à la clé API
 
-Trois endpoints exigent un cookie de session admin, que seule la SPA possède —
-une routine ne peut pas en obtenir un. Constaté en prod, pas supposé :
+Le 19.08.2026, trois endpoints refusaient la clé et servaient une réponse
+amputée ou une erreur. Corrigé le jour même, vérifié en prod : `quotes.php`
+renvoyait 401 sur la liste complète, `projects.php` servait la vue client
+(`flaggedToday` forcé à `false`, montants vidés, projets non-`client` masqués),
+`leads.php` mourait sur une table absente. Les trois répondent correctement
+aujourd'hui.
 
-| Endpoint | Symptôme | Contournement |
-|---|---|---|
-| `quotes.php` (liste non scopée) | **HTTP 401** | Lister `projects.php`, puis un `quotes.php?project_id=<id>` par projet. Les devis sans projet restent invisibles : le dire dans le brief plutôt que de laisser croire à un total complet. |
-| `projects.php` | Répond 200 mais en **vue client** : `flaggedToday` forcé à `false` sur toutes les tâches, `notes` / `initialQuote` / `revisedQuote` / `invoiceNumber` vidés, projets non-`client` masqués. | Aucun. Une routine ne voit pas les **tâches projet flaggées** : elle raisonne sur les sous-tâches d'objectifs, et signale l'angle mort si le contexte l'exige. |
-| `leads.php` | **Erreur fatale PHP** en prod (table absente). | Aucun. Ne pas appeler : la réponse est du HTML d'erreur qui pollue tout parsing. |
+Le motif reste utile parce qu'il peut réapparaître sur un nouvel endpoint :
+côté serveur, `validateAdminSession()` ne reconnaît **que** le cookie de la
+SPA. Un endpoint qui l'appelle seul ferme la porte à la clé API — donc à la
+MCP et aux routines. Le bon appel est `requireAdminSession()` (cookie **ou**
+clé) pour bloquer, `hasApiKey()` pour distinguer une vue complète d'une vue
+publique sans interrompre la requête.
 
-Ce sont des limitations serveur, pas des règles produit. Si elles sont
-corrigées, **c'est ce tableau qu'il faut mettre à jour en premier**, sinon les
-routines continueront à s'auto-censurer sans raison.
+Symptômes à reconnaître : un `401`/`403` inattendu, ou pire, un `200` dont les
+champs sensibles sont vides et dont la liste est plus courte que prévu. Dans le
+doute, comparer avec ce que montre l'app à l'écran. **Et mettre ce fichier à
+jour** : une routine qui lit une carte périmée s'auto-censure sans raison.
 
 ## Effets de bord des lectures
 

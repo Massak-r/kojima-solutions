@@ -32,7 +32,8 @@ if ($method === 'GET') {
     // GET ?year=Y&week=W →  specific
     requireAdminSession();
     [$y, $w] = isoYearWeek();
-    if (isset($_GET['year']) && isset($_GET['week'])) {
+    $explicit = isset($_GET['year']) && isset($_GET['week']);
+    if ($explicit) {
         $y = (int)$_GET['year'];
         $w = (int)$_GET['week'];
     }
@@ -44,6 +45,25 @@ if ($method === 'GET') {
     ");
     $stmt->execute([$y, $w]);
     $row = $stmt->fetch();
+
+    // The recap is written on Sunday and read on Monday — two different ISO
+    // weeks, since ISO weeks end on Sunday. An agent that keys it by its own
+    // week publishes into a slot nobody ever opens, and the Monday brief looks
+    // empty while the row sits in the table. Rather than depend on the agent
+    // getting the off-by-one right, accept any recap generated in the last four
+    // days when reading "current". An explicit ?year=&week= keeps exact
+    // semantics — that path is how one verifies what was actually stored.
+    if (!$row && !$explicit) {
+        $recent = $pdo->query("
+            SELECT id, iso_year, iso_week, content_md, generated_at, dismissed_at
+            FROM weekly_recap
+            WHERE generated_at >= DATE_SUB(NOW(), INTERVAL 4 DAY)
+            ORDER BY generated_at DESC
+            LIMIT 1
+        ");
+        $row = $recent->fetch();
+    }
+
     if (!$row) {
         ok(['exists' => false, 'iso_year' => $y, 'iso_week' => $w]);
     }

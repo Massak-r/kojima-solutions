@@ -24,6 +24,31 @@ Remplacer le dernier fichier selon la routine voulue. Rien d'autre à écrire
 dans le prompt : si une consigne mérite d'être répétée à chaque exécution,
 c'est qu'elle a sa place dans un fichier de ce dossier, pas dans le prompt.
 
+### Si la routine n'a pas le dépôt sous la main
+
+Une routine cloud tourne normalement avec le dépôt cloné, et lit donc
+`routines/*.md` directement. Quand ce n'est pas le cas — environnement sans
+dépôt, exécution isolée — les mêmes fichiers sont lisibles en HTTP, le dépôt
+étant public :
+
+```
+https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/<fichier>.md
+```
+
+Le prompt devient alors :
+
+```
+Tu es l'assistant d'organisation de Massaki (Kojima Solutions).
+Lis, dans cet ordre, README.md, contexte.md, donnees.md puis
+brief-quotidien.md depuis
+https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/
+et exécute la routine décrite dans le dernier.
+```
+
+Ces fichiers ne contiennent aucun secret — c'est une contrainte de conception,
+pas un hasard, et elle doit le rester : les clés arrivent par l'environnement
+de la routine, jamais par le dépôt.
+
 ## Ce qu'il faut fournir à la routine
 
 Une seule variable d'environnement, à poser en secret dans la config de la
