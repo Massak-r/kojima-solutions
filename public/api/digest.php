@@ -119,11 +119,28 @@ try {
     // d'échéance égale : c'est assez strict pour ne pas fusionner deux
     // obligations distinctes, assez souple pour reconnaître « OCAS - cotisations
     // sociales 2025 » et « OCAS - cotisations sociales 2025 (1 146 CHF) ».
+    // Les nombres sautent aussi : les deux sources ne portent pas le même
+    // millésime pour la même obligation — « cotisations sociales 2024 » côté
+    // trésorerie, « cotisations sociales 2025 » côté échéances. Comparer avec
+    // les chiffres faisait échouer le rapprochement, et l'OCAS sonnait quatre
+    // fois. À date d'échéance égale, le libellé sans chiffres est un critère
+    // suffisant : au pire on garde la version trésorerie, celle qui porte le
+    // montant.
+    // Le retrait des nombres se fait par tokens, pas par regex : un
+    // \p{N}+ dépend du support UTF du PCRE installé, et quand
+    // preg_replace échoue il renvoie null — tous les libellés deviennent
+    // vides, plus rien ne se rapproche, et l'échec est parfaitement muet.
+    // Découper sur l'espace ne dépend de rien.
     $norm = function (string $s): string {
         $s = mb_strtolower($s);
-        $s = preg_replace('/\([^)]*\)/u', ' ', $s);
-        $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s);
-        return trim(preg_replace('/\s+/u', ' ', $s));
+        $s = preg_replace('/\([^)]*\)/u', ' ', $s) ?? $s;
+        $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s) ?? $s;
+        $words = [];
+        foreach (explode(' ', $s) as $w) {
+            if ($w === '' || ctype_digit($w)) continue;
+            $words[] = $w;
+        }
+        return implode(' ', $words);
     };
     $payableByDue = [];   // 'YYYY-MM-DD' => [libellés normalisés]
 
