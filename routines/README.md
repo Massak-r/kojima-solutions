@@ -34,10 +34,17 @@ Pour une autre routine, remplacer `brief-quotidien.md` aux deux endroits.
 Rien d'autre à écrire dans le prompt : une consigne qui mérite d'être répétée à
 chaque exécution a sa place dans un fichier du pack, pas dans le prompt.
 
-**Ni dépôt attaché ni connecteur Google Drive ne sont nécessaires.** Un agent
-qui ne trouve pas ses fichiers a tendance à réclamer l'un ou l'autre — c'est une
-fausse piste : le dépôt est public, `curl` suffit. Attacher le dépôt reste plus
-propre si la plateforme le permet, et `lib/setup.sh` le détecte alors tout seul.
+**Ni dépôt attaché, ni connecteur Google Drive, ni script de configuration ne
+sont nécessaires.** Un agent qui ne trouve pas ses fichiers réclame spontanément
+l'un des deux premiers : c'est une fausse piste, le dépôt est public et `curl`
+suffit.
+
+Quant au champ « script de configuration » de l'environnement : **le laisser
+vide**. Deux tentatives, deux échecs — il s'exécute avant que le dépôt existe
+(exit 127), puis il découpe la commande et `curl` part sans URL (exit 2). Et un
+champ qui échoue bloque la session entière, donc le garde-fou empêchait le
+travail qu'il devait protéger. `lib/setup.sh` reste utile en diagnostic manuel,
+et pour le jour où un dépôt sera monté.
 
 Ces fichiers ne contiennent aucun secret — c'est une contrainte de conception,
 pas un hasard, et elle doit le rester : les clés arrivent par l'environnement

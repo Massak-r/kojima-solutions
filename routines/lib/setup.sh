@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Script de démarrage de l'environnement cloud des routines Kojima.
 #
-# À coller dans le champ « script de configuration » de l'environnement. Le
-# dépôt n'est pas forcément monté, ni monté là où on croit, au moment où ce
-# champ s'exécute — d'où la forme qui marche dans les deux cas :
+# ⚠️ NE PAS mettre ce script dans le champ « script de configuration » d'un
+# environnement cloud. Essayé le 19.08.2026, deux échecs de suite : le champ
+# s'exécute avant que le dépôt soit là (exit 127), puis il découpe la commande
+# et curl part sans son URL (exit 2). Un champ qui casse bloque la session
+# entière — le remède coûtait plus cher que le mal. Laisser ce champ VIDE : le
+# prompt de la routine récupère le pack lui-même (voir README.md).
 #
-#   if [ -f routines/lib/setup.sh ]; then bash routines/lib/setup.sh; else curl -fsSL https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/lib/setup.sh | bash; fi
+# Ce script sert donc au diagnostic manuel, et au cas où un dépôt est monté :
+#
+#   bash routines/lib/setup.sh
 #
 # Son seul travail : échouer bruyamment maintenant plutôt que discrètement dans
 # vingt minutes. Une routine qui démarre avec une clé absente produit un brief
