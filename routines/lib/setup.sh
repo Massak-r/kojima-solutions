@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # Script de démarrage de l'environnement cloud des routines Kojima.
 #
-# À coller tel quel dans le champ « script de configuration » de l'environnement :
-#     bash routines/lib/setup.sh
+# À coller dans le champ « script de configuration » de l'environnement. Le
+# dépôt n'est pas forcément monté, ni monté là où on croit, au moment où ce
+# champ s'exécute — d'où la forme qui marche dans les deux cas :
+#
+#   if [ -f routines/lib/setup.sh ]; then bash routines/lib/setup.sh; else curl -fsSL https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/lib/setup.sh | bash; fi
 #
 # Son seul travail : échouer bruyamment maintenant plutôt que discrètement dans
 # vingt minutes. Une routine qui démarre avec une clé absente produit un brief
 # vide et personne ne sait pourquoi.
+#
+# Ce qui bloque la session, en revanche, se limite à ce que seul l'humain peut
+# corriger : une variable manquante. Une API qui tousse à cet instant précis
+# n'est pas une raison d'interdire la session — la routine a son propre
+# préflight, et bloquer sur un aléa réseau rendrait l'environnement instable
+# pour une raison qui n'a rien à voir avec sa configuration.
 
 set -u
 
 echo "── Environnement routines Kojima ──"
+echo "· répertoire de travail : $(pwd)"
 
 fail=0
 
@@ -52,19 +62,25 @@ if [ -n "${KOJIMA_API_KEY:-}" ]; then
     -H "X-API-Key: ${KOJIMA_API_KEY}" "${base%/}/api/accounts.php" || echo "000")"
   if [ "$code" = "200" ]; then
     echo "✓ API joignable et clé acceptée (HTTP 200)"
-  else
-    echo "✗ l'API a répondu HTTP $code sur accounts.php"
+  elif [ "$code" = "403" ] || [ "$code" = "401" ]; then
+    echo "✗ l'API refuse la clé (HTTP $code) — KOJIMA_API_KEY ne correspond plus à API_SECRET."
     fail=1
+  else
+    echo "! l'API a répondu HTTP $code sur accounts.php — réseau ou serveur."
+    echo "  La session démarre quand même : la routine revérifiera avant de briefer."
   fi
 fi
 
 # 6. Le pack lui-même. Présent si le dépôt est cloné ; sinon la routine le lira
 #    en HTTP (voir README.md), ce n'est pas bloquant.
 if [ -d routines ]; then
-  echo "✓ pack routines/ présent dans le dépôt"
+  echo "✓ pack routines/ présent dans le dépôt ($(pwd)/routines)"
+elif [ -d "$HOME/kojima-solutions/routines" ]; then
+  echo "✓ pack routines/ trouvé dans $HOME/kojima-solutions"
 else
   echo "· pack routines/ absent du disque — la routine devra le lire via"
   echo "  https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/"
+  echo "  (le prompt de secours est dans le README du pack)"
 fi
 
 echo "───────────────────────────────────"
