@@ -24,30 +24,37 @@ Remplacer le dernier fichier selon la routine voulue. Rien d'autre à écrire
 dans le prompt : si une consigne mérite d'être répétée à chaque exécution,
 c'est qu'elle a sa place dans un fichier de ce dossier, pas dans le prompt.
 
-### Si la routine n'a pas le dépôt sous la main
+### Où la routine trouve ces fichiers
 
-Une routine cloud tourne normalement avec le dépôt cloné, et lit donc
-`routines/*.md` directement. Quand ce n'est pas le cas — environnement sans
-dépôt, exécution isolée — les mêmes fichiers sont lisibles en HTTP, le dépôt
-étant public :
+Un environnement cloud n'a **pas** de dépôt attaché : constaté le 19.08.2026,
+`/home/user` vide, aucun clone nulle part sur le système. Le conteneur tourne
+chez Anthropic et n'a évidemment aucun accès à la machine de Massaki.
 
-```
-https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/<fichier>.md
-```
+Le script de démarrage (`lib/setup.sh`) résout ça : il télécharge le pack depuis
+le dépôt public dans `~/routines`. La routine lit donc de vrais fichiers, avec
+les outils habituels, sans avoir à deviner une URL.
 
-Le prompt devient alors :
+Le prompt référence ce chemin :
 
 ```
 Tu es l'assistant d'organisation de Massaki (Kojima Solutions).
-Lis, dans cet ordre, README.md, contexte.md, donnees.md puis
-brief-quotidien.md depuis
-https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/
-et exécute la routine décrite dans le dernier.
+Lis ~/routines/README.md, ~/routines/contexte.md et ~/routines/donnees.md,
+puis exécute ~/routines/brief-quotidien.md.
 ```
+
+Si le dépôt *est* monté, `setup.sh` le détecte et ne télécharge rien : le pack
+du dépôt fait foi, et la routine lit `routines/` depuis la racine du dépôt.
+Le script annonce le chemin retenu à chaque démarrage.
+
+En dernier recours, les fichiers restent lisibles en HTTP :
+`https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/<fichier>.md`
 
 Ces fichiers ne contiennent aucun secret — c'est une contrainte de conception,
 pas un hasard, et elle doit le rester : les clés arrivent par l'environnement
 de la routine, jamais par le dépôt.
+
+**Si tu ajoutes un fichier au pack**, ajoute-le à la liste `FILES` de
+`lib/setup.sh`, sinon il n'atterrira jamais dans le conteneur.
 
 ## Ce qu'il faut fournir à la routine
 

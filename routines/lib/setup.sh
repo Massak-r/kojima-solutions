@@ -71,17 +71,44 @@ if [ -n "${KOJIMA_API_KEY:-}" ]; then
   fi
 fi
 
-# 6. Le pack lui-même. Présent si le dépôt est cloné ; sinon la routine le lira
-#    en HTTP (voir README.md), ce n'est pas bloquant.
-if [ -d routines ]; then
-  echo "✓ pack routines/ présent dans le dépôt ($(pwd)/routines)"
-elif [ -d "$HOME/kojima-solutions/routines" ]; then
-  echo "✓ pack routines/ trouvé dans $HOME/kojima-solutions"
+# 6. Le pack lui-même.
+#
+# Un environnement cloud n'a pas forcément de dépôt attaché — constaté le
+# 2026-08-19 : /home/user vide, aucun clone nulle part. Compter dessus était une
+# erreur. On matérialise donc le pack ici, depuis le dépôt public, pour que la
+# routine trouve de vrais fichiers à lire au lieu d'avoir à deviner une URL.
+#
+# La liste est explicite plutôt que déduite d'une API : GitHub limite les appels
+# anonymes par IP, et une IP de conteneur est partagée. Ajouter un fichier au
+# pack veut donc dire l'ajouter ici — c'est le prix d'un démarrage qui ne dépend
+# de rien.
+RAW="https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines"
+FILES="README.md contexte.md donnees.md brief-quotidien.md point-argent.md echeances-admin.md recap-hebdo.md lib/kojima.sh"
+
+if [ -f routines/brief-quotidien.md ]; then
+  PACK_DIR="$(pwd)/routines"
+  echo "✓ pack déjà présent (dépôt monté) : $PACK_DIR"
 else
-  echo "· pack routines/ absent du disque — la routine devra le lire via"
-  echo "  https://raw.githubusercontent.com/Massak-r/kojima-solutions/main/routines/"
-  echo "  (le prompt de secours est dans le README du pack)"
+  PACK_DIR="${KOJIMA_PACK_DIR:-$HOME/routines}"
+  mkdir -p "$PACK_DIR/lib"
+  got=0
+  missing=""
+  for f in $FILES; do
+    if curl -fsSL -m 30 "$RAW/$f" -o "$PACK_DIR/$f"; then
+      got=$((got + 1))
+    else
+      missing="$missing $f"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    echo "! pack incomplet — manquant :$missing"
+    echo "  Vérifie que raw.githubusercontent.com est autorisé dans l'accès réseau."
+    fail=1
+  else
+    echo "✓ pack téléchargé ($got fichiers) : $PACK_DIR"
+  fi
 fi
+echo "  → les routines doivent lire le pack dans : $PACK_DIR"
 
 echo "───────────────────────────────────"
 [ "$fail" -eq 0 ] || { echo "Environnement incomplet : les routines ne pourront pas travailler."; exit 1; }
