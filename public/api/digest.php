@@ -102,8 +102,11 @@ try {
     $tz    = new DateTimeZone('Europe/Zurich');
     $now   = new DateTime('now', $tz);
     $utc   = function (DateTime $d): string { $c = clone $d; $c->setTimezone(new DateTimeZone('UTC')); return $c->format('Y-m-d H:i:s'); };
+    // 09:00 et non 08:00 : à la même heure que le pulse, une alerte dédiée arrive
+    // dans le même lot et se fait balayer avec lui. Une heure plus tard, elle est
+    // seule sur l'écran — c'est tout l'intérêt de l'avoir sortie du pulse.
     $slot  = function (string $date, int $minusDays) use ($tz): DateTime {
-        $d = new DateTime($date . ' 08:00:00', $tz);
+        $d = new DateTime($date . ' 09:00:00', $tz);
         if ($minusDays > 0) $d->modify('-' . $minusDays . ' days');
         return $d;
     };
