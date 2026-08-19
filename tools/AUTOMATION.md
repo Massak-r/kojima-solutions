@@ -80,6 +80,23 @@ Two independent gates today:
 Markers live at `~/.kojima/{daily|retro}-YYYY-MM-DD.done`. Removing a marker
 re-arms that gate for the day.
 
+The hook no longer spells the briefing out. It points at `routines/`, which the
+scheduled agents execute too, so the desk briefing and the cloud one can't
+drift apart.
+
+### C. The routine pack — `routines/`
+
+Everything a **scheduled agent** (cloud routine, no CLI, no MCP) needs to hold
+the organizing role: who the user is, the priority model, the tone, the data
+map, and one file per routine (daily brief, money, admin deadlines, weekly
+recap). A routine's prompt is two lines pointing at those files.
+
+Start at `routines/README.md`. Key constraint documented there: a remote
+routine authenticates with `X-API-Key` only, which locks it out of the three
+cookie-session endpoints (`quotes.php` unscoped, admin view of `projects.php`)
+and out of `leads.php` (fatal in prod). The workarounds are in
+`routines/donnees.md`.
+
 Manual test (bypasses gates, uses temp marker dir):
 ```sh
 KOJIMA_BRIEFING_FORCE=1 bash tools/scripts/morning-briefing.sh
@@ -173,9 +190,10 @@ Recurring work that needs to fire at a specific time even when you're away:
 Two implementation paths, both viable for solo use:
 
 **3a. Anthropic scheduled remote agents** (`/schedule` skill in Claude Code).
-Runs in Anthropic cloud. Cron expression. Limitation: cannot reach the local
-MCP — must `curl` the PHP API with `API_SECRET` embedded in the trigger
-config. Likely covered by Max quota; verify limits before relying on it.
+Runs in Anthropic cloud. Cron expression. Cannot reach the local MCP — it
+`curl`s the PHP API with the key passed as a routine secret, never committed.
+**The instruction side of this now exists**: see `routines/` above. What's left
+is registering the cron triggers themselves.
 
 **3b. Local cron + `claude --print`.** Windows Task Scheduler runs:
 ```sh
@@ -228,6 +246,16 @@ tools/
 .claude/
   settings.json               — registers the SessionStart hook (committed)
   settings.local.json         — personal overrides (gitignored if present)
+
+routines/                     — instruction pack for scheduled agents (Phase 1C)
+  README.md                   — wiring, secrets, golden rules
+  contexte.md                 — who/what/priority model/tone
+  donnees.md                  — endpoint map, field semantics, gotchas
+  brief-quotidien.md          — the daily briefing (also used by the hook)
+  point-argent.md             — relances + payables + balances
+  echeances-admin.md          — admin & fiscal deadlines
+  recap-hebdo.md              — Sunday recap → weekly_recap.php
+  lib/kojima.sh               — curl helper (key resolution, JSON guard)
 ```
 
 ---

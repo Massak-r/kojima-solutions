@@ -66,9 +66,12 @@ fi
 
 # ── Daily morning briefing ──────────────────────────────────────────
 if [[ "$DOW" -le 5 && "$HOUR" -ge 7 && ! -f "$DAILY_MARKER" ]]; then
-  DAILY=$'Bonjour. Voici ton brief du jour. Utilise les outils MCP kojima (list_objectives, get_week_stats, et les subtasks flaggées du jour via list_objectives + get_objective) pour me donner :\n  1) sur quoi me focaliser aujourd\'hui,\n  2) ce qui est à risque,\n  3) un fait surprenant si tu en vois un dans les stats,\n  4) la liste complète des subtasks flaggées pour aujourd\'hui, regroupées par objectif. Demande-moi ensuite si je veux ajouter, modifier ou retirer des tâches du sprint du jour.'
+  # Le brief n'est pas décrit ici : il vit dans routines/brief-quotidien.md, que
+  # les agents planifiés exécutent aussi. Un seul fichier, donc le brief du
+  # bureau et celui de la routine ne peuvent pas diverger.
+  DAILY=$'Bonjour. Lis routines/contexte.md puis applique routines/brief-quotidien.md, en MODE INTERACTIF : passe par les outils MCP kojima au lieu de curl, n\'envoie aucun push, et termine en me demandant si je veux ajouter, modifier ou retirer quelque chose du sprint du jour.'
   if [[ "$DOW" -eq 1 ]]; then
-    DAILY+=$'\n\nBONUS LUNDI : appelle aussi list_quotes, filtre celles en invoiceStatus "validated" avec validityDate dépassée. Groupe par client et propose une formulation de relance par client.'
+    DAILY+=$'\n\nBONUS LUNDI : enchaîne avec routines/point-argent.md, même mode interactif (pas de push, aucun envoi d\'email).'
   fi
   PARTS+=("$DAILY")
   touch "$DAILY_MARKER"
